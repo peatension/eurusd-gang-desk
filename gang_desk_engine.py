@@ -1,13 +1,23 @@
-
 """
-EUR/USD GANG AI DESK — v1 engine (GitHub Actions version)
-Fetches multi-timeframe candles, detects SMC structure heuristically,
-scores the setup, and sends a Telegram alert only at 8.0/10 or higher.
-Runs once per invocation — the schedule is handled by GitHub Actions.
+EUR/USD GANG AI DESK — v2 engine (GitHub Actions version)
+Fetches multi-timeframe candles, detects SMC structure, scores the setup,
+calculates SL/TP, prevents duplicate alerts, and sends a Telegram alert
+only at or above ALERT_THRESHOLD.
+
+Changes from v1:
+- Order Block and FVG checks now require price to be CURRENTLY inside the
+  zone (a real retest), not just "one exists somewhere in the last N bars".
+- Adds SL/TP1/TP2 calculation based on structure + fixed R multiples.
+- Weights rebalanced so a perfect setup scores a true 10/10.
+- Duplicate-alert prevention via a small state file (last alerted candle time).
+- Wider swing window (3/3) to reduce noise on M15.
+
+Runs once per invocation — scheduling is handled by GitHub Actions.
 """
 
 import requests
 import os
+import json
 from datetime import datetime
 
 # ---------------- CONFIG (read from GitHub secrets) ----------------
@@ -26,10 +36,16 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 8.0
+ALERT_THRESHOLD = 7.0  # was 8.0 against a max of ~8.5 in v1 — now max is a true 10
+STATE_FILE = "last_alert_state.json"
+
+RR_TP1 = 1.5
+RR_TP2 = 3.0
+SL_BUFFER_PIPS = 3  # extra room beyond the OB/swing, in pips (0.0001 per pip for EURUSD)
+
 
 # ---------------- DATA ----------------
-def fetch_candles(interval, count=120):
+def fetch_candles(interval, count=150):
     url = "https://api.twelvedata.com/time_series"
     params = {
         "symbol": SYMBOL,
@@ -40,7 +56,7 @@ def fetch_candles(interval, count=120):
     resp = requests.get(url, params=params, timeout=15)
     data = resp.json()
     if "values" not in data:
-        print(f"  ⚠️ fetch error ({interval}): {data.get('message', data)}")
+        print(f"  \u26a0\ufe0f fetch error ({interval}): {data.get('message', data)}")
         return None
     candles = list(reversed(data["values"]))
     for c in candles:
@@ -50,7 +66,7 @@ def fetch_candles(interval, count=120):
 
 
 # ---------------- STRUCTURE DETECTION ----------------
-def find_swings(candles, left=2, right=2):
+def find_swings(candles, left=3, right=3):
     swings = []
     for i in range(left, len(candles) - right):
         window_highs = [candles[j]["high"] for j in range(i - left, i + right + 1)]
@@ -92,7 +108,8 @@ def detect_bos_choch(candles, swings, prior_bias):
     return None
 
 
-def detect_fvg(candles, lookback=15):
+def detect_fvg(candles, lookback=20):
+    """Find FVGs and only count one as valid if price is CURRENTLY sitting inside it."""
     fvgs = []
     start = max(2, len(candles) - lookback)
     for i in range(start, len(candles)):
@@ -103,10 +120,12 @@ def detect_fvg(candles, lookback=15):
             fvgs.append({"type": "bearish", "top": c1["low"], "bottom": c3["high"], "i": i})
 
     last_price = candles[-1]["close"]
+    active_retest = None
     for fvg in reversed(fvgs):
         if fvg["bottom"] <= last_price <= fvg["top"]:
-            return fvg
-    return fvgs[-1] if fvgs else None
+            active_retest = fvg
+            break
+    return active_retest  # None unless price is actually inside a gap right now
 
 
 def detect_liquidity_sweep(candles, swings):
@@ -123,15 +142,28 @@ def detect_liquidity_sweep(candles, swings):
     return None
 
 
-def detect_order_block(candles, direction, lookback=15):
+def detect_order_block(candles, direction, lookback=20):
+    """Find the most recent opposite-colored candle before a move, then only
+    count it if price has come back to retest that candle's range."""
+    if direction is None:
+        return None
     start = max(1, len(candles) - lookback)
-    for i in range(len(candles) - 1, start, -1):
+    candidate = None
+    for i in range(len(candles) - 2, start, -1):  # -2 so we don't use the current forming candle
         c = candles[i]
         is_bull = c["close"] > c["open"]
         if direction == "up" and not is_bull:
-            return {"i": i, "high": c["high"], "low": c["low"]}
+            candidate = {"i": i, "high": c["high"], "low": c["low"]}
+            break
         if direction == "down" and is_bull:
-            return {"i": i, "high": c["high"], "low": c["low"]}
+            candidate = {"i": i, "high": c["high"], "low": c["low"]}
+            break
+    if not candidate:
+        return None
+
+    last_price = candles[-1]["close"]
+    if candidate["low"] <= last_price <= candidate["high"]:
+        return candidate  # price is actually retesting the OB right now
     return None
 
 
@@ -151,6 +183,34 @@ def equal_highs_lows(swings, tolerance=0.0006):
     eq_high = any(abs(highs[i] - highs[i + 1]) <= tolerance for i in range(len(highs) - 1))
     eq_low = any(abs(lows[i] - lows[i + 1]) <= tolerance for i in range(len(lows) - 1))
     return eq_high or eq_low
+
+
+# ---------------- SL / TP ----------------
+def calculate_levels(direction, entry, m15_swings, ob):
+    """SL beyond the order block (or nearest swing if no OB), TP via fixed R multiples."""
+    pip = 0.0001
+    buffer = SL_BUFFER_PIPS * pip
+
+    if direction == "BUY":
+        if ob:
+            sl = ob["low"] - buffer
+        else:
+            lows = [s["price"] for s in m15_swings if s["type"] == "low"]
+            sl = (min(lows[-3:]) if lows else entry - 0.0020) - buffer
+        risk = entry - sl
+        tp1 = entry + risk * RR_TP1
+        tp2 = entry + risk * RR_TP2
+    else:  # SELL
+        if ob:
+            sl = ob["high"] + buffer
+        else:
+            highs = [s["price"] for s in m15_swings if s["type"] == "high"]
+            sl = (max(highs[-3:]) if highs else entry + 0.0020) + buffer
+        risk = sl - entry
+        tp1 = entry - risk * RR_TP1
+        tp2 = entry - risk * RR_TP2
+
+    return round(sl, 5), round(tp1, 5), round(tp2, 5)
 
 
 # ---------------- SCORING ----------------
@@ -184,7 +244,7 @@ def analyze():
     zone, hi, lo, mid = premium_discount(m15["candles"])
     eqhl = equal_highs_lows(m15["swings"])
     ob_dir = "up" if direction == "BUY" else "down" if direction == "SELL" else None
-    ob = detect_order_block(m15["candles"], ob_dir) if ob_dir else None
+    ob = detect_order_block(m15["candles"], ob_dir)
 
     checks = {
         "htf": weekly_bias == daily_bias and weekly_bias in ("Bullish", "Bearish"),
@@ -197,10 +257,18 @@ def analyze():
         "eqhl": eqhl,
     }
 
-    weights = {"htf": 2, "bos": 1, "choch": 1, "sweep": 1.5, "ob": 1.5, "fvg": 1, "zone": 1, "eqhl": 0.5}
-    score = min(10, sum(weights[k] for k, v in checks.items() if v))
+    # Weights now sum to 10 exactly when every possible check hits
+    # (bos/choch still mutually exclusive by nature, so realistic max is ~9.3 —
+    #  intentional, since no single setup type shows every signature at once)
+    weights = {"htf": 2.5, "bos": 1.2, "choch": 1.2, "sweep": 1.8, "ob": 1.8, "fvg": 1.2, "zone": 1.3, "eqhl": 0.5}
+    raw_score = sum(weights[k] for k, v in checks.items() if v)
+    max_possible = weights["htf"] + max(weights["bos"], weights["choch"]) + weights["sweep"] + weights["ob"] + weights["fvg"] + weights["zone"] + weights["eqhl"]
+    score = round(min(10, (raw_score / max_possible) * 10), 1)
 
     last_price = m15["candles"][-1]["close"]
+    sl = tp1 = tp2 = None
+    if direction:
+        sl, tp1, tp2 = calculate_levels(direction, last_price, m15["swings"], ob)
 
     return {
         "direction": direction,
@@ -208,7 +276,32 @@ def analyze():
         "checks": checks,
         "zone": zone,
         "last_price": last_price,
+        "sl": sl,
+        "tp1": tp1,
+        "tp2": tp2,
+        "candle_time": m15["candles"][-1].get("datetime"),
     }
+
+
+# ---------------- DEDUP STATE ----------------
+def load_state():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def already_alerted(state, result):
+    key = f"{result['direction']}_{result['candle_time']}"
+    return state.get("last_alert_key") == key
 
 
 # ---------------- ALERTING ----------------
@@ -217,8 +310,8 @@ LABELS = {
     "bos": "Break of Structure confirmed",
     "choch": "CHoCH confirmed",
     "sweep": "Liquidity sweep detected",
-    "ob": "Order Block tapped",
-    "fvg": "Fair Value Gap tapped",
+    "ob": "Order Block retest confirmed",
+    "fvg": "Fair Value Gap retest confirmed",
     "zone": "Correct Premium/Discount entry",
     "eqhl": "Equal Highs/Lows liquidity present",
 }
@@ -230,16 +323,19 @@ def send_telegram(text):
 
 
 def build_alert(result):
-    reasons = "\n".join(f"✓ {LABELS[k]}" for k, v in result["checks"].items() if v)
+    reasons = "\n".join(f"\u2713 {LABELS[k]}" for k, v in result["checks"].items() if v)
     return (
-        f"🚨 EUR/USD GANG ALERT 🚨\n\n"
+        f"\U0001f6a8 EUR/USD GANG ALERT \U0001f6a8\n\n"
         f"Pair: {PAIR_LABEL}\n"
         f"Direction: {result['direction']}\n"
         f"Confidence: {result['score']:.1f}/10\n\n"
+        f"Entry: {result['last_price']}\n"
+        f"SL: {result['sl']}\n"
+        f"TP1: {result['tp1']}\n"
+        f"TP2: {result['tp2']}\n\n"
         f"Reasons:\n{reasons}\n\n"
-        f"Price: {result['last_price']}\n"
         f"Zone: {result['zone']}\n\n"
-        f"🫡 Desk Closed.\nLet price do the talking."
+        f"\U0001f97a Desk Closed.\nLet price do the talking."
     )
 
 
@@ -250,8 +346,14 @@ if __name__ == "__main__":
         print("Skipped — data fetch issue this run.")
     else:
         print(f"Direction: {result['direction']}  Score: {result['score']:.1f}/10")
+        state = load_state()
         if result["direction"] and result["score"] >= ALERT_THRESHOLD:
-            send_telegram(build_alert(result))
-            print("🚨 Alert sent.")
+            if already_alerted(state, result):
+                print("Already alerted this candle — skipping duplicate.")
+            else:
+                send_telegram(build_alert(result))
+                state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
+                save_state(state)
+                print("\U0001f6a8 Alert sent.")
         else:
             print("No alert — below threshold or no clear direction.")
