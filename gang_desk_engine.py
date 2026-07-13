@@ -36,7 +36,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 1  # was 8.0 against a max of ~8.5 in v1 — now max is a true 10
+ALERT_THRESHOLD = 7.5  # was 8.0 against a max of ~8.5 in v1 — now max is a true 10
 STATE_FILE = "last_alert_state.json"
 
 RR_TP1 = 1.5
