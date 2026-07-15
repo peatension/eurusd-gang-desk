@@ -25,7 +25,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 1  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
+ALERT_THRESHOLD = 7.0  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
 STATE_FILE = "last_alert_state.json"
 
 RR_TP1 = 1.5
