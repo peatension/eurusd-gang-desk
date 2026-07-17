@@ -2,7 +2,7 @@
 EUR/USD GANG AI DESK — v2 engine (GitHub Actions version)
 Fetches multi-timeframe candles, detects SMC structure, scores the setup,
 calculates SL/TP, prevents duplicate alerts, and sends a Telegram alert
-only at or above ALERT_THRESHOLD.
+only at or above ALERT_THRESHOLD. Also logs every alert to a Google Sheet.
 """
 
 import requests
@@ -13,6 +13,7 @@ from datetime import datetime
 TWELVE_DATA_KEY = os.environ["TWELVE_DATA_KEY"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
+SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
 
 SYMBOL = "EUR/USD"
 PAIR_LABEL = "EURUSD"
@@ -25,7 +26,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 7.0  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
+ALERT_THRESHOLD = 7.5
 STATE_FILE = "last_alert_state.json"
 
 RR_TP1 = 1.5
@@ -298,6 +299,23 @@ def send_telegram(text):
     requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
 
 
+def send_to_sheet(result):
+    payload = {
+        "pair": PAIR_LABEL,
+        "direction": result["direction"],
+        "score": result["score"],
+        "entry": result["last_price"],
+        "sl": result["sl"],
+        "tp1": result["tp1"],
+        "tp2": result["tp2"],
+        "zone": result["zone"],
+    }
+    try:
+        requests.post(SHEET_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Sheet log failed: {e}")
+
+
 def confidence_bar(score):
     filled = int(round(score))
     return "▰" * filled + "▱" * (10 - filled)
@@ -344,6 +362,7 @@ if __name__ == "__main__":
                 print("Already alerted this candle — skipping duplicate.")
             else:
                 send_telegram(build_alert(result))
+                send_to_sheet(result)
                 state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
                 save_state(state)
                 print("🚨 Alert sent.")
