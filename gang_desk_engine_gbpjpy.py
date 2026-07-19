@@ -1,6 +1,7 @@
 """
 GBP/JPY GANG AI DESK — v2 engine (GitHub Actions version)
-NOT YET VALIDATED — placeholder threshold/RR until backtested.
+Validated via 70/30 train/test split: Threshold 7.0, RR 3.0.
+Also logs every alert to a Google Sheet.
 """
 
 import requests
@@ -11,6 +12,7 @@ from datetime import datetime
 TWELVE_DATA_KEY = os.environ.get("TWELVE_DATA_KEY", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHAT_ID = os.environ.get("CHAT_ID", "")
+SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
 
 SYMBOL = "GBP/JPY"
 PAIR_LABEL = "GBPJPY"
@@ -23,11 +25,11 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 7.5
+ALERT_THRESHOLD = 7.0
 STATE_FILE = "last_alert_state_gbpjpy.json"
 
 RR_TP1 = 1.5
-RR_TP2 = 2.0
+RR_TP2 = 3.0
 SL_BUFFER_PIPS = 3
 
 
@@ -296,6 +298,23 @@ def send_telegram(text):
     requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
 
 
+def send_to_sheet(result):
+    payload = {
+        "pair": PAIR_LABEL,
+        "direction": result["direction"],
+        "score": result["score"],
+        "entry": result["last_price"],
+        "sl": result["sl"],
+        "tp1": result["tp1"],
+        "tp2": result["tp2"],
+        "zone": result["zone"],
+    }
+    try:
+        requests.post(SHEET_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Sheet log failed: {e}")
+
+
 def confidence_bar(score):
     filled = int(round(score))
     return "▰" * filled + "▱" * (10 - filled)
@@ -349,6 +368,7 @@ if __name__ == "__main__":
                 print("Already alerted this candle — skipping duplicate.")
             else:
                 send_telegram(build_alert(result))
+                send_to_sheet(result)
                 state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
                 save_state(state)
                 print("🚨 Alert sent.")
