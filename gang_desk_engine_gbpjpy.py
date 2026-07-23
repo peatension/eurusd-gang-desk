@@ -37,7 +37,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 1  # validated: 71 test trades, +0.127R expectancy on unseen data  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
+ALERT_THRESHOLD = 7.0  # validated: 71 test trades, +0.127R expectancy on unseen data  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
 STATE_FILE = "last_alert_state_gbpjpy.json"
 
 RR_TP1 = 1.5
