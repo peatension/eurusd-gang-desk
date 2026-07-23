@@ -1,8 +1,9 @@
 """
-EUR/USD GANG AI DESK — v2 engine (GitHub Actions version)
-Fetches multi-timeframe candles, detects SMC structure, scores the setup,
-calculates SL/TP, prevents duplicate alerts, and sends a Telegram alert
-only at or above ALERT_THRESHOLD. Also logs every alert to a Google Sheet.
+EUR/USD GANG AI DESK — v3 engine (GitHub Actions version)
+Adds: URL buttons under each alert (chart, sheet, mark outcome),
+and automatic WIN/LOSS detection that edits past alert messages
+once price actually hits SL or TP. No always-on server needed —
+works within the existing scheduled-run architecture.
 """
 
 import requests
@@ -14,6 +15,7 @@ TWELVE_DATA_KEY = os.environ["TWELVE_DATA_KEY"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
+MARK_OUTCOME_FORM_URL = ""  # fill in once the Google Form is created
 
 SYMBOL = "EUR/USD"
 PAIR_LABEL = "EURUSD"
@@ -259,6 +261,8 @@ def analyze():
         "tp1": tp1,
         "tp2": tp2,
         "candle_time": m15["candles"][-1].get("datetime"),
+        "candle_high": m15["candles"][-1]["high"],
+        "candle_low": m15["candles"][-1]["low"],
     }
 
 
@@ -294,12 +298,51 @@ LABELS = {
 }
 
 
+def build_chart_url():
+    return f"https://www.tradingview.com/chart/?symbol=OANDA:{PAIR_LABEL}"
+
+
+def build_inline_keyboard():
+    buttons = [
+        [
+            {"text": "📊 View Chart", "url": build_chart_url()},
+        ],
+        [
+            {"text": "📋 View Sheet", "url": "https://docs.google.com/spreadsheets/d/1xN8Div5H3r84m-6mie1ln1OdKbeKa1yiRcroRAh2xts/edit?usp=sharing"},
+        ],
+    ]
+    if MARK_OUTCOME_FORM_URL:
+        buttons.append([{"text": "✅ Mark Outcome", "url": MARK_OUTCOME_FORM_URL}])
+    return {"inline_keyboard": buttons}
+
+
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
+    resp = requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": json.dumps(build_inline_keyboard()),
+    })
+    try:
+        return resp.json()["result"]["message_id"]
+    except Exception:
+        return None
 
 
-def send_to_sheet(result):
+def edit_telegram(message_id, text):
+    if message_id is None:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+    })
+
+
+def send_to_sheet(result, outcome=None):
     payload = {
         "pair": PAIR_LABEL,
         "direction": result["direction"],
@@ -310,6 +353,8 @@ def send_to_sheet(result):
         "tp2": result["tp2"],
         "zone": result["zone"],
     }
+    if outcome:
+        payload["outcome"] = outcome
     try:
         requests.post(SHEET_URL, json=payload, timeout=10)
     except Exception as e:
@@ -349,22 +394,87 @@ def build_alert(result):
     )
 
 
+def build_resolved_text(original_text, outcome, hit_price):
+    banner = "✅ <b>WIN — TP hit</b>" if outcome == "WIN" else "❌ <b>LOSS — SL hit</b>"
+    return f"{original_text}\n\n━━━━━━━━━━━━━━━━━━━\n{banner}\nClosed at: {hit_price}"
+
+
+def check_pending_trades(state, latest_high, latest_low):
+    """Check all open trades against the latest candle's high/low. Edit
+    the Telegram message and log to Sheet once a trade resolves."""
+    pending = state.get("pending", [])
+    still_open = []
+
+    for trade in pending:
+        direction = trade["direction"]
+        sl = trade["sl"]
+        tp2 = trade["tp2"]
+        outcome = None
+        hit_price = None
+
+        if direction == "BUY":
+            if latest_low <= sl:
+                outcome = "LOSS"
+                hit_price = sl
+            elif latest_high >= tp2:
+                outcome = "WIN"
+                hit_price = tp2
+        else:
+            if latest_high >= sl:
+                outcome = "LOSS"
+                hit_price = sl
+            elif latest_low <= tp2:
+                outcome = "WIN"
+                hit_price = tp2
+
+        if outcome:
+            resolved_text = build_resolved_text(trade["original_text"], outcome, hit_price)
+            edit_telegram(trade.get("message_id"), resolved_text)
+            send_to_sheet(trade["result_snapshot"], outcome=outcome)
+            print(f"Trade resolved: {outcome} at {hit_price}")
+        else:
+            still_open.append(trade)
+
+    state["pending"] = still_open
+    return state
+
+
 if __name__ == "__main__":
     print(f"[{datetime.now()}] Scanning {PAIR_LABEL}...")
     result = analyze()
     if not result:
         print("Skipped — data fetch issue this run.")
     else:
-        print(f"Direction: {result['direction']}  Score: {result['score']:.1f}/10")
         state = load_state()
+
+        # First, check if any previously sent alerts have resolved
+        state = check_pending_trades(state, result["candle_high"], result["candle_low"])
+
+        print(f"Direction: {result['direction']}  Score: {result['score']:.1f}/10")
         if result["direction"] and result["score"] >= ALERT_THRESHOLD:
             if already_alerted(state, result):
                 print("Already alerted this candle — skipping duplicate.")
             else:
-                send_telegram(build_alert(result))
+                alert_text = build_alert(result)
+                message_id = send_telegram(alert_text)
                 send_to_sheet(result)
+
+                pending = state.get("pending", [])
+                pending.append({
+                    "message_id": message_id,
+                    "direction": result["direction"],
+                    "sl": result["sl"],
+                    "tp2": result["tp2"],
+                    "original_text": alert_text,
+                    "result_snapshot": result,
+                })
+                state["pending"] = pending
+
                 state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
                 save_state(state)
                 print("🚨 Alert sent.")
         else:
             print("No alert — below threshold or no clear direction.")
+
+        save_state(state)
+    
