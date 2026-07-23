@@ -28,7 +28,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 7.5
+ALERT_THRESHOLD = 1
 STATE_FILE = "last_alert_state.json"
 
 RR_TP1 = 1.5
@@ -381,6 +381,7 @@ def build_alert(result):
     )
 
     return (
+        f"📡 <b>TENSION TRADING DESK</b>\n"
         f"{divider}\n"
         f"{emoji}  <b>{PAIR_LABEL} · {result['direction']}</b>\n"
         f"{divider}\n\n"
@@ -389,8 +390,8 @@ def build_alert(result):
         f"<b>Confirmations</b>\n{reasons}\n\n"
         f"{zone_emoji} Zone — {result['zone']}\n\n"
         f"{divider}\n"
-        f"🫡 <i>Desk Closed</i>\n"
-        f"<i>Let price do the talking.</i>"
+        f"<i>Built on Data.</i>\n"
+        f"<i>Driven by Discipline.</i>"
     )
 
 
@@ -477,4 +478,3 @@ if __name__ == "__main__":
             print("No alert — below threshold or no clear direction.")
 
         save_state(state)
-    
