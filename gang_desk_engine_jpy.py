@@ -432,7 +432,7 @@ def build_alert(result):
     bar = confidence_bar(result["score"])
     zone_emoji = "\U0001f535" if result["zone"] == "Discount" else "\U0001f7e0"
     block = "\u2593" * 19
-    header = f"{block}\n  GANG DESK \u00b7 LIVE\n{block}"
+    header = f"{block}\n  TENSION TRADING DESK\n{block}"
 
     pip = 0.01 if "JPY" in PAIR_LABEL else 0.0001
     risk_pips = abs(result["last_price"] - result["sl"]) / pip
@@ -456,8 +456,8 @@ def build_alert(result):
         f"<b>Confirmations</b>\n{reasons}\n\n"
         f"{zone_emoji} Zone \u2014 {result['zone']}\n\n"
         f"{block}\n"
-        f"\U0001f97a <i>Desk Closed</i>\n"
-        f"<i>Let price do the talking.</i>"
+        f"<i>Built on Data.</i>\n"
+        f"<i>Driven by Discipline.</i>"
     )
 
 
@@ -479,3 +479,4 @@ if __name__ == "__main__":
                 print("\U0001f6a8 Alert sent.")
         else:
             print("No alert — below threshold or no clear direction.")
+  
