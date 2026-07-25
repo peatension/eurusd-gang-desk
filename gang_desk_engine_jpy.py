@@ -1,10 +1,21 @@
 """
-USD/JPY GANG AI DESK — v3 engine (GitHub Actions version)
+USD/JPY GANG AI DESK — v4 engine (GitHub Actions version)
 Fetches multi-timeframe candles, detects SMC structure, scores the setup,
 calculates SL/TP, prevents duplicate alerts, and sends a Telegram alert
 only at or above ALERT_THRESHOLD.
 
-Changes from v1:
+Changes from v3:
+- Trade recap system fully wired: new alerts are now registered into
+  state["pending"], and check_pending_trades() is actually called each run.
+- TP1 partial-hit tracking added: when TP1 is hit first, the original
+  Telegram message is edited to show "TP1 HIT — running for TP2" and the
+  trade stays open until SL or TP2 actually closes it. The final recap
+  edit stacks on top of the TP1 edit, so the full sequence is visible in
+  one message thread.
+- Fixed a gap where the initial alert never logged to Sheets (send_to_sheet
+  was missing from the __main__ alert branch in v3) — now it does.
+
+Changes from v1 (carried forward):
 - Order Block and FVG checks now require price to be CURRENTLY inside the
   zone (a real retest), not just "one exists somewhere in the last N bars".
 - Adds SL/TP1/TP2 calculation based on structure + fixed R multiples.
@@ -13,6 +24,11 @@ Changes from v1:
 - Wider swing window (3/3) to reduce noise on M15.
 
 Runs once per invocation — scheduling is handled by GitHub Actions.
+
+IMPORTANT: this is a LIVE engine. The changes here touch state/tracking and
+Sheets-logging logic (not scoring or entry logic), but since USD/JPY is
+already live, re-run this through your validation process before pushing
+to production, and watch the first few live cycles closely.
 """
 
 import requests
@@ -37,12 +53,12 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 7.5  # validated: train+test both positive expectancy  # backtested: this threshold showed the most consistent positive expectancy across RR 2.0-3.0
+ALERT_THRESHOLD = 7.5  # validated: train+test both positive expectancy
 STATE_FILE = "last_alert_state_jpy.json"
 
 RR_TP1 = 1.5
 RR_TP2 = 2.0  # validated via 70/30 train/test split
-SL_BUFFER_PIPS = 3  # note: pip = 0.01 for JPY pairs, see calculate_levels  # extra room beyond the OB/swing, in pips (0.0001 per pip for EURUSD)
+SL_BUFFER_PIPS = 3  # note: pip = 0.01 for JPY pairs, see calculate_levels
 
 
 # ---------------- DATA ----------------
@@ -383,13 +399,28 @@ def build_resolved_text(original_text, outcome, hit_price):
     return f"{original_text}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n{banner}\nClosed at: {hit_price}"
 
 
+def build_partial_text(original_text, hit_price):
+    """Edit shown when TP1 hits first — trade stays open, running for TP2."""
+    banner = "\U0001f7e1 <b>TP1 HIT \u2014 running for TP2</b>"
+    return f"{original_text}\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n{banner}\nPartial closed at: {hit_price}"
+
+
 def check_pending_trades(state, latest_high, latest_low):
+    """
+    Called every run. Checks all open trades against the latest M15 high/low:
+    - If TP1 hits first (and hasn't already), edit the message to show a
+      partial-close banner, but keep the trade open (waiting on TP2/SL).
+    - If SL or TP2 hits, edit the message with the final WIN/LOSS banner
+      (stacked on top of any earlier TP1 edit), log the outcome to Sheets,
+      and remove the trade from the pending list.
+    """
     pending = state.get("pending", [])
     still_open = []
 
     for trade in pending:
         direction = trade["direction"]
         sl = trade["sl"]
+        tp1 = trade.get("tp1")
         tp2 = trade["tp2"]
         outcome = None
         hit_price = None
@@ -401,13 +432,25 @@ def check_pending_trades(state, latest_high, latest_low):
             elif latest_high >= tp2:
                 outcome = "WIN"
                 hit_price = tp2
-        else:
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_high >= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text  # later WIN/LOSS edit builds on top of this
+                print(f"TP1 hit (partial) at {tp1}")
+        else:  # SELL
             if latest_high >= sl:
                 outcome = "LOSS"
                 hit_price = sl
             elif latest_low <= tp2:
                 outcome = "WIN"
                 hit_price = tp2
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_low <= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text
+                print(f"TP1 hit (partial) at {tp1}")
 
         if outcome:
             resolved_text = build_resolved_text(trade["original_text"], outcome, hit_price)
@@ -469,14 +512,36 @@ if __name__ == "__main__":
     else:
         print(f"Direction: {result['direction']}  Score: {result['score']:.1f}/10")
         state = load_state()
+
+        # Resolve/update any trades still open from previous runs
+        state = check_pending_trades(state, result["candle_high"], result["candle_low"])
+
         if result["direction"] and result["score"] >= ALERT_THRESHOLD:
             if already_alerted(state, result):
                 print("Already alerted this candle — skipping duplicate.")
+                save_state(state)
             else:
-                send_telegram(build_alert(result))
+                alert_text = build_alert(result)
+                message_id = send_telegram(alert_text)
+                send_to_sheet(result)
                 state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
+
+                # Register this trade so future runs can track/resolve it
+                state.setdefault("pending", []).append({
+                    "message_id": message_id,
+                    "direction": result["direction"],
+                    "sl": result["sl"],
+                    "tp1": result["tp1"],
+                    "tp2": result["tp2"],
+                    "tp1_hit": False,
+                    "original_text": alert_text,
+                    "result_snapshot": result,
+                })
+
                 save_state(state)
                 print("\U0001f6a8 Alert sent.")
         else:
+            # No new signal this run, but pending-trade state may still have
+            # changed above (TP1 partial or resolution) — persist it.
+            save_state(state)
             print("No alert — below threshold or no clear direction.")
-  
