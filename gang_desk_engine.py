@@ -1,9 +1,20 @@
 """
-EUR/USD GANG AI DESK — v3 engine (GitHub Actions version)
+EUR/USD GANG AI DESK — v4 engine (GitHub Actions version)
 Adds: URL buttons under each alert (chart, sheet, mark outcome),
 and automatic WIN/LOSS detection that edits past alert messages
 once price actually hits SL or TP. No always-on server needed —
 works within the existing scheduled-run architecture.
+
+Changes from v3:
+- TP1 partial-hit tracking added, matching GBP/JPY and USD/JPY: when TP1
+  is hit first, the original Telegram message is edited to show
+  "TP1 HIT — running for TP2" and the trade stays open until SL or TP2
+  actually closes it. The final recap edit stacks on top of the TP1 edit,
+  so the full sequence is visible in one message thread.
+
+Everything else (pending-trade tracking, check_pending_trades, Sheets
+logging on the initial alert) was already correctly wired in v3 — only
+the TP1 partial stage is new here.
 """
 
 import requests
@@ -400,15 +411,26 @@ def build_resolved_text(original_text, outcome, hit_price):
     return f"{original_text}\n\n━━━━━━━━━━━━━━━━━━━\n{banner}\nClosed at: {hit_price}"
 
 
+def build_partial_text(original_text, hit_price):
+    """Edit shown when TP1 hits first — trade stays open, running for TP2."""
+    banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+    return f"{original_text}\n\n━━━━━━━━━━━━━━━━━━━\n{banner}\nPartial closed at: {hit_price}"
+
+
 def check_pending_trades(state, latest_high, latest_low):
-    """Check all open trades against the latest candle's high/low. Edit
-    the Telegram message and log to Sheet once a trade resolves."""
+    """Check all open trades against the latest candle's high/low.
+    - If TP1 hits first (and hasn't already), edit the message to show a
+      partial-close banner, but keep the trade open (waiting on TP2/SL).
+    - If SL or TP2 hits, edit the message with the final WIN/LOSS banner
+      (stacked on top of any earlier TP1 edit), log the outcome to Sheets,
+      and remove the trade from the pending list."""
     pending = state.get("pending", [])
     still_open = []
 
     for trade in pending:
         direction = trade["direction"]
         sl = trade["sl"]
+        tp1 = trade.get("tp1")
         tp2 = trade["tp2"]
         outcome = None
         hit_price = None
@@ -420,6 +442,12 @@ def check_pending_trades(state, latest_high, latest_low):
             elif latest_high >= tp2:
                 outcome = "WIN"
                 hit_price = tp2
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_high >= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text
+                print(f"TP1 hit (partial) at {tp1}")
         else:
             if latest_high >= sl:
                 outcome = "LOSS"
@@ -427,6 +455,12 @@ def check_pending_trades(state, latest_high, latest_low):
             elif latest_low <= tp2:
                 outcome = "WIN"
                 hit_price = tp2
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_low <= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text
+                print(f"TP1 hit (partial) at {tp1}")
 
         if outcome:
             resolved_text = build_resolved_text(trade["original_text"], outcome, hit_price)
@@ -465,7 +499,9 @@ if __name__ == "__main__":
                     "message_id": message_id,
                     "direction": result["direction"],
                     "sl": result["sl"],
+                    "tp1": result["tp1"],
                     "tp2": result["tp2"],
+                    "tp1_hit": False,
                     "original_text": alert_text,
                     "result_snapshot": result,
                 })
