@@ -7,7 +7,7 @@ import pandas as pd
 # CONFIGURATION & ENVIRONMENT VARIABLES
 # ==========================================
 SYMBOL = "GBP/JPY"
-ALERT_THRESHOLD = 0
+ALERT_THRESHOLD = 1
 STATE_FILE = "state.json"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
