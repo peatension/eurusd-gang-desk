@@ -1,143 +1,502 @@
+"""
+GBP/JPY GANG AI DESK — v4 engine (GitHub Actions version)
+Fetches multi-timeframe candles, detects SMC structure, scores the setup,
+calculates SL/TP, prevents duplicate alerts, and sends a Telegram alert
+only at or above ALERT_THRESHOLD.
+"""
+
+import requests
 import os
 import json
-import requests
-import pandas as pd
+from datetime import datetime
 
-# Fetch Environment Variables from GitHub Secrets
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-API_KEY = os.environ.get("TWELVE_DATA_API_KEY")
+# ---------------- CONFIG (read from GitHub secrets) ----------------
+TWELVE_DATA_KEY = os.environ.get("TWELVE_DATA_KEY", os.environ.get("TWELVE_DATA_API_KEY", ""))
+BOT_TOKEN = os.environ.get("BOT_TOKEN", os.environ.get("TELEGRAM_BOT_TOKEN", ""))
+CHAT_ID = os.environ.get("CHAT_ID", os.environ.get("TELEGRAM_CHAT_ID", ""))
+SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
 
-# Default URLs for Inline Buttons
-CHART_URL = "https://www.tradingview.com/chart/?symbol=OANDA:GBPJPY"
-SHEET_URL = "https://docs.google.com"
+SYMBOL = "GBP/JPY"
+PAIR_LABEL = "GBPJPY"
 
+TIMEFRAMES = {
+    "Weekly": "1week",
+    "Daily": "1day",
+    "H4": "4h",
+    "H1": "1h",
+    "M15": "15min",
+}
+
+ALERT_THRESHOLD = 7.5  
 STATE_FILE = "state.json"
 
+RR_TP1 = 1.5
+RR_TP2 = 2.0  
+SL_BUFFER_PIPS = 3  # pip = 0.01 for JPY pairs
+
+
+# ---------------- DATA ----------------
+def fetch_candles(interval, count=150):
+    url = "https://api.twelvedata.com/time_series"
+    params = {
+        "symbol": SYMBOL,
+        "interval": interval,
+        "outputsize": count,
+        "apikey": TWELVE_DATA_KEY,
+    }
+    resp = requests.get(url, params=params, timeout=15)
+    data = resp.json()
+    if "values" not in data:
+        print(f"  ⚠️ fetch error ({interval}): {data.get('message', data)}")
+        return None
+    candles = list(reversed(data["values"]))
+    for c in candles:
+        for k in ("open", "high", "low", "close"):
+            c[k] = float(c[k])
+    return candles
+
+
+# ---------------- STRUCTURE DETECTION ----------------
+def find_swings(candles, left=3, right=3):
+    swings = []
+    for i in range(left, len(candles) - right):
+        window_highs = [candles[j]["high"] for j in range(i - left, i + right + 1)]
+        window_lows = [candles[j]["low"] for j in range(i - left, i + right + 1)]
+        if candles[i]["high"] == max(window_highs):
+            swings.append({"i": i, "type": "high", "price": candles[i]["high"]})
+        if candles[i]["low"] == min(window_lows):
+            swings.append({"i": i, "type": "low", "price": candles[i]["low"]})
+    return swings
+
+
+def get_bias(swings):
+    highs = [s for s in swings if s["type"] == "high"][-3:]
+    lows = [s for s in swings if s["type"] == "low"][-3:]
+    if len(highs) < 2 or len(lows) < 2:
+        return "Neutral"
+    higher_highs = highs[-1]["price"] > highs[-2]["price"]
+    higher_lows = lows[-1]["price"] > lows[-2]["price"]
+    lower_highs = highs[-1]["price"] < highs[-2]["price"]
+    lower_lows = lows[-1]["price"] < lows[-2]["price"]
+    if higher_highs and higher_lows:
+        return "Bullish"
+    if lower_highs and lower_lows:
+        return "Bearish"
+    return "Neutral"
+
+
+def detect_bos_choch(candles, swings, prior_bias):
+    if len(swings) < 2:
+        return None
+    last_close = candles[-1]["close"]
+    last_high_swing = next((s for s in reversed(swings) if s["type"] == "high"), None)
+    last_low_swing = next((s for s in reversed(swings) if s["type"] == "low"), None)
+
+    if last_high_swing and last_close > last_high_swing["price"]:
+        return "BOS_up" if prior_bias in ("Bullish", "Neutral") else "CHoCH_up"
+    if last_low_swing and last_close < last_low_swing["price"]:
+        return "BOS_down" if prior_bias in ("Bearish", "Neutral") else "CHoCH_down"
+    return None
+
+
+def detect_fvg(candles, lookback=20):
+    fvgs = []
+    start = max(2, len(candles) - lookback)
+    for i in range(start, len(candles)):
+        c1, c3 = candles[i - 2], candles[i]
+        if c3["low"] > c1["high"]:
+            fvgs.append({"type": "bullish", "top": c3["low"], "bottom": c1["high"], "i": i})
+        elif c3["high"] < c1["low"]:
+            fvgs.append({"type": "bearish", "top": c1["low"], "bottom": c3["high"], "i": i})
+
+    last_price = candles[-1]["close"]
+    active_retest = None
+    for fvg in reversed(fvgs):
+        if fvg["bottom"] <= last_price <= fvg["top"]:
+            active_retest = fvg
+            break
+    return active_retest
+
+
+def detect_liquidity_sweep(candles, swings):
+    if len(swings) < 2:
+        return None
+    recent = candles[-1]
+    prior_highs = [s["price"] for s in swings if s["type"] == "high"][:-1][-3:]
+    prior_lows = [s["price"] for s in swings if s["type"] == "low"][:-1][-3:]
+
+    if prior_highs and recent["high"] > max(prior_highs) and recent["close"] < max(prior_highs):
+        return "sell_side_sweep"
+    if prior_lows and recent["low"] < min(prior_lows) and recent["close"] > min(prior_lows):
+        return "buy_side_sweep"
+    return None
+
+
+def detect_order_block(candles, direction, lookback=20):
+    if direction is None:
+        return None
+    start = max(1, len(candles) - lookback)
+    candidate = None
+    for i in range(len(candles) - 2, start, -1):
+        c = candles[i]
+        is_bull = c["close"] > c["open"]
+        if direction == "up" and not is_bull:
+            candidate = {"i": i, "high": c["high"], "low": c["low"]}
+            break
+        if direction == "down" and is_bull:
+            candidate = {"i": i, "high": c["high"], "low": c["low"]}
+            break
+    if not candidate:
+        return None
+
+    last_price = candles[-1]["close"]
+    if candidate["low"] <= last_price <= candidate["high"]:
+        return candidate
+    return None
+
+
+def premium_discount(candles, lookback=50):
+    window = candles[-lookback:]
+    hi = max(c["high"] for c in window)
+    lo = min(c["low"] for c in window)
+    mid = (hi + lo) / 2
+    last = candles[-1]["close"]
+    zone = "Premium" if last > mid else "Discount"
+    return zone, hi, lo, mid
+
+
+def equal_highs_lows(swings, tolerance=0.06):
+    highs = [s["price"] for s in swings if s["type"] == "high"][-4:]
+    lows = [s["price"] for s in swings if s["type"] == "low"][-4:]
+    eq_high = any(abs(highs[i] - highs[i + 1]) <= tolerance for i in range(len(highs) - 1))
+    eq_low = any(abs(lows[i] - lows[i + 1]) <= tolerance for i in range(len(lows) - 1))
+    return eq_high or eq_low
+
+
+# ---------------- SL / TP ----------------
+def calculate_levels(direction, entry, m15_swings, ob):
+    pip = 0.01
+    buffer = SL_BUFFER_PIPS * pip
+
+    if direction == "BUY":
+        if ob:
+            sl = ob["low"] - buffer
+        else:
+            lows = [s["price"] for s in m15_swings if s["type"] == "low"]
+            sl = (min(lows[-3:]) if lows else entry - 0.20) - buffer
+        risk = entry - sl
+        tp1 = entry + risk * RR_TP1
+        tp2 = entry + risk * RR_TP2
+    else:  # SELL
+        if ob:
+            sl = ob["high"] + buffer
+        else:
+            highs = [s["price"] for s in m15_swings if s["type"] == "high"]
+            sl = (max(highs[-3:]) if highs else entry + 0.20) + buffer
+        risk = sl - entry
+        tp1 = entry - risk * RR_TP1
+        tp2 = entry - risk * RR_TP2
+
+    return round(sl, 3), round(tp1, 3), round(tp2, 3)
+
+
+# ---------------- SCORING ----------------
+def analyze():
+    tf_data = {}
+    for label, interval in TIMEFRAMES.items():
+        candles = fetch_candles(interval)
+        if not candles:
+            return None
+        swings = find_swings(candles)
+        bias = get_bias(swings)
+        tf_data[label] = {"candles": candles, "swings": swings, "bias": bias}
+
+    weekly_bias = tf_data["Weekly"]["bias"]
+    daily_bias = tf_data["Daily"]["bias"]
+
+    if weekly_bias == "Bullish" and daily_bias in ("Bullish", "Neutral"):
+        direction = "BUY"
+    elif weekly_bias == "Bearish" and daily_bias in ("Bearish", "Neutral"):
+        direction = "SELL"
+    elif daily_bias in ("Bullish", "Bearish"):
+        direction = "BUY" if daily_bias == "Bullish" else "SELL"
+    else:
+        direction = None
+
+    h1 = tf_data["H1"]
+    m15 = tf_data["M15"]
+    h1_signal = detect_bos_choch(h1["candles"], h1["swings"], h1["bias"])
+    sweep = detect_liquidity_sweep(m15["candles"], m15["swings"])
+    fvg = detect_fvg(m15["candles"])
+    zone, hi, lo, mid = premium_discount(m15["candles"])
+    eqhl = equal_highs_lows(m15["swings"])
+    ob_dir = "up" if direction == "BUY" else "down" if direction == "SELL" else None
+    ob = detect_order_block(m15["candles"], ob_dir)
+
+    checks = {
+        "htf": weekly_bias == daily_bias and weekly_bias in ("Bullish", "Bearish"),
+        "bos": h1_signal in ("BOS_up", "BOS_down"),
+        "choch": h1_signal in ("CHoCH_up", "CHoCH_down"),
+        "sweep": sweep is not None,
+        "ob": ob is not None,
+        "fvg": fvg is not None,
+        "zone": (zone == "Discount" and direction == "BUY") or (zone == "Premium" and direction == "SELL"),
+        "eqhl": eqhl,
+    }
+
+    weights = {"htf": 2.5, "bos": 1.2, "choch": 1.2, "sweep": 1.8, "ob": 1.8, "fvg": 1.2, "zone": 1.3, "eqhl": 0.5}
+    raw_score = sum(weights[k] for k, v in checks.items() if v)
+    max_possible = weights["htf"] + max(weights["bos"], weights["choch"]) + weights["sweep"] + weights["ob"] + weights["fvg"] + weights["zone"] + weights["eqhl"]
+    score = round(min(10, (raw_score / max_possible) * 10), 1)
+
+    last_price = m15["candles"][-1]["close"]
+    sl = tp1 = tp2 = None
+    if direction:
+        sl, tp1, tp2 = calculate_levels(direction, last_price, m15["swings"], ob)
+
+    return {
+        "direction": direction,
+        "score": score,
+        "checks": checks,
+        "zone": zone,
+        "last_price": last_price,
+        "sl": sl,
+        "tp1": tp1,
+        "tp2": tp2,
+        "candle_time": m15["candles"][-1].get("datetime"),
+        "candle_high": m15["candles"][-1]["high"],
+        "candle_low": m15["candles"][-1]["low"],
+    }
+
+
+# ---------------- DEDUP STATE ----------------
 def load_state():
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            try:
+        try:
+            with open(STATE_FILE) as f:
                 return json.load(f)
-            except json.JSONDecodeError:
-                return {"trades": {}}
-    return {"trades": {}}
+        except Exception:
+            return {}
+    return {}
+
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
-def fetch_market_data(symbol="GBP/JPY", interval="30min", outputsize=50):
-    url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={API_KEY}"
-    response = requests.get(url).json()
-    if "values" not in response:
-        print(f"Error fetching data: {response}")
-        return None
-    
-    df = pd.DataFrame(response["values"])
-    df["close"] = df["close"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    df["open"] = df["open"].astype(float)
-    return df
 
-def analyze_market(df):
-    if df is None or len(df) < 10:
-        return None
-    
-    # Calculate simple price dynamics / mock engine metrics
-    current_close = df["close"].iloc[0]
-    high_recent = df["high"].max()
-    low_recent = df["low"].min()
-    
-    # Example logic threshold assessment
-    confidence_score = 88  # Target confidence level
-    action = "SELL"
-    entry_low = round(current_close, 3)
-    entry_high = round(current_close + 0.050, 3)
-    tp1 = round(current_close - 0.250, 3)
-    tp2 = round(current_close - 0.550, 3)
-    sl = round(entry_high + 0.200, 3)
+def already_alerted(state, result):
+    key = f"{result['direction']}_{result['candle_time']}"
+    return state.get("last_alert_key") == key
 
+
+# ---------------- ALERTING ----------------
+LABELS = {
+    "htf": "Weekly + Daily aligned",
+    "bos": "Break of Structure confirmed",
+    "choch": "CHoCH confirmed",
+    "sweep": "Liquidity sweep detected",
+    "ob": "Order Block retest confirmed",
+    "fvg": "Fair Value Gap retest confirmed",
+    "zone": "Correct Premium/Discount entry",
+    "eqhl": "Equal Highs/Lows liquidity present",
+}
+
+
+def build_chart_url():
+    return f"https://www.tradingview.com/chart/?symbol=OANDA:{PAIR_LABEL}"
+
+
+def build_inline_keyboard():
     return {
-        "pair": "GBP/JPY",
-        "action": action,
-        "confidence": f"{confidence_score}%",
-        "entry_low": entry_low,
-        "entry_high": entry_high,
-        "tp1": tp1,
-        "tp2": tp2,
-        "sl": sl,
-        "status": "Waiting for Entry"
-    }
-
-def send_or_update_telegram(signal_data, state):
-    message_text = (
-        f"🟢 *FOREX SIGNAL ALERT*\n"
-        f"______________________\n\n"
-        f"*Pair:* {signal_data['pair']}\n"
-        f"*Action:* {signal_data['action']}\n"
-        f"*Confidence:* ⚡ {signal_data['confidence']}\n"
-        f"*Entry Zone:* {signal_data['entry_low']} - {signal_data['entry_high']}\n\n"
-        f"*Targets:*\n"
-        f"🎯 *TP1:* {signal_data['tp1']} (Pending)\n"
-        f"🎯 *TP2:* {signal_data['tp2']} (Pending)\n"
-        f"🛑 *SL:* {signal_data['sl']}\n"
-        f"______________________\n\n"
-        f"*Status:* {signal_data['status']}"
-    )
-
-    reply_markup = {
         "inline_keyboard": [
-            [{"text": "📊 View Chart", "url": CHART_URL}],
-            [{"text": "📋 View Sheet", "url": SHEET_URL}]
+            [{"text": "📊 View Chart", "url": build_chart_url()}],
+            [{"text": "📋 View Sheet", "url": "https://docs.google.com/spreadsheets/d/1xN8Div5H3r84m-6mie1ln1OdKbeKa1yiRcroRAh2xts/edit?usp=sharing"}],
         ]
     }
 
-    trade_key = signal_data["pair"]
-    existing_msg_id = state.get("trades", {}).get(trade_key, {}).get("message_id")
 
-    if existing_msg_id:
-        # Edit existing message
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
-        payload = {
-            "chat_id": CHAT_ID,
-            "message_id": existing_msg_id,
-            "text": message_text,
-            "parse_mode": "Markdown",
-            "reply_markup": reply_markup
-        }
-    else:
-        # Send fresh message
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": CHAT_ID,
-            "text": message_text,
-            "parse_mode": "Markdown",
-            "reply_markup": reply_markup
-        }
+def send_telegram(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    resp = requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": json.dumps(build_inline_keyboard()),
+    })
+    try:
+        return resp.json()["result"]["message_id"]
+    except Exception:
+        return None
 
-    res = requests.post(url, json=payload).json()
 
-    if res.get("ok"):
-        msg_id = res["result"]["message_id"] if "result" in res else existing_msg_id
-        if "trades" not in state:
-            state["trades"] = {}
-        state["trades"][trade_key] = {"message_id": msg_id, "data": signal_data}
-        save_state(state)
-        print("Telegram alert sent/updated successfully.")
-    else:
-        print(f"Telegram API Error: {res}")
+def edit_telegram(message_id, text):
+    if message_id is None:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": json.dumps(build_inline_keyboard()),
+    })
 
-def main():
-    state = load_state()
-    df = fetch_market_data()
-    signal = analyze_market(df)
-    
-    if signal:
-        send_or_update_telegram(signal, state)
-    else:
-        print("No setup above threshold.")
+
+def send_to_sheet(result, outcome=None):
+    payload = {
+        "pair": PAIR_LABEL,
+        "direction": result["direction"],
+        "score": result["score"],
+        "entry": result["last_price"],
+        "sl": result["sl"],
+        "tp1": result["tp1"],
+        "tp2": result["tp2"],
+        "zone": result["zone"],
+    }
+    if outcome:
+        payload["outcome"] = outcome
+    try:
+        requests.post(SHEET_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Sheet log failed: {e}")
+
+
+def build_resolved_text(original_text, outcome, hit_price):
+    banner = "✅ <b>WIN — TP hit</b>" if outcome == "WIN" else "❌ <b>LOSS — SL hit</b>"
+    return f"{original_text}\n\n━━━━━━━━━━━━━━━━━━━\n{banner}\nClosed at: {hit_price}"
+
+
+def build_partial_text(original_text, hit_price):
+    banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+    return f"{original_text}\n\n━━━━━━━━━━━━━━━━━━━\n{banner}\nPartial closed at: {hit_price}"
+
+
+def check_pending_trades(state, latest_high, latest_low):
+    pending = state.get("pending", [])
+    still_open = []
+
+    for trade in pending:
+        direction = trade["direction"]
+        sl = trade["sl"]
+        tp1 = trade.get("tp1")
+        tp2 = trade["tp2"]
+        outcome = None
+        hit_price = None
+
+        if direction == "BUY":
+            if latest_low <= sl:
+                outcome = "LOSS"
+                hit_price = sl
+            elif latest_high >= tp2:
+                outcome = "WIN"
+                hit_price = tp2
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_high >= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text
+                print(f"TP1 hit (partial) at {tp1}")
+        else:  # SELL
+            if latest_high >= sl:
+                outcome = "LOSS"
+                hit_price = sl
+            elif latest_low <= tp2:
+                outcome = "WIN"
+                hit_price = tp2
+            elif not trade.get("tp1_hit") and tp1 is not None and latest_low <= tp1:
+                partial_text = build_partial_text(trade["original_text"], tp1)
+                edit_telegram(trade.get("message_id"), partial_text)
+                trade["tp1_hit"] = True
+                trade["original_text"] = partial_text
+                print(f"TP1 hit (partial) at {tp1}")
+
+        if outcome:
+            resolved_text = build_resolved_text(trade["original_text"], outcome, hit_price)
+            edit_telegram(trade.get("message_id"), resolved_text)
+            send_to_sheet(trade["result_snapshot"], outcome=outcome)
+            print(f"Trade resolved: {outcome} at {hit_price}")
+        else:
+            still_open.append(trade)
+
+    state["pending"] = still_open
+    return state
+
+
+def confidence_bar(score):
+    filled = int(round(score))
+    return "▰" * filled + "▱" * (10 - filled)
+
+
+def build_alert(result):
+    reasons = "\n".join(f"✓ {LABELS[k]}" for k, v in result["checks"].items() if v)
+    emoji = "🟢" if result["direction"] == "BUY" else "🔴"
+    bar = confidence_bar(result["score"])
+    zone_emoji = "🔵" if result["zone"] == "Discount" else "🟠"
+    block = "▓" * 19
+    header = f"{block}\n  TENSION TRADING DESK\n{block}"
+
+    pip = 0.01
+    risk_pips = abs(result["last_price"] - result["sl"]) / pip
+    reward_pips = abs(result["tp2"] - result["last_price"]) / pip
+    rr_ratio = round(reward_pips / risk_pips, 1) if risk_pips else 0
+
+    levels = (
+        f"Entry      {result['last_price']}\n"
+        f"SL         {result['sl']}\n"
+        f"TP1        {result['tp1']}\n"
+        f"TP2        {result['tp2']}"
+    )
+
+    return (
+        f"{header}\n\n"
+        f"{emoji} <b>{PAIR_LABEL} · {result['direction']}</b>\n\n"
+        f"<b>Confidence</b>\n{bar}  {result['score']:.1f}/10\n\n"
+        f"┌ <b>LEVELS</b> ─────────┐\n<code>{levels}</code>\n└───────────────────┘\n\n"
+        f"Risk        {risk_pips:.1f} pips\n"
+        f"Reward TP2  {reward_pips:.1f} pips  ({rr_ratio}R)\n\n"
+        f"<b>Confirmations</b>\n{reasons}\n\n"
+        f"{zone_emoji} Zone — {result['zone']}\n\n"
+        f"{block}\n"
+        f"<i>Built on Data.</i>\n"
+        f"<i>Driven by Discipline.</i>"
+    )
+
 
 if __name__ == "__main__":
-    main()
+    print(f"[{datetime.now()}] Scanning {PAIR_LABEL}...")
+    result = analyze()
+    if not result:
+        print("Skipped — data fetch issue this run.")
+    else:
+        print(f"Direction: {result['direction']}  Score: {result['score']:.1f}/10")
+        state = load_state()
+
+        state = check_pending_trades(state, result["candle_high"], result["candle_low"])
+
+        if result["direction"] and result["score"] >= ALERT_THRESHOLD:
+            if already_alerted(state, result):
+                print("Already alerted this candle — skipping duplicate.")
+                save_state(state)
+            else:
+                alert_text = build_alert(result)
+                message_id = send_telegram(alert_text)
+                send_to_sheet(result)
+                state["last_alert_key"] = f"{result['direction']}_{result['candle_time']}"
+
+                state.setdefault("pending", []).append({
+                    "message_id": message_id,
+                    "direction": result["direction"],
+                    "sl": result["sl"],
+                    "tp1": result["tp1"],
+                    "tp2": result["tp2"],
+                    "tp1_hit": False,
+                    "original_text": alert_text,
+                    "result_snapshot": result,
+                })
+
+                save_state(state)
+                print("🚨 Alert sent.")
+        else:
+            save_state(state)
+            print("No alert — below threshold or no clear direction.")
