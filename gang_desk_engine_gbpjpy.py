@@ -27,7 +27,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 0
+ALERT_THRESHOLD = 7.0 
 STATE_FILE = "state.json"
 
 RR_TP1 = 1.5
