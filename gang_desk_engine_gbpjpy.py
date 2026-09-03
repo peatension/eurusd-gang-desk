@@ -29,7 +29,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 1  # validated: 71 test trades, +0.127R expectancy on unseen data
+ALERT_THRESHOLD = 7.0  # validated: 71 test trades, +0.127R expectancy on unseen data
 STATE_FILE = "state.json"
 
 RR_TP1 = 1.5
