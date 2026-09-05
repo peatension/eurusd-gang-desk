@@ -53,7 +53,7 @@ TIMEFRAMES = {
     "M15": "15min",
 }
 
-ALERT_THRESHOLD = 1  # validated: train+test both positive expectancy
+ALERT_THRESHOLD = 7.5 # validated: train+test both positive expectancy
 STATE_FILE = "last_alert_state_jpy.json"
 
 RR_TP1 = 1.5
