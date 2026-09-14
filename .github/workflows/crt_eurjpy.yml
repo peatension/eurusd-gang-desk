@@ -25,9 +25,9 @@ jobs:
 
       - name: Run CRT Engine
         env:
-          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+          TWELVE_DATA_KEY: ${{ abe3c75bfa1c4d9ea0322f1ee42734dd }}
+          BOT_TOKEN: ${{ 8853592460:AAEgmScA22uJNulbrMQqywArmprOYW_NHb4 }}
+          CHAT_ID: ${{ 1004423692487 }}
         run: python crt_engine_eurjpy.py
 
       - name: Save state
