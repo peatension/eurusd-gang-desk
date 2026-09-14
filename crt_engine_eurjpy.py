@@ -10,9 +10,9 @@ import json
 from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
-TWELVE_DATA_KEY = os.environ.get("abe3c75bfa1c4d9ea0322f1ee42734dd", "")
-BOT_TOKEN = os.environ.get("8853592460:AAEgmScA22uJNulbrMQqywArmprOYW_NHb4", "")
-CHAT_ID = os.environ.get("1004423692487", "")
+TWELVE_DATA_KEY = os.environ.get("TWELVE_DATA_KEY", "")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
 
 SYMBOL = "EUR/JPY"
