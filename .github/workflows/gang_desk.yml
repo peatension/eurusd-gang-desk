@@ -1,8 +1,8 @@
-name: EUR/USD GANG AI DESK
+name: TENSION TRADE DESK
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,7 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,17 +24,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run the desk
+      - name: Run Tension Trade Desk
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python gang_desk_engine.py
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python tension_trade_desk.py
 
       - name: Save trade state
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add last_alert_state.json
-          git commit -m "Update trade state [skip ci]" || echo "No changes to commit"
+          git commit -m "Update TTD trade state [skip ci]" || echo "No changes to commit"
           git push
