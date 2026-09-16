@@ -1,4 +1,4 @@
-name: CRT Engine EUR/JPY
+name: CRT Engine Multi-Pair
 
 on:
   schedule:
@@ -25,15 +25,15 @@ jobs:
 
       - name: Run CRT Engine
         env:
-          TWELVE_DATA_KEY: ${{ TWELVE_DATA_KEY }}
-          BOT_TOKEN: ${{ TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ TELEGRAM_CHAT_ID }}
-        run: python crt_engine_eurjpy.py
+          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python crt_engine.py
 
       - name: Save state
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add crt_state_eurjpy.json
+          git add crt_state.json
           git commit -m "Update CRT state [skip ci]" || echo "No changes"
           git push
