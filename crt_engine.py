@@ -1,7 +1,7 @@
 """
 CRT ENGINE - Multi Pair
 Tension Trading Desk
-Pairs: EUR/JPY | AUD/JPY | USD/JPY | GBP/JPY
+Classic CRT + Turtle Soup
 TP1 = 50% of range | TP2 = Opposite side
 """
 
@@ -27,11 +27,11 @@ PAIRS = [
 ]
 
 # ---------------- DATA ----------------
-def fetch_candles(symbol, interval="15min", count=50):
+def fetch_candles(symbol, count=80):
     url = "https://api.twelvedata.com/time_series"
     params = {
         "symbol": symbol,
-        "interval": interval,
+        "interval": "15min",
         "outputsize": count,
         "apikey": TWELVE_DATA_KEY,
     }
@@ -50,8 +50,8 @@ def fetch_candles(symbol, interval="15min", count=50):
         print(f"Request failed {symbol}:", e)
         return None
 
-# ---------------- CRT LOGIC ----------------
-def classic_crt(candles, pip):
+# ---------------- CRT + TURTLE SOUP ----------------
+def get_crt_signal(candles, pip):
     if len(candles) < 3:
         return None
 
@@ -67,7 +67,7 @@ def classic_crt(candles, pip):
 
     mid = (range_high + range_low) / 2
 
-    # Bullish CRT
+    # Bullish
     if curr["low"] < range_low and curr["close"] > range_low:
         entry = curr["close"]
         sl = curr["low"] - SL_BUFFER_PIPS * pip
@@ -78,10 +78,11 @@ def classic_crt(candles, pip):
             "tp1": round(mid, 5),
             "tp2": round(range_high, 5),
             "candle_time": curr.get("datetime"),
-            "range_size": round(range_size / pip, 1)
+            "range_size": round(range_size / pip, 1),
+            "model": "Classic CRT / Turtle Soup"
         }
 
-    # Bearish CRT
+    # Bearish
     if curr["high"] > range_high and curr["close"] < range_high:
         entry = curr["close"]
         sl = curr["high"] + SL_BUFFER_PIPS * pip
@@ -92,7 +93,8 @@ def classic_crt(candles, pip):
             "tp1": round(mid, 5),
             "tp2": round(range_low, 5),
             "candle_time": curr.get("datetime"),
-            "range_size": round(range_size / pip, 1)
+            "range_size": round(range_size / pip, 1),
+            "model": "Classic CRT / Turtle Soup"
         }
 
     return None
@@ -104,8 +106,8 @@ def load_state():
             with open(STATE_FILE) as f:
                 return json.load(f)
         except:
-            return {"alerts": {}}
-    return {"alerts": {}}
+            pass
+    return {"alerts": {}, "pending": []}
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
@@ -114,21 +116,26 @@ def save_state(state):
 # ---------------- TELEGRAM ----------------
 def build_alert(pair_label, signal):
     emoji = "🟢" if signal["direction"] == "BUY" else "🔴"
-    return (
-        f"▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n"
-        f"  TENSION TRADING DESK\n"
-        f"▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n\n"
-        f"{emoji} <b>{pair_label} · {signal['direction']}</b>\n"
-        f"<b>CRT Engine</b>\n\n"
-        f"<b>LEVELS</b>\n"
-        f"Entry   {signal['entry']}\n"
-        f"SL      {signal['sl']}\n"
-        f"TP1     {signal['tp1']}  (50%)\n"
-        f"TP2     {signal['tp2']}  (Opposite)\n\n"
-        f"Range: {signal['range_size']} pips\n\n"
-        f"▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n"
-        f"<i>Built on Data.\nDriven by Discipline.</i>"
+    arrow = "▲" if signal["direction"] == "BUY" else "▼"
+
+    text = (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"{'═'*21}\n"
+        f"<b>CRT ENGINE</b>\n"
+        f"{'─'*21}\n\n"
+        f"{emoji} <b>{pair_label} · {signal['direction']}</b> {arrow}\n"
+        f"<i>{signal['model']}</i>\n\n"
+        f"<pre>"
+        f"Entry  {signal['entry']}\n"
+        f"SL     {signal['sl']}\n"
+        f"TP1    {signal['tp1']}  (50%)\n"
+        f"TP2    {signal['tp2']}  (Opposite)\n"
+        f"</pre>\n"
+        f"Range Size : {signal['range_size']} pips\n\n"
+        f"{'═'*21}\n"
+        f"<i>Built on Data. Driven by Discipline.</i>"
     )
+    return text
 
 def send_telegram(text):
     if not BOT_TOKEN or not CHAT_ID:
@@ -146,7 +153,21 @@ def send_telegram(text):
         print("Telegram error:", e)
         return None
 
-def send_to_sheet(pair_label, signal):
+def edit_telegram(message_id, new_text):
+    if not BOT_TOKEN or not CHAT_ID or not message_id:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    try:
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "message_id": message_id,
+            "text": new_text,
+            "parse_mode": "HTML"
+        }, timeout=10)
+    except Exception as e:
+        print("Edit error:", e)
+
+def send_to_sheet(pair_label, signal, outcome=None):
     payload = {
         "pair": pair_label,
         "direction": signal["direction"],
@@ -154,12 +175,78 @@ def send_to_sheet(pair_label, signal):
         "sl": signal["sl"],
         "tp1": signal["tp1"],
         "tp2": signal["tp2"],
-        "model": "Classic CRT"
+        "model": signal.get("model", "CRT")
     }
+    if outcome:
+        payload["outcome"] = outcome
     try:
         requests.post(SHEET_URL, json=payload, timeout=10)
     except Exception as e:
         print("Sheet error:", e)
+
+# ---------------- PENDING MANAGEMENT ----------------
+def check_pending_trades(state, pair_label, candles):
+    if not candles:
+        return
+
+    latest = candles[-1]
+    high = latest["high"]
+    low = latest["low"]
+    close = latest["close"]
+
+    still_pending = []
+
+    for trade in state.get("pending", []):
+        if trade.get("pair") != pair_label:
+            still_pending.append(trade)
+            continue
+
+        direction = trade["direction"]
+        sl = trade["sl"]
+        tp1 = trade["tp1"]
+        tp2 = trade["tp2"]
+        msg_id = trade.get("message_id")
+        original = trade.get("original_text", "")
+        tp1_hit = trade.get("tp1_hit", False)
+
+        outcome = None
+        banner = None
+
+        if direction == "BUY":
+            if low <= sl:
+                outcome = "LOSS"
+                banner = "❌ <b>LOSS — SL hit</b>"
+            elif high >= tp2:
+                outcome = "WIN"
+                banner = "✅ <b>WIN — TP2 hit</b>"
+            elif high >= tp1 and not tp1_hit:
+                trade["tp1_hit"] = True
+                banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+                # Keep pending
+        else:  # SELL
+            if high >= sl:
+                outcome = "LOSS"
+                banner = "❌ <b>LOSS — SL hit</b>"
+            elif low <= tp2:
+                outcome = "WIN"
+                banner = "✅ <b>WIN — TP2 hit</b>"
+            elif low <= tp1 and not tp1_hit:
+                trade["tp1_hit"] = True
+                banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+
+        if banner:
+            new_text = original + f"\n\n{'─'*21}\n{banner}"
+            edit_telegram(msg_id, new_text)
+
+            if outcome in ("WIN", "LOSS"):
+                send_to_sheet(pair_label, trade, outcome)
+                # Do not keep in pending
+            else:
+                still_pending.append(trade)
+        else:
+            still_pending.append(trade)
+
+    state["pending"] = still_pending
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
@@ -168,6 +255,8 @@ if __name__ == "__main__":
     state = load_state()
     if "alerts" not in state:
         state["alerts"] = {}
+    if "pending" not in state:
+        state["pending"] = []
 
     for pair in PAIRS:
         symbol = pair["symbol"]
@@ -179,13 +268,16 @@ if __name__ == "__main__":
         if not candles:
             continue
 
-        signal = classic_crt(candles, pip)
+        # First manage any open trades for this pair
+        check_pending_trades(state, label, candles)
+
+        # Then look for new signals
+        signal = get_crt_signal(candles, pip)
         if signal is None:
             print("No setup")
             continue
 
         alert_key = f"{label}_{signal['direction']}_{signal['candle_time']}"
-
         if state["alerts"].get(alert_key):
             print("Already alerted")
             continue
@@ -195,16 +287,24 @@ if __name__ == "__main__":
         msg_id = send_telegram(text)
         send_to_sheet(label, signal)
 
-        state["alerts"][alert_key] = {
+        state["alerts"][alert_key] = True
+        state["pending"].append({
+            "pair": label,
             "message_id": msg_id,
-            "time": str(datetime.now(timezone.utc))
-        }
+            "direction": signal["direction"],
+            "entry": signal["entry"],
+            "sl": signal["sl"],
+            "tp1": signal["tp1"],
+            "tp2": signal["tp2"],
+            "original_text": text,
+            "tp1_hit": False,
+            "model": signal["model"]
+        })
         print(f"Alert sent → {signal['direction']}")
 
-    # Keep state file from growing forever (optional clean)
-    if len(state["alerts"]) > 200:
-        # keep only last 100
-        keys = list(state["alerts"].keys())[-100:]
+    # Cleanup old alerts
+    if len(state["alerts"]) > 300:
+        keys = list(state["alerts"].keys())[-150:]
         state["alerts"] = {k: state["alerts"][k] for k in keys}
 
     save_state(state)
