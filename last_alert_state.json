@@ -1,5 +1,31 @@
 {
   "version": 3,
-  "last_alert_keys": {},
-  "pending": []
+  "last_alert_keys": {
+    "NZD/USD": "NZD/USD|2026-09-16 10:30:00|-1"
+  },
+  "pending": [
+    {
+      "pair": "NZD/USD",
+      "message_id": 33,
+      "direction": -1,
+      "side": "SELL",
+      "score": 8.0,
+      "current_score": 5.5,
+      "advanced_score": 2.5,
+      "entry": 0.57458,
+      "stop": 0.5780033928571429,
+      "tp1": 0.5694449107142856,
+      "tp2": 0.5643098214285713,
+      "rr": 3.0,
+      "candle_time": "2026-09-16 10:30:00",
+      "candle_key": "NZD/USD|2026-09-16 10:30:00|-1",
+      "status": "WAITING_ENTRY",
+      "entry_hit": false,
+      "entry_hit_time": null,
+      "entry_hit_index": null,
+      "tp1_hit": false,
+      "tp1_time": null,
+      "last_checked_index": 4999
+    }
+  ]
 }
