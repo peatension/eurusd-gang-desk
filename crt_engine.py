@@ -2,8 +2,9 @@
 CRT ENGINE - Multi Pair
 Tension Trading Desk
 Classic CRT + Turtle Soup
-News Impact indicator (🔴 High / 🟡 Medium / 🟢 Low)
+Real news impact (Finnhub) + fallback time-based
 TP1 = 50% of range | TP2 = Opposite side
+Soft BE suggestion on TP1
 """
 
 import requests
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 TWELVE_DATA_KEY = os.environ.get("TWELVE_DATA_KEY", "")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN", "")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID") or os.environ.get("CHAT_ID", "")
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
 
 STATE_FILE = "crt_state.json"
@@ -30,17 +32,40 @@ PAIRS = [
 # ---------------- NEWS IMPACT ----------------
 def get_news_impact():
     """
-    Simple time-based news impact.
-    🔴 HIGH   = major USD news windows
-    🟡 MEDIUM = 1 hour around those windows
-    🟢 LOW    = everything else
+    Tries Finnhub economic calendar first.
+    Falls back to simple time-based filter.
     """
-    hour = datetime.now(timezone.utc).hour
+    if FINNHUB_API_KEY:
+        try:
+            now = datetime.now(timezone.utc)
+            today = now.strftime("%Y-%m-%d")
+            url = "https://finnhub.io/api/v1/calendar/economic"
+            params = {
+                "from": today,
+                "to": today,
+                "token": FINNHUB_API_KEY
+            }
+            resp = requests.get(url, params=params, timeout=8)
+            data = resp.json()
+            events = data.get("economicCalendar", [])
 
-    # Core high-impact windows (UTC)
+            high_events = []
+            for ev in events:
+                impact = str(ev.get("impact", "")).lower()
+                country = str(ev.get("country", "")).upper()
+                if impact == "high" and country in ("US", "EU", "GB"):
+                    title = ev.get("event", "High Impact Event")
+                    high_events.append(title)
+
+            if high_events:
+                return f"🔴 HIGH IMPACT – {high_events[0]}"
+        except Exception as e:
+            print("Finnhub news error:", e)
+
+    # Fallback
+    hour = datetime.now(timezone.utc).hour
     if hour in (12, 13, 14, 18, 19):
         return "🔴 HIGH IMPACT – Caution"
-    # Buffer zones
     if hour in (11, 15, 17, 20):
         return "🟡 MEDIUM IMPACT"
     return "🟢 LOW IMPACT"
@@ -86,7 +111,6 @@ def get_crt_signal(candles, pip):
 
     mid = (range_high + range_low) / 2
 
-    # Bullish
     if curr["low"] < range_low and curr["close"] > range_low:
         entry = curr["close"]
         sl = curr["low"] - SL_BUFFER_PIPS * pip
@@ -101,7 +125,6 @@ def get_crt_signal(candles, pip):
             "model": "Classic CRT / Turtle Soup"
         }
 
-    # Bearish
     if curr["high"] > range_high and curr["close"] < range_high:
         entry = curr["close"]
         sl = curr["high"] + SL_BUFFER_PIPS * pip
@@ -241,7 +264,10 @@ def check_pending_trades(state, pair_label, candles):
                 banner = "✅ <b>WIN — TP2 hit</b>"
             elif high >= tp1 and not tp1_hit:
                 trade["tp1_hit"] = True
-                banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+                banner = (
+                    "🟡 <b>TP1 HIT — running for TP2</b>\n"
+                    "Consider moving SL to breakeven if you want to protect the trade."
+                )
         else:
             if high >= sl:
                 outcome = "LOSS"
@@ -251,7 +277,10 @@ def check_pending_trades(state, pair_label, candles):
                 banner = "✅ <b>WIN — TP2 hit</b>"
             elif low <= tp1 and not tp1_hit:
                 trade["tp1_hit"] = True
-                banner = "🟡 <b>TP1 HIT — running for TP2</b>"
+                banner = (
+                    "🟡 <b>TP1 HIT — running for TP2</b>\n"
+                    "Consider moving SL to breakeven if you want to protect the trade."
+                )
 
         if banner:
             new_text = original + f"\n\n{'─'*21}\n{banner}"
