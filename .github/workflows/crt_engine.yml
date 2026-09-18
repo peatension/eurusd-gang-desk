@@ -28,6 +28,7 @@ jobs:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.CHAT_ID }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: python crt_engine.py
 
       - name: Save state
