@@ -1,4 +1,19 @@
 {
-  "alerts": {},
-  "pending": []
+  "alerts": {
+    "USDJPY_BUY_2026-09-18 21:30:00": true
+  },
+  "pending": [
+    {
+      "pair": "USDJPY",
+      "message_id": null,
+      "direction": "BUY",
+      "entry": 157.8076,
+      "sl": 157.65442,
+      "tp1": 157.77461,
+      "tp2": 157.82055,
+      "original_text": "<b>TENSION TRADING DESK</b>\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<b>CRT ENGINE</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\ud83d\udfe2 <b>USDJPY \u00b7 BUY</b> \u25b2\n<i>Classic CRT / Turtle Soup</i>\n\n<pre>Entry  157.8076\nSL     157.65442\nTP1    157.77461  (50%)\nTP2    157.82055  (Opposite)\n</pre>\nRange Size : 9.2 pips\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<i>Built on Data. Driven by Discipline.</i>",
+      "tp1_hit": false,
+      "model": "Classic CRT / Turtle Soup"
+    }
+  ]
 }
