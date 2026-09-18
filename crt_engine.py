@@ -2,6 +2,7 @@
 CRT ENGINE - Multi Pair
 Tension Trading Desk
 Classic CRT + Turtle Soup
+News Impact indicator (🔴 High / 🟡 Medium / 🟢 Low)
 TP1 = 50% of range | TP2 = Opposite side
 """
 
@@ -25,6 +26,24 @@ PAIRS = [
     {"symbol": "USD/JPY", "label": "USDJPY", "pip": 0.01},
     {"symbol": "GBP/JPY", "label": "GBPJPY", "pip": 0.01},
 ]
+
+# ---------------- NEWS IMPACT ----------------
+def get_news_impact():
+    """
+    Simple time-based news impact.
+    🔴 HIGH   = major USD news windows
+    🟡 MEDIUM = 1 hour around those windows
+    🟢 LOW    = everything else
+    """
+    hour = datetime.now(timezone.utc).hour
+
+    # Core high-impact windows (UTC)
+    if hour in (12, 13, 14, 18, 19):
+        return "🔴 HIGH IMPACT – Caution"
+    # Buffer zones
+    if hour in (11, 15, 17, 20):
+        return "🟡 MEDIUM IMPACT"
+    return "🟢 LOW IMPACT"
 
 # ---------------- DATA ----------------
 def fetch_candles(symbol, count=80):
@@ -117,6 +136,7 @@ def save_state(state):
 def build_alert(pair_label, signal):
     emoji = "🟢" if signal["direction"] == "BUY" else "🔴"
     arrow = "▲" if signal["direction"] == "BUY" else "▼"
+    news = get_news_impact()
 
     text = (
         f"<b>TENSION TRADING DESK</b>\n"
@@ -131,7 +151,8 @@ def build_alert(pair_label, signal):
         f"TP1    {signal['tp1']}  (50%)\n"
         f"TP2    {signal['tp2']}  (Opposite)\n"
         f"</pre>\n"
-        f"Range Size : {signal['range_size']} pips\n\n"
+        f"Range Size : {signal['range_size']} pips\n"
+        f"News Impact : {news}\n\n"
         f"{'═'*21}\n"
         f"<i>Built on Data. Driven by Discipline.</i>"
     )
