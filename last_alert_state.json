@@ -2,7 +2,7 @@
   "version": 3,
   "last_alert_keys": {
     "NZD/USD": "NZD/USD|2026-09-17 04:15:00|-1",
-    "GBP/JPY": "GBP/JPY|2026-09-18 19:45:00|1",
+    "GBP/JPY": "GBP/JPY|2026-09-21 05:15:00|1",
     "USD/JPY": "USD/JPY|2026-09-17 04:15:00|1"
   },
   "pending": [
@@ -136,6 +136,29 @@
       "rr": 3.0,
       "candle_time": "2026-09-18 19:45:00",
       "candle_key": "GBP/JPY|2026-09-18 19:45:00|1",
+      "status": "WAITING_ENTRY",
+      "entry_hit": false,
+      "entry_hit_time": null,
+      "entry_hit_index": null,
+      "tp1_hit": false,
+      "tp1_time": null,
+      "last_checked_index": 4999
+    },
+    {
+      "pair": "GBP/JPY",
+      "message_id": 41,
+      "direction": 1,
+      "side": "BUY",
+      "score": 8.0,
+      "current_score": 4.0,
+      "advanced_score": 4.0,
+      "entry": 210.11877,
+      "stop": 209.8955973214286,
+      "tp1": 210.45352901785714,
+      "tp2": 210.78828803571426,
+      "rr": 3.0,
+      "candle_time": "2026-09-21 05:15:00",
+      "candle_key": "GBP/JPY|2026-09-21 05:15:00|1",
       "status": "WAITING_ENTRY",
       "entry_hit": false,
       "entry_hit_time": null,
