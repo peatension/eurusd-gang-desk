@@ -1,7 +1,7 @@
 {
   "version": 3,
   "last_alert_keys": {
-    "NZD/USD": "NZD/USD|2026-09-17 04:15:00|-1",
+    "NZD/USD": "NZD/USD|2026-09-22 11:00:00|-1",
     "GBP/JPY": "GBP/JPY|2026-09-21 05:15:00|1",
     "USD/JPY": "USD/JPY|2026-09-21 23:45:00|1"
   },
@@ -182,6 +182,29 @@
       "rr": 2.0,
       "candle_time": "2026-09-21 23:45:00",
       "candle_key": "USD/JPY|2026-09-21 23:45:00|1",
+      "status": "WAITING_ENTRY",
+      "entry_hit": false,
+      "entry_hit_time": null,
+      "entry_hit_index": null,
+      "tp1_hit": false,
+      "tp1_time": null,
+      "last_checked_index": 4999
+    },
+    {
+      "pair": "NZD/USD",
+      "message_id": 51,
+      "direction": -1,
+      "side": "SELL",
+      "score": 8.5,
+      "current_score": 4.0,
+      "advanced_score": 4.5,
+      "entry": 0.57059,
+      "stop": 0.5720073214285715,
+      "tp1": 0.568464017857143,
+      "tp2": 0.5663380357142858,
+      "rr": 3.0,
+      "candle_time": "2026-09-22 11:00:00",
+      "candle_key": "NZD/USD|2026-09-22 11:00:00|-1",
       "status": "WAITING_ENTRY",
       "entry_hit": false,
       "entry_hit_time": null,
