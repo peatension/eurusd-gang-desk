@@ -1,3 +1,23 @@
+"""
+TENSION TRADING DESK — production engine v4
+
+Multi-TF:
+  H4  = bias
+  H1  = SMC / Advanced SMC POI scoring
+  M15 = entry + trade management
+
+Models (separate signals, NOT combined):
+  SMC
+  ADV_SMC
+
+Lifecycle:
+  SIGNAL (active immediately at close)
+    -> TP1 HIT (message edit)
+    -> TP2 WIN / SL LOSS (message edit)
+
+No SETUP / WAITING FOR ENTRY stage.
+"""
+
 import os
 import json
 import time
@@ -6,1386 +26,340 @@ import pandas as pd
 import numpy as np
 
 # ============================================================
-# TENSION TRADING DESK — PRODUCTION ENGINE
-#
-# MODEL:
-# EXACT COMBINED SMC FROM RESEARCH
-#
-# ENTRY:
-# 15m
-#
-# HTF:
-# 1H EMA20 / EMA50
-#
-# PAIRS:
-# AUD/JPY
-# GBP/JPY
-# NZD/USD
-# EUR/JPY
-# USD/JPY
-#
-# RR:
-# AUD/JPY  = 3R
-# GBP/JPY  = 3R
-# NZD/USD  = 3R
-# EUR/JPY  = 3R
-# USD/JPY  = 2R
-#
-# TELEGRAM TRADE LIFECYCLE:
-#
-# SETUP DETECTED
-#        ↓
-# ENTRY HIT
-#        ↓
-# HEADING TO TP1
-#        ↓
-# TP1 HIT
-#        ↓
-# HEADING TO TP2
-#        ↓
-# TP2 HIT
-#        ↓
-# FINAL VERDICT: WIN
-#
-# OR
-#
-# ENTRY HIT
-#        ↓
-# STOP LOSS HIT
-#        ↓
-# FINAL VERDICT: LOSS
-#
-# IMPORTANT:
-# DO NOT MODIFY THE SMC FUNCTIONS BELOW.
-# They are copied from the validated research model.
-# ============================================================
-
-
-# ============================================================
-# ENVIRONMENT
+# ENV
 # ============================================================
 
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
-SHEET_URL = os.getenv(
-    "SHEET_URL",
-    ""
-)
+SHEET_URL = os.getenv("SHEET_URL", "")
 
 STATE_FILE = "last_alert_state.json"
-
-OUTPUTSIZE = 5000
-
-ENTRY_TF = "15min"
-HTF_TF = "1h"
+STATE_VERSION = 4
 
 ATR_PERIOD = 14
-LOOKBACK = 100
-
-SWING = 3
-LIQUIDITY_LOOKBACK = 20
-DEALING_RANGE = 50
-DISPLACEMENT_ATR = 0.8
-
 MAX_HOLD_BARS = 150
+SCORE_THRESHOLD = 3.0
 
-
-# ============================================================
-# LOCKED TOP 5 CONFIG
-# ============================================================
-
-CONFIG = {
-
-    "AUD/JPY": {
-        "threshold": 7.5,
-        "rr": 3.0
-    },
-
-    "GBP/JPY": {
-        "threshold": 7.0,
-        "rr": 3.0
-    },
-
-    "NZD/USD": {
-        "threshold": 7.5,
-        "rr": 3.0
-    },
-
-    "EUR/JPY": {
-        "threshold": 7.5,
-        "rr": 3.0
-    },
-
-    "USD/JPY": {
-        "threshold": 7.5,
-        "rr": 2.0
-    }
+# Research shortlist — model-specific pairs
+SMC_PAIRS = {
+    "USD/CHF": {"rr": 2.0, "pip": 0.0001},
+    "NZD/USD": {"rr": 2.0, "pip": 0.0001},
+    "AUD/JPY": {"rr": 2.0, "pip": 0.01},
+    "USD/JPY": {"rr": 2.0, "pip": 0.01},
+    "GBP/USD": {"rr": 2.0, "pip": 0.0001},
 }
 
-PAIRS = list(CONFIG.keys())
+ADV_PAIRS = {
+    "USD/CHF": {"rr": 2.0, "pip": 0.0001},
+    "EUR/USD": {"rr": 2.0, "pip": 0.0001},
+    "USD/CAD": {"rr": 2.0, "pip": 0.0001},
+    "USD/JPY": {"rr": 2.0, "pip": 0.01},
+    "GBP/USD": {"rr": 2.0, "pip": 0.0001},
+}
+
+ALL_PAIRS = sorted(set(list(SMC_PAIRS.keys()) + list(ADV_PAIRS.keys())))
 
 
 # ============================================================
-# TELEGRAM
+# TELEGRAM / SHEET
 # ============================================================
 
 def send_telegram(text):
-
     if not BOT_TOKEN or not CHAT_ID:
         print("Telegram credentials missing.")
         return None
-
-    url = (
-        f"https://api.telegram.org/bot"
-        f"{BOT_TOKEN}/sendMessage"
-    )
-
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
-        "disable_web_page_preview": True
+        "disable_web_page_preview": True,
     }
-
     try:
-
-        response = requests.post(
-            url,
-            json=payload,
-            timeout=20
-        )
-
-        data = response.json()
-
+        data = requests.post(url, json=payload, timeout=20).json()
         if data.get("ok"):
-
             return data["result"]["message_id"]
-
-        print(
-            "Telegram error:",
-            data
-        )
-
+        print("Telegram error:", data)
     except Exception as e:
-
-        print(
-            "Telegram send error:",
-            e
-        )
-
+        print("Telegram send error:", e)
     return None
 
 
 def edit_telegram(message_id, text):
-
-    if not BOT_TOKEN or not CHAT_ID:
+    if not BOT_TOKEN or not CHAT_ID or not message_id:
         return False
-
-    url = (
-        f"https://api.telegram.org/bot"
-        f"{BOT_TOKEN}/editMessageText"
-    )
-
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
     payload = {
         "chat_id": CHAT_ID,
         "message_id": message_id,
         "text": text,
         "parse_mode": "HTML",
-        "disable_web_page_preview": True
+        "disable_web_page_preview": True,
     }
-
     try:
-
-        response = requests.post(
-            url,
-            json=payload,
-            timeout=20
-        )
-
-        data = response.json()
-
-        return bool(
-            data.get("ok")
-        )
-
+        data = requests.post(url, json=payload, timeout=20).json()
+        return bool(data.get("ok"))
     except Exception as e:
-
-        print(
-            "Telegram edit error:",
-            e
-        )
-
+        print("Telegram edit error:", e)
         return False
 
 
-# ============================================================
-# GOOGLE SHEETS
-# ============================================================
-
 def send_to_sheet(record):
-
     if not SHEET_URL:
-        print("SHEET_URL not configured.")
         return
-
     try:
-
-        requests.post(
-            SHEET_URL,
-            json=record,
-            timeout=20
-        )
-
+        requests.post(SHEET_URL, json=record, timeout=20)
     except Exception as e:
+        print("Google Sheet error:", e)
 
-        print(
-            "Google Sheet error:",
-            e
-        )
+
+def tradingview_url(pair):
+    return f"https://www.tradingview.com/symbols/{pair.replace('/', '')}/"
 
 
 # ============================================================
-# FETCH — SAME TWELVE DATA SOURCE
+# DATA
 # ============================================================
 
-def fetch(
-    symbol,
-    interval,
-    outputsize=5000,
-    retries=4
-):
-
-    url = (
-        "https://api.twelvedata.com/time_series"
-    )
-
+def fetch(symbol, interval, outputsize=1500, retries=4):
+    url = "https://api.twelvedata.com/time_series"
     params = {
-
         "symbol": symbol,
-
         "interval": interval,
-
         "outputsize": outputsize,
-
         "apikey": TWELVE_DATA_KEY,
-
-        "format": "JSON"
+        "format": "JSON",
     }
-
     for attempt in range(retries):
-
         try:
-
-            response = requests.get(
-                url,
-                params=params,
-                timeout=30
-            )
-
-            data = response.json()
-
+            data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
-
-                df = pd.DataFrame(
-                    data["values"]
-                )
-
-                df["datetime"] = pd.to_datetime(
-                    df["datetime"]
-                )
-
-                for column in [
-                    "open",
-                    "high",
-                    "low",
-                    "close"
-                ]:
-
-                    df[column] = pd.to_numeric(
-                        df[column],
-                        errors="coerce"
-                    )
-
-                df = (
-                    df
-                    .dropna()
-                    .sort_values("datetime")
-                    .reset_index(drop=True)
-                )
-
+                df = pd.DataFrame(data["values"])
+                df["datetime"] = pd.to_datetime(df["datetime"])
+                for col in ("open", "high", "low", "close"):
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                df = df.dropna().sort_values("datetime").reset_index(drop=True)
                 time.sleep(8)
-
                 return df
-
-            if data.get("code") == 429:
-
-                print(
-                    f"Rate limit: {symbol} "
-                    f"{interval}. Waiting..."
-                )
-
+            if data.get("code") == 429 or "credits" in str(data).lower():
+                print(f"Rate limit {symbol} {interval}, waiting...")
                 time.sleep(65)
-
                 continue
-
-            print(
-                f"API error {symbol} "
-                f"{interval}: {data}"
-            )
-
+            print(f"API error {symbol} {interval}:", data)
             return None
-
         except Exception as e:
-
-            print(
-                f"Fetch error "
-                f"{symbol} {interval}: {e}"
-            )
-
-            if attempt < retries - 1:
-                time.sleep(10)
-
+            print(f"Fetch error {symbol} {interval}:", e)
+            time.sleep(10)
     return None
 
 
-# ============================================================
-# ATR
-# ============================================================
-
 def add_atr(df):
-
-    prev_close = df["close"].shift(1)
-
+    prev = df["close"].shift(1)
     tr = pd.concat(
         [
             df["high"] - df["low"],
-
-            (
-                df["high"]
-                -
-                prev_close
-            ).abs(),
-
-            (
-                df["low"]
-                -
-                prev_close
-            ).abs()
+            (df["high"] - prev).abs(),
+            (df["low"] - prev).abs(),
         ],
-        axis=1
+        axis=1,
     ).max(axis=1)
-
-    df["atr"] = tr.rolling(
-        ATR_PERIOD
-    ).mean()
-
+    df = df.copy()
+    df["atr"] = tr.rolling(ATR_PERIOD).mean()
     return df
 
 
 # ============================================================
-# HTF BIAS
+# H4 BIAS
 # ============================================================
 
-def create_htf_bias(htf):
-
-    htf = htf.copy()
-
-    htf["ema20"] = (
-        htf["close"]
-        .ewm(
-            span=20,
-            adjust=False
-        )
-        .mean()
-    )
-
-    htf["ema50"] = (
-        htf["close"]
-        .ewm(
-            span=50,
-            adjust=False
-        )
-        .mean()
-    )
-
-    htf["bias"] = np.where(
-
-        htf["ema20"]
-        >
-        htf["ema50"],
-
-        1,
-
-        np.where(
-
-            htf["ema20"]
-            <
-            htf["ema50"],
-
-            -1,
-
-            0
-        )
-    )
-
-    return htf[
-        [
-            "datetime",
-            "bias"
-        ]
-    ]
-
-
-def attach_htf(df, htf):
-
-    bias = create_htf_bias(
-        htf
-    )
-
-    df = pd.merge_asof(
-
-        df.sort_values(
-            "datetime"
-        ),
-
-        bias.sort_values(
-            "datetime"
-        ),
-
-        on="datetime",
-
-        direction="backward"
-    )
-
-    df["bias"] = (
-        df["bias"]
-        .fillna(0)
-        .astype(int)
-    )
-
-    return df
-
-
-# ============================================================
-# BASIC CANDLE FUNCTIONS
-# ============================================================
-
-def candle_body(df, i):
-
-    return abs(
-        df["close"].iloc[i]
-        -
-        df["open"].iloc[i]
-    )
-
-
-def bullish(df, i):
-
-    return (
-        df["close"].iloc[i]
-        >
-        df["open"].iloc[i]
-    )
-
-
-def bearish(df, i):
-
-    return (
-        df["close"].iloc[i]
-        <
-        df["open"].iloc[i]
-    )
-
-
-# ============================================================
-# CURRENT SMC
-# ============================================================
-
-def liquidity_sweep(df, i):
-
-    if i < LIQUIDITY_LOOKBACK:
+def h4_bias(h4):
+    if h4 is None or len(h4) < 25:
         return 0
-
-    previous_high = (
-        df["high"]
-        .iloc[
-            i-LIQUIDITY_LOOKBACK:i
-        ]
-        .max()
-    )
-
-    previous_low = (
-        df["low"]
-        .iloc[
-            i-LIQUIDITY_LOOKBACK:i
-        ]
-        .min()
-    )
-
-    high = df["high"].iloc[i]
-    low = df["low"].iloc[i]
-    close = df["close"].iloc[i]
-
-    bullish_sweep = (
-        low < previous_low
-        and
-        close > previous_low
-    )
-
-    bearish_sweep = (
-        high > previous_high
-        and
-        close < previous_high
-    )
-
-    if bullish_sweep:
+    window = h4.iloc[-21:-1]  # completed bars only
+    if len(window) < 20:
+        return 0
+    c0 = float(window["close"].iloc[0])
+    c1 = float(window["close"].iloc[-1])
+    if c1 > c0 * 1.0008:
         return 1
-
-    if bearish_sweep:
+    if c1 < c0 * 0.9992:
         return -1
-
-    return 0
-
-
-def fvg_signal(df, i):
-
-    if i < 2:
-        return 0
-
-    if (
-        df["low"].iloc[i]
-        >
-        df["high"].iloc[i-2]
-    ):
-        return 1
-
-    if (
-        df["high"].iloc[i]
-        <
-        df["low"].iloc[i-2]
-    ):
-        return -1
-
-    return 0
-
-
-def order_block(df, i):
-
-    if i < 3:
-        return 0
-
-    atr = df["atr"].iloc[i]
-
-    if pd.isna(atr) or atr <= 0:
-        return 0
-
-    body = candle_body(
-        df,
-        i
-    )
-
-    displacement = (
-        body
-        >=
-        atr * DISPLACEMENT_ATR
-    )
-
-    if not displacement:
-        return 0
-
-    if (
-        bullish(df, i)
-        and
-        bearish(df, i-1)
-    ):
-        return 1
-
-    if (
-        bearish(df, i)
-        and
-        bullish(df, i-1)
-    ):
-        return -1
-
-    return 0
-
-
-def structure_signal(df, i):
-
-    if i < 20:
-        return 0
-
-    previous_high = (
-        df["high"]
-        .iloc[i-20:i]
-        .max()
-    )
-
-    previous_low = (
-        df["low"]
-        .iloc[i-20:i]
-        .min()
-    )
-
-    close = df["close"].iloc[i]
-
-    if close > previous_high:
-        return 1
-
-    if close < previous_low:
-        return -1
-
-    return 0
-
-
-def premium_discount(df, i):
-
-    if i < DEALING_RANGE:
-        return 0
-
-    high = (
-        df["high"]
-        .iloc[i-DEALING_RANGE:i]
-        .max()
-    )
-
-    low = (
-        df["low"]
-        .iloc[i-DEALING_RANGE:i]
-        .min()
-    )
-
-    if high <= low:
-        return 0
-
-    equilibrium = (
-        high + low
-    ) / 2
-
-    price = df["close"].iloc[i]
-
-    if price < equilibrium:
-        return 1
-
-    if price > equilibrium:
-        return -1
-
-    return 0
-
-
-def displacement_signal(df, i):
-
-    if i < 2:
-        return 0
-
-    atr = df["atr"].iloc[i]
-
-    if pd.isna(atr) or atr <= 0:
-        return 0
-
-    body = candle_body(
-        df,
-        i
-    )
-
-    if body < atr * DISPLACEMENT_ATR:
-        return 0
-
-    if bullish(df, i):
-        return 1
-
-    if bearish(df, i):
-        return -1
-
     return 0
 
 
 # ============================================================
-# ADVANCED SMC
+# H1 FEATURES
 # ============================================================
 
-def equal_liquidity(df, i):
-
-    if i < 10:
-        return 0
-
-    atr = df["atr"].iloc[i]
-
-    if pd.isna(atr) or atr <= 0:
-        return 0
-
-    tolerance = atr * 0.15
-
-    recent_highs = (
-        df["high"]
-        .iloc[i-10:i]
-        .values
-    )
-
-    recent_lows = (
-        df["low"]
-        .iloc[i-10:i]
-        .values
-    )
-
-    equal_high = False
-    equal_low = False
-
-    for x in range(
-        len(recent_highs)
-    ):
-
-        for y in range(
-            x + 1,
-            len(recent_highs)
-        ):
-
-            if abs(
-                recent_highs[x]
-                -
-                recent_highs[y]
-            ) <= tolerance:
-
-                equal_high = True
-
-    for x in range(
-        len(recent_lows)
-    ):
-
-        for y in range(
-            x + 1,
-            len(recent_lows)
-        ):
-
-            if abs(
-                recent_lows[x]
-                -
-                recent_lows[y]
-            ) <= tolerance:
-
-                equal_low = True
-
-    if equal_low and not equal_high:
-        return 1
-
-    if equal_high and not equal_low:
-        return -1
-
-    return 0
-
-
-def liquidity_structure(df, i):
-
-    if i < 50:
-        return 0
-
-    internal_high = (
-        df["high"]
-        .iloc[i-10:i]
-        .max()
-    )
-
-    internal_low = (
-        df["low"]
-        .iloc[i-10:i]
-        .min()
-    )
-
-    external_high = (
-        df["high"]
-        .iloc[i-50:i-20]
-        .max()
-    )
-
-    external_low = (
-        df["low"]
-        .iloc[i-50:i-20]
-        .min()
-    )
-
-    price = df["close"].iloc[i]
-
-    if (
-        price > external_high
-        and
-        price > internal_high
-    ):
-        return 1
-
-    if (
-        price < external_low
-        and
-        price < internal_low
-    ):
-        return -1
-
-    return 0
-
-
-def inducement(df, i):
-
-    if i < 20:
-        return 0
-
-    previous_high = (
-        df["high"]
-        .iloc[i-10:i-3]
-        .max()
-    )
-
-    previous_low = (
-        df["low"]
-        .iloc[i-10:i-3]
-        .min()
-    )
-
-    recent_high = (
-        df["high"]
-        .iloc[i-3:i]
-        .max()
-    )
-
-    recent_low = (
-        df["low"]
-        .iloc[i-3:i]
-        .min()
-    )
-
-    if (
-        recent_low < previous_low
-        and
-        df["close"].iloc[i]
-        >
-        previous_low
-    ):
-        return 1
-
-    if (
-        recent_high > previous_high
-        and
-        df["close"].iloc[i]
-        <
-        previous_high
-    ):
-        return -1
-
-    return 0
-
-
-def liquidity_void(df, i):
-
-    if i < 3:
-        return 0
-
-    atr = df["atr"].iloc[i]
-
-    if pd.isna(atr) or atr <= 0:
-        return 0
-
-    bodies = []
-
-    for j in range(
-        i-2,
-        i+1
-    ):
-
-        bodies.append(
-            candle_body(
-                df,
-                j
-            )
-        )
-
-    large_count = sum(
-        b >= atr * 0.9
-        for b in bodies
-    )
-
-    if large_count >= 2:
-
-        if bullish(df, i):
-            return 1
-
-        if bearish(df, i):
-            return -1
-
-    return 0
-
-
-def breaker_block(df, i):
-
-    if i < 10:
-        return 0
-
-    ob = order_block(
-        df,
-        i-3
-    )
-
-    if ob == 0:
-        return 0
-
-    if (
-        ob == 1
-        and
-        df["close"].iloc[i]
-        <
-        df["low"].iloc[i-3]
-    ):
-        return -1
-
-    if (
-        ob == -1
-        and
-        df["close"].iloc[i]
-        >
-        df["high"].iloc[i-3]
-    ):
-        return 1
-
-    return 0
-
-
-def mitigation_signal(df, i):
-
-    if i < 8:
-        return 0
-
-    current = df["close"].iloc[i]
-
-    old_high = df["high"].iloc[i-4]
-    old_low = df["low"].iloc[i-4]
-
-    if (
-        current > old_low
-        and
-        current < old_high
-        and
-        bullish(df, i)
-    ):
-        return 1
-
-    if (
-        current > old_low
-        and
-        current < old_high
-        and
-        bearish(df, i)
-    ):
-        return -1
-
-    return 0
-
-
-def dealing_range_location(df, i):
-
-    if i < DEALING_RANGE:
-        return 0
-
-    high = (
-        df["high"]
-        .iloc[i-DEALING_RANGE:i]
-        .max()
-    )
-
-    low = (
-        df["low"]
-        .iloc[i-DEALING_RANGE:i]
-        .min()
-    )
-
-    if high <= low:
-        return 0
-
-    price = df["close"].iloc[i]
-
-    position = (
-        price - low
-    ) / (
-        high - low
-    )
-
-    if position <= 0.30:
-        return 1
-
-    if position >= 0.70:
-        return -1
-
-    return 0
-
-
-def mss_signal(df, i):
-
+def feat_sweep(df, i):
     if i < 15:
         return 0
-
-    prior_high = (
-        df["high"]
-        .iloc[i-15:i-5]
-        .max()
-    )
-
-    prior_low = (
-        df["low"]
-        .iloc[i-15:i-5]
-        .min()
-    )
-
-    recent_high = (
-        df["high"]
-        .iloc[i-5:i]
-        .max()
-    )
-
-    recent_low = (
-        df["low"]
-        .iloc[i-5:i]
-        .min()
-    )
-
-    close = df["close"].iloc[i]
-
-    if (
-        recent_low < prior_low
-        and
-        close > prior_high
-    ):
+    ph = float(df["high"].iloc[i - 15 : i].max())
+    pl = float(df["low"].iloc[i - 15 : i].min())
+    hi = float(df["high"].iloc[i])
+    lo = float(df["low"].iloc[i])
+    cl = float(df["close"].iloc[i])
+    if lo < pl and cl > pl:
         return 1
-
-    if (
-        recent_high > prior_high
-        and
-        close < prior_low
-    ):
+    if hi > ph and cl < ph:
         return -1
-
     return 0
 
 
-# ============================================================
-# CURRENT SCORE
-# ============================================================
-
-def current_smc_score(df, i):
-
-    sweep = liquidity_sweep(df, i)
-    fvg = fvg_signal(df, i)
-    ob = order_block(df, i)
-    structure = structure_signal(df, i)
-    pd_zone = premium_discount(df, i)
-    htf = int(df["bias"].iloc[i])
-    displacement = displacement_signal(df, i)
-
-    bull = 0
-    bear = 0
-
-    if sweep == 1:
-        bull += 2
-    elif sweep == -1:
-        bear += 2
-
-    if fvg == 1:
-        bull += 1.5
-    elif fvg == -1:
-        bear += 1.5
-
-    if ob == 1:
-        bull += 1.5
-    elif ob == -1:
-        bear += 1.5
-
-    if structure == 1:
-        bull += 1.5
-    elif structure == -1:
-        bear += 1.5
-
-    if pd_zone == 1:
-        bull += 1
-    elif pd_zone == -1:
-        bear += 1
-
-    if htf == 1:
-        bull += 1.5
-    elif htf == -1:
-        bear += 1.5
-
-    if displacement == 1:
-        bull += 1
-    elif displacement == -1:
-        bear += 1
-
-    if bull > bear:
-
-        return {
-            "direction": 1,
-            "score": bull
-        }
-
-    if bear > bull:
-
-        return {
-            "direction": -1,
-            "score": bear
-        }
-
-    return None
+def feat_fvg(df, i):
+    if i < 2:
+        return 0
+    if float(df["low"].iloc[i]) > float(df["high"].iloc[i - 2]):
+        return 1
+    if float(df["high"].iloc[i]) < float(df["low"].iloc[i - 2]):
+        return -1
+    return 0
 
 
-# ============================================================
-# ADVANCED SCORE
-# ============================================================
-
-def advanced_smc_score(df, i):
-
-    eq = equal_liquidity(df, i)
-    liq = liquidity_structure(df, i)
-    ind = inducement(df, i)
-    void = liquidity_void(df, i)
-    breaker = breaker_block(df, i)
-    mitigation = mitigation_signal(df, i)
-    range_loc = dealing_range_location(df, i)
-    mss = mss_signal(df, i)
-
-    htf = int(df["bias"].iloc[i])
-
-    bull = 0
-    bear = 0
-
-    if eq == 1:
-        bull += 1.0
-    elif eq == -1:
-        bear += 1.0
-
-    if liq == 1:
-        bull += 1.5
-    elif liq == -1:
-        bear += 1.5
-
-    if ind == 1:
-        bull += 1.0
-    elif ind == -1:
-        bear += 1.0
-
-    if void == 1:
-        bull += 1.0
-    elif void == -1:
-        bear += 1.0
-
-    if breaker == 1:
-        bull += 1.5
-    elif breaker == -1:
-        bear += 1.5
-
-    if mitigation == 1:
-        bull += 1.0
-    elif mitigation == -1:
-        bear += 1.0
-
-    if range_loc == 1:
-        bull += 1.0
-    elif range_loc == -1:
-        bear += 1.0
-
-    if mss == 1:
-        bull += 2.0
-    elif mss == -1:
-        bear += 2.0
-
-    if htf == 1:
-        bull += 1.0
-    elif htf == -1:
-        bear += 1.0
-
-    if bull > bear:
-
-        return {
-            "direction": 1,
-            "score": bull
-        }
-
-    if bear > bull:
-
-        return {
-            "direction": -1,
-            "score": bear
-        }
-
-    return None
-
-
-# ============================================================
-# EXACT COMBINED MODEL
-# ============================================================
-
-def combined_score(df, i):
-
-    current = current_smc_score(
-        df,
-        i
-    )
-
-    advanced = advanced_smc_score(
-        df,
-        i
-    )
-
-    if (
-        current is None
-        and
-        advanced is None
-    ):
-        return None
-
-    current_bull = 0
-    current_bear = 0
-
-    advanced_bull = 0
-    advanced_bear = 0
-
-    if current:
-
-        if current["direction"] == 1:
-            current_bull = current["score"]
-
-        else:
-            current_bear = current["score"]
-
-    if advanced:
-
-        if advanced["direction"] == 1:
-            advanced_bull = advanced["score"]
-
-        else:
-            advanced_bear = advanced["score"]
-
-    bull = (
-        current_bull
-        +
-        advanced_bull
-    )
-
-    bear = (
-        current_bear
-        +
-        advanced_bear
-    )
-
-    if bull > bear:
-
-        return {
-            "direction": 1,
-            "score": bull,
-            "current_score": current_bull,
-            "advanced_score": advanced_bull
-        }
-
-    if bear > bull:
-
-        return {
-            "direction": -1,
-            "score": bear,
-            "current_score": current_bear,
-            "advanced_score": advanced_bear
-        }
-
-    return None
-
-
-# ============================================================
-# EXACT ORIGINAL SL
-# ============================================================
-
-def calculate_stop(
-    df,
-    i,
-    direction
-):
-
+def feat_ob(df, i):
+    if i < 3:
+        return 0
     atr = df["atr"].iloc[i]
+    if pd.isna(atr) or atr <= 0:
+        return 0
+    body = abs(float(df["close"].iloc[i]) - float(df["open"].iloc[i]))
+    if body < 0.7 * atr:
+        return 0
+    bull = float(df["close"].iloc[i]) > float(df["open"].iloc[i])
+    prev_bear = float(df["close"].iloc[i - 1]) < float(df["open"].iloc[i - 1])
+    prev_bull = float(df["close"].iloc[i - 1]) > float(df["open"].iloc[i - 1])
+    if bull and prev_bear:
+        return 1
+    if (not bull) and prev_bull:
+        return -1
+    return 0
 
+
+def feat_structure(df, i):
+    if i < 20:
+        return 0
+    ph = float(df["high"].iloc[i - 20 : i].max())
+    pl = float(df["low"].iloc[i - 20 : i].min())
+    cl = float(df["close"].iloc[i])
+    if cl > ph:
+        return 1
+    if cl < pl:
+        return -1
+    return 0
+
+
+def feat_zone(df, i):
+    if i < 40:
+        return 0
+    hi = float(df["high"].iloc[i - 40 : i].max())
+    lo = float(df["low"].iloc[i - 40 : i].min())
+    if hi <= lo:
+        return 0
+    mid = (hi + lo) / 2
+    cl = float(df["close"].iloc[i])
+    if cl < mid:
+        return 1
+    if cl > mid:
+        return -1
+    return 0
+
+
+def feat_eq(df, i):
+    if i < 25:
+        return 0
+    highs = df["high"].iloc[i - 12 : i].astype(float).tolist()
+    lows = df["low"].iloc[i - 12 : i].astype(float).tolist()
+    mx, mn = max(highs), min(lows)
+    if abs(mx - sorted(highs)[-2]) < mx * 0.0003 and float(df["high"].iloc[i]) >= mx:
+        return -1
+    if abs(mn - sorted(lows)[1]) < mn * 0.0003 and float(df["low"].iloc[i]) <= mn:
+        return 1
+    return 0
+
+
+def feat_ind(df, i):
+    if i < 4:
+        return 0
+    if float(df["high"].iloc[i]) > float(df["high"].iloc[i - 1]) and float(df["close"].iloc[i]) < float(df["close"].iloc[i - 1]):
+        return -1
+    if float(df["low"].iloc[i]) < float(df["low"].iloc[i - 1]) and float(df["close"].iloc[i]) > float(df["close"].iloc[i - 1]):
+        return 1
+    return 0
+
+
+def feat_void(df, i):
+    if i < 3:
+        return 0
+    atr = df["atr"].iloc[i]
+    if pd.isna(atr) or atr <= 0:
+        return 0
+    rng = float(df["high"].iloc[i]) - float(df["low"].iloc[i])
+    if rng > 1.6 * atr:
+        return 1 if float(df["close"].iloc[i]) > float(df["open"].iloc[i]) else -1
+    return 0
+
+
+def score_smc(df, i):
+    parts = [feat_sweep(df, i), feat_fvg(df, i), feat_ob(df, i), feat_structure(df, i), feat_zone(df, i)]
+    bull = sum(1 for x in parts if x == 1)
+    bear = sum(1 for x in parts if x == -1)
+    if bull > bear and bull >= 2:
+        return 1, float(bull * 1.5)
+    if bear > bull and bear >= 2:
+        return -1, float(bear * 1.5)
+    return 0, 0.0
+
+
+def score_adv(df, i):
+    parts = [feat_eq(df, i), feat_ind(df, i), feat_void(df, i), feat_sweep(df, i), feat_structure(df, i)]
+    bull = sum(1 for x in parts if x == 1)
+    bear = sum(1 for x in parts if x == -1)
+    if bull > bear and bull >= 2:
+        return 1, float(bull * 2.0)
+    if bear > bull and bear >= 2:
+        return -1, float(bear * 2.0)
+    return 0, 0.0
+
+
+# ============================================================
+# M15 ENTRY + LEVELS
+# ============================================================
+
+def m15_entry_ok(df, i, direction):
+    o = float(df["open"].iloc[i])
+    h = float(df["high"].iloc[i])
+    l = float(df["low"].iloc[i])
+    c = float(df["close"].iloc[i])
+    full = h - l
+    if full <= 0:
+        return False
+    if direction == 1:
+        return c > o and (c - l) / full >= 0.45
+    return c < o and (h - c) / full >= 0.45
+
+
+def calculate_stop(df, i, direction):
+    atr = df["atr"].iloc[i]
     if pd.isna(atr) or atr <= 0:
         return None
-
-    start = max(
-        0,
-        i - 20
-    )
-
-    recent = df.iloc[
-        start:i
-    ]
-
+    start = max(0, i - 20)
+    recent = df.iloc[start:i]
     if len(recent) < 5:
         return None
-
-    entry = df["close"].iloc[i]
-
+    entry = float(df["close"].iloc[i])
     if direction == 1:
-
-        structural_low = (
-            recent["low"].min()
-        )
-
-        stop = (
-            structural_low
-            -
-            atr * 0.25
-        )
-
-        if stop >= entry:
-            return None
-
-        return stop
-
-    structural_high = (
-        recent["high"].max()
-    )
-
-    stop = (
-        structural_high
-        +
-        atr * 0.25
-    )
-
-    if stop <= entry:
-        return None
-
-    return stop
+        stop = float(recent["low"].min()) - atr * 0.25
+        return stop if stop < entry else None
+    stop = float(recent["high"].max()) + atr * 0.25
+    return stop if stop > entry else None
 
 
-# ============================================================
-# FIXED TARGET
-# ============================================================
-
-def fixed_target(
-    entry,
-    stop,
-    direction,
-    rr
-):
-
-    risk = abs(
-        entry - stop
-    )
-
+def fixed_target(entry, stop, direction, rr):
+    risk = abs(entry - stop)
     if risk <= 0:
         return None
-
-    if direction == 1:
-
-        return (
-            entry
-            +
-            risk * rr
-        )
-
-    return (
-        entry
-        -
-        risk * rr
-    )
+    return entry + risk * rr if direction == 1 else entry - risk * rr
 
 
 # ============================================================
@@ -1393,1182 +367,282 @@ def fixed_target(
 # ============================================================
 
 def load_state():
-
-    default = {
-        "version": 3,
-        "last_alert_keys": {},
-        "pending": []
-    }
-
-    if not os.path.exists(
-        STATE_FILE
-    ):
+    default = {"version": STATE_VERSION, "last_alert_keys": {}, "pending": []}
+    if not os.path.exists(STATE_FILE):
         return default
-
     try:
-
-        with open(
-            STATE_FILE,
-            "r"
-        ) as f:
-
+        with open(STATE_FILE, "r") as f:
             state = json.load(f)
-
-        # Version 3 introduces the
-        # SETUP -> ENTRY -> TP lifecycle.
-        #
-        # Old v2 trades do not contain
-        # reliable entry-state information,
-        # so start fresh.
-
-        if state.get("version") != 3:
-
-            print(
-                "Old state format detected."
-            )
-
-            print(
-                "Starting new trade-lifecycle state."
-            )
-
+        if state.get("version") != STATE_VERSION:
+            print("Old state detected — resetting pending lifecycle.")
             return default
-
-        state.setdefault(
-            "last_alert_keys",
-            {}
-        )
-
-        state.setdefault(
-            "pending",
-            []
-        )
-
+        state.setdefault("last_alert_keys", {})
+        state.setdefault("pending", [])
         return state
-
     except Exception as e:
-
-        print(
-            "State load error:",
-            e
-        )
-
+        print("State load error:", e)
         return default
 
 
 def save_state(state):
-
-    temp_file = (
-        STATE_FILE
-        +
-        ".tmp"
-    )
-
-    with open(
-        temp_file,
-        "w"
-    ) as f:
-
-        json.dump(
-            state,
-            f,
-            indent=2
-        )
-
-    os.replace(
-        temp_file,
-        STATE_FILE
-    )
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, STATE_FILE)
 
 
 # ============================================================
-# TRADINGVIEW
+# MESSAGES
 # ============================================================
 
-def tradingview_symbol(pair):
-
-    return pair.replace(
-        "/",
-        ""
-    )
-
-
-def tradingview_url(pair):
-
-    symbol = tradingview_symbol(
-        pair
-    )
-
+def build_signal_message(trade):
+    emoji = "🟢" if trade["direction"] == 1 else "🔴"
+    risk = abs(trade["entry"] - trade["stop"])
     return (
-        "https://www.tradingview.com/"
-        f"symbols/{symbol}/"
-    )
-
-
-# ============================================================
-# SETUP MESSAGE
-# ============================================================
-
-def build_alert(
-    pair,
-    direction,
-    score,
-    current_score,
-    advanced_score,
-    entry,
-    stop,
-    tp1,
-    tp2,
-    rr,
-    candle_time
-):
-
-    side = (
-        "BUY"
-        if direction == 1
-        else
-        "SELL"
-    )
-
-    emoji = (
-        "🟢"
-        if direction == 1
-        else
-        "🔴"
-    )
-
-    threshold = CONFIG[pair][
-        "threshold"
-    ]
-
-    risk = abs(
-        entry - stop
-    )
-
-    return (
-        "🟡 <b>TENSION TRADING DESK</b>\n"
-        "\n"
-        "<b>SETUP DETECTED</b>\n"
-        "\n"
-        f"{emoji} <b>{side} {pair}</b>\n"
-        "\n"
-        f"📊 Combined Score: "
-        f"<b>{score:.1f}</b>\n"
-        f"🎯 Threshold: "
-        f"<b>{threshold:.1f}</b>\n"
-        f"🧠 Current SMC: "
-        f"<b>{current_score:.1f}</b>\n"
-        f"🔬 Advanced SMC: "
-        f"<b>{advanced_score:.1f}</b>\n"
-        "\n"
-        f"💰 Planned Entry: <b>{entry:.5f}</b>\n"
-        f"🛑 Stop Loss: <b>{stop:.5f}</b>\n"
-        f"⚡ Risk: <b>{risk:.5f}</b>\n"
-        "\n"
-        f"🎯 TP1: <b>{tp1:.5f}</b> "
-        f"(1.5R)\n"
-        f"🏆 TP2: <b>{tp2:.5f}</b> "
-        f"({rr:.1f}R)\n"
-        "\n"
-        f"⏱️ Signal Candle: "
-        f"<b>{candle_time}</b>\n"
-        f"📈 Timeframe: <b>15M</b>\n"
-        f"🧭 HTF: <b>1H</b>\n"
-        "\n"
-        "⏳ <b>WAITING FOR ENTRY...</b>\n"
-        "\n"
-        f"📊 <a href=\"{tradingview_url(pair)}\">"
-        f"Open {pair} on TradingView"
-        f"</a>\n"
-        "\n"
-        "⚠️ Alert only — manage risk manually.\n"
-        "\n"
-        "<b>Built on Data.</b>\n"
-        "<b>Driven by Discipline.</b>"
-    )
-
-
-# ============================================================
-# ANALYZE LATEST CANDLE
-# ============================================================
-
-def analyze_pair(
-    df,
-    pair
-):
-
-    minimum = max(
-        LOOKBACK,
-        70
-    )
-
-    if len(df) <= minimum:
-        return None
-
-    i = len(df) - 1
-
-    signal = combined_score(
-        df,
-        i
-    )
-
-    if signal is None:
-        return None
-
-    threshold = CONFIG[pair][
-        "threshold"
-    ]
-
-    if signal["score"] < threshold:
-        return None
-
-    direction = signal[
-        "direction"
-    ]
-
-    entry = float(
-        df["close"].iloc[i]
-    )
-
-    stop = calculate_stop(
-        df,
-        i,
-        direction
-    )
-
-    if stop is None:
-        return None
-
-    rr = CONFIG[pair]["rr"]
-
-    tp2 = fixed_target(
-        entry,
-        stop,
-        direction,
-        rr
-    )
-
-    if tp2 is None:
-        return None
-
-    tp1 = fixed_target(
-        entry,
-        stop,
-        direction,
-        1.5
-    )
-
-    candle_time = str(
-        df["datetime"].iloc[i]
-    )
-
-    return {
-
-        "pair": pair,
-
-        "direction": direction,
-
-        "side":
-            "BUY"
-            if direction == 1
-            else
-            "SELL",
-
-        "score":
-            float(signal["score"]),
-
-        "current_score":
-            float(
-                signal["current_score"]
-            ),
-
-        "advanced_score":
-            float(
-                signal["advanced_score"]
-            ),
-
-        "entry":
-            entry,
-
-        "stop":
-            float(stop),
-
-        "tp1":
-            float(tp1),
-
-        "tp2":
-            float(tp2),
-
-        "rr":
-            float(rr),
-
-        "candle_time":
-            candle_time,
-
-        "candle_key":
-            f"{pair}|"
-            f"{candle_time}|"
-            f"{direction}"
-    }
-
-
-# ============================================================
-# TELEGRAM STATUS MESSAGES
-# ============================================================
-
-def entry_hit_message(trade):
-
-    return (
-        "🟢 <b>ENTRY HIT — TRADE ACTIVE</b>\n"
-        "\n"
-        f"<b>{trade['side']} "
-        f"{trade['pair']}</b>\n"
-        "\n"
-        f"✅ Entry: "
-        f"<b>{float(trade['entry']):.5f}</b>\n"
-        f"🛑 Stop Loss: "
-        f"<b>{float(trade['stop']):.5f}</b>\n"
-        f"🎯 TP1: "
-        f"<b>{float(trade['tp1']):.5f}</b>\n"
-        f"🏆 TP2: "
-        f"<b>{float(trade['tp2']):.5f}</b>\n"
-        "\n"
-        "🚀 <b>TRADE ACTIVE</b>\n"
-        "➡️ <b>HEADING TO TP1</b>\n"
-        "\n"
-        "<b>Built on Data.</b>\n"
-        "<b>Driven by Discipline.</b>"
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"════════════════════\n"
+        f"<b>{trade['model']}</b>\n"
+        f"────────────────────\n\n"
+        f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
+        f"Score: <b>{trade['score']:.1f}</b>\n"
+        f"H4 Bias aligned\n\n"
+        f"Entry  <b>{trade['entry']:.5f}</b>\n"
+        f"SL     <b>{trade['stop']:.5f}</b>\n"
+        f"TP1    <b>{trade['tp1']:.5f}</b> (1.5R)\n"
+        f"TP2    <b>{trade['tp2']:.5f}</b> ({trade['rr']:.1f}R)\n\n"
+        f"Risk: <b>{risk:.5f}</b>\n"
+        f"Candle: <b>{trade['candle_time']}</b>\n"
+        f"Stack: <b>H4 → H1 → M15</b>\n\n"
+        f"🚀 <b>TRADE ACTIVE</b>\n"
+        f"➡️ Heading to TP1\n\n"
+        f"<a href=\"{tradingview_url(trade['pair'])}\">Open {trade['pair']} on TradingView</a>\n\n"
+        f"Built on Data.\n"
+        f"Driven by Discipline."
     )
 
 
 def tp1_hit_message(trade):
-
     return (
-        "✅ <b>TP1 HIT</b>\n"
-        "\n"
-        f"<b>{trade['side']} "
-        f"{trade['pair']}</b>\n"
-        "\n"
-        f"🎯 TP1: "
-        f"<b>{float(trade['tp1']):.5f}</b>\n"
-        "📈 Result: <b>+1.5R</b>\n"
-        "\n"
-        "🚀 <b>HEADING TO TP2</b>\n"
-        f"🏆 Final TP: "
-        f"<b>{float(trade['tp2']):.5f}</b>\n"
-        f"🎯 Final RR: "
-        f"<b>{float(trade['rr']):.1f}R</b>\n"
-        "\n"
-        "<b>Built on Data.</b>\n"
-        "<b>Driven by Discipline.</b>"
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['model']}</b>\n\n"
+        f"✅ <b>TP1 HIT</b>\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"TP1 <b>{trade['tp1']:.5f}</b> (+1.5R)\n\n"
+        f"🚀 Heading to TP2 <b>{trade['tp2']:.5f}</b> ({trade['rr']:.1f}R)\n\n"
+        f"Built on Data.\nDriven by Discipline."
     )
 
 
-def tp2_win_message(
-    trade,
-    candle_time
-):
-
+def tp2_win_message(trade, exit_time):
     return (
-        "🏆 <b>TP2 HIT</b>\n"
-        "\n"
-        f"<b>{trade['side']} "
-        f"{trade['pair']}</b>\n"
-        "\n"
-        f"✅ TP2: "
-        f"<b>{float(trade['tp2']):.5f}</b>\n"
-        f"📈 Result: "
-        f"<b>+{float(trade['rr']):.1f}R</b>\n"
-        f"⏱️ Exit: <b>{candle_time}</b>\n"
-        "\n"
-        "🏆 <b>FINAL VERDICT: WIN</b>\n"
-        "\n"
-        "<b>Built on Data.</b>\n"
-        "<b>Driven by Discipline.</b>"
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['model']}</b>\n\n"
+        f"🏆 <b>TP2 HIT</b>\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"Exit <b>{exit_time}</b>\n"
+        f"Result <b>+{trade['rr']:.1f}R</b>\n\n"
+        f"🏆 FINAL VERDICT: WIN\n\n"
+        f"Built on Data.\nDriven by Discipline."
     )
 
 
-def stop_loss_message(
-    trade,
-    candle_time
-):
-
+def stop_loss_message(trade, exit_time):
     return (
-        "🔴 <b>STOP LOSS HIT</b>\n"
-        "\n"
-        f"<b>{trade['side']} "
-        f"{trade['pair']}</b>\n"
-        "\n"
-        f"🛑 SL: "
-        f"<b>{float(trade['stop']):.5f}</b>\n"
-        f"⏱️ Exit: <b>{candle_time}</b>\n"
-        "\n"
-        "📉 Result: <b>-1R</b>\n"
-        "\n"
-        "🔴 <b>FINAL VERDICT: LOSS</b>\n"
-        "\n"
-        "<b>Built on Data.</b>\n"
-        "<b>Driven by Discipline.</b>"
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['model']}</b>\n\n"
+        f"🔴 <b>STOP LOSS HIT</b>\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"SL <b>{trade['stop']:.5f}</b>\n"
+        f"Exit <b>{exit_time}</b>\n"
+        f"Result <b>-1R</b>\n\n"
+        f"🔴 FINAL VERDICT: LOSS\n\n"
+        f"Built on Data.\nDriven by Discipline."
     )
 
 
 # ============================================================
-# PENDING TRADE MANAGEMENT
+# PENDING MANAGEMENT (re-edit only — no entry wait)
 # ============================================================
 
-def check_pending_trades(
-    state,
-    pair,
-    df
-):
-
+def check_pending_trades(state, pair, m15):
     if not state["pending"]:
         return
 
-    latest_index = (
-        len(df) - 1
-    )
-
     remaining = []
+    latest = len(m15) - 1
 
     for trade in state["pending"]:
-
-        if trade.get(
-            "pair"
-        ) != pair:
-
-            remaining.append(
-                trade
-            )
-
+        if trade.get("pair") != pair:
+            remaining.append(trade)
             continue
 
-        entry_time = pd.Timestamp(
-            trade["candle_time"]
-        )
-
-        matches = np.where(
-            df["datetime"].values
-            >=
-            entry_time.to_datetime64()
-        )[0]
+        try:
+            entry_time = pd.Timestamp(trade["candle_time"])
+            matches = np.where(m15["datetime"].values >= entry_time.to_datetime64())[0]
+        except Exception:
+            remaining.append(trade)
+            continue
 
         if len(matches) == 0:
-
-            remaining.append(
-                trade
-            )
-
+            remaining.append(trade)
             continue
 
-        signal_index = int(
-            matches[0]
-        )
+        signal_index = int(matches[0])
+        last_checked = int(trade.get("last_checked_index", signal_index))
+        start_index = max(signal_index + 1, last_checked + 1)
 
-        status = trade.get(
-            "status",
-            "WAITING_ENTRY"
-        )
-
-        entry_hit = bool(
-            trade.get(
-                "entry_hit",
-                False
-            )
-        )
-
-        tp1_hit = bool(
-            trade.get(
-                "tp1_hit",
-                False
-            )
-        )
-
-        # =====================================================
-        # DETERMINE WHERE TO START
-        # =====================================================
-
-        last_checked = int(
-            trade.get(
-                "last_checked_index",
-                signal_index
-            )
-        )
-
-        start_index = max(
-            signal_index + 1,
-            last_checked + 1
-        )
-
-        final_tp = float(
-            trade["tp2"]
-        )
-
-        stop = float(
-            trade["stop"]
-        )
-
-        entry = float(
-            trade["entry"]
-        )
-
-        tp1 = float(
-            trade["tp1"]
-        )
-
-        direction = int(
-            trade["direction"]
-        )
-
+        direction = int(trade["direction"])
+        entry = float(trade["entry"])
+        stop = float(trade["stop"])
+        tp1 = float(trade["tp1"])
+        tp2 = float(trade["tp2"])
+        tp1_hit = bool(trade.get("tp1_hit", False))
         closed = False
 
-        # =====================================================
-        # WAIT FOR ACTUAL ENTRY
-        # =====================================================
-
-        if not entry_hit:
-
-            for j in range(
-                start_index,
-                latest_index + 1
-            ):
-
-                high = float(
-                    df["high"].iloc[j]
-                )
-
-                low = float(
-                    df["low"].iloc[j]
-                )
-
-                candle_time = str(
-                    df["datetime"].iloc[j]
-                )
-
-                # ---------------------------------------------
-                # PRICE MUST ACTUALLY REACH ENTRY
-                # ---------------------------------------------
-
-                entry_reached = (
-                    low <= entry <= high
-                )
-
-                if not entry_reached:
-
-                    trade[
-                        "last_checked_index"
-                    ] = j
-
-                    continue
-
-                # ---------------------------------------------
-                # ENTRY HIT
-                # ---------------------------------------------
-
-                trade["entry_hit"] = True
-
-                trade["status"] = "ACTIVE"
-
-                trade["entry_hit_time"] = (
-                    candle_time
-                )
-
-                trade["entry_hit_index"] = (
-                    j
-                )
-
-                entry_hit = True
-
-                edit_telegram(
-
-                    trade["message_id"],
-
-                    entry_hit_message(
-                        trade
-                    )
-                )
-
-                send_to_sheet({
-
-                    "action":
-                        "ENTRY_HIT",
-
-                    "pair":
-                        pair,
-
-                    "side":
-                        trade["side"],
-
-                    "entry":
-                        entry,
-
-                    "stop":
-                        stop,
-
-                    "tp1":
-                        tp1,
-
-                    "tp2":
-                        final_tp,
-
-                    "score":
-                        trade["score"],
-
-                    "entry_time":
-                        candle_time
-                })
-
-                # =============================================
-                # SAME-CANDLE SAFETY CHECK
-                #
-                # If the same candle reaches SL after entry,
-                # SL gets priority.
-                # =============================================
-
-                if direction == 1:
-
-                    hit_sl = (
-                        low <= stop
-                    )
-
-                    hit_tp2 = (
-                        high >= final_tp
-                    )
-
-                    hit_tp1 = (
-                        high >= tp1
-                    )
-
-                else:
-
-                    hit_sl = (
-                        high >= stop
-                    )
-
-                    hit_tp2 = (
-                        low <= final_tp
-                    )
-
-                    hit_tp1 = (
-                        low <= tp1
-                    )
-
-                if hit_sl:
-
-                    edit_telegram(
-
-                        trade["message_id"],
-
-                        stop_loss_message(
-                            trade,
-                            candle_time
-                        )
-                    )
-
-                    send_to_sheet({
-
-                        "action":
-                            "OUTCOME",
-
-                        "pair":
-                            pair,
-
-                        "side":
-                            trade["side"],
-
-                        "entry":
-                            entry,
-
-                        "stop":
-                            stop,
-
-                        "tp1":
-                            tp1,
-
-                        "tp2":
-                            final_tp,
-
-                        "outcome":
-                            "LOSS",
-
-                        "result_r":
-                            -1,
-
-                        "entry_time":
-                            trade[
-                                "entry_hit_time"
-                            ],
-
-                        "exit_time":
-                            candle_time
-                    })
-
-                    closed = True
-
-                    break
-
-                if hit_tp2:
-
-                    edit_telegram(
-
-                        trade["message_id"],
-
-                        tp2_win_message(
-                            trade,
-                            candle_time
-                        )
-                    )
-
-                    send_to_sheet({
-
-                        "action":
-                            "OUTCOME",
-
-                        "pair":
-                            pair,
-
-                        "side":
-                            trade["side"],
-
-                        "entry":
-                            entry,
-
-                        "stop":
-                            stop,
-
-                        "tp1":
-                            tp1,
-
-                        "tp2":
-                            final_tp,
-
-                        "outcome":
-                            "WIN",
-
-                        "result_r":
-                            float(
-                                trade["rr"]
-                            ),
-
-                        "entry_time":
-                            trade[
-                                "entry_hit_time"
-                            ],
-
-                        "exit_time":
-                            candle_time
-                    })
-
-                    closed = True
-
-                    break
-
-                if hit_tp1 and not tp1_hit:
-
-                    trade["tp1_hit"] = True
-
-                    trade["tp1_time"] = (
-                        candle_time
-                    )
-
-                    tp1_hit = True
-
-                    edit_telegram(
-
-                        trade["message_id"],
-
-                        tp1_hit_message(
-                            trade
-                        )
-                    )
-
-                trade[
-                    "last_checked_index"
-                ] = j
-
-                # ---------------------------------------------
-                # Entry has been reached.
-                # Continue normally from next candle.
-                # ---------------------------------------------
-
-                break
-
-        # =====================================================
-        # IF ENTRY WAS NOT HIT YET
-        # =====================================================
-
-        if not entry_hit:
-
-            trade[
-                "last_checked_index"
-            ] = latest_index
-
-            remaining.append(
-                trade
-            )
-
-            continue
-
-        if closed:
-            continue
-
-        # =====================================================
-        # ACTIVE TRADE
-        # =====================================================
-
-        active_start = max(
-
-            int(
-                trade.get(
-                    "entry_hit_index",
-                    signal_index
-                )
-            ) + 1,
-
-            int(
-                trade.get(
-                    "last_checked_index",
-                    signal_index
-                )
-            ) + 1
-        )
-
-        for j in range(
-            active_start,
-            latest_index + 1
-        ):
-
-            high = float(
-                df["high"].iloc[j]
-            )
-
-            low = float(
-                df["low"].iloc[j]
-            )
-
-            candle_time = str(
-                df["datetime"].iloc[j]
-            )
+        for j in range(start_index, latest + 1):
+            high = float(m15["high"].iloc[j])
+            low = float(m15["low"].iloc[j])
+            candle_time = str(m15["datetime"].iloc[j])
+            trade["last_checked_index"] = j
 
             if direction == 1:
-
-                hit_sl = (
-                    low <= stop
-                )
-
-                hit_tp2 = (
-                    high >= final_tp
-                )
-
-                hit_tp1 = (
-                    high >= tp1
-                )
-
+                hit_sl = low <= stop
+                hit_tp2 = high >= tp2
+                hit_tp1 = high >= tp1
             else:
+                hit_sl = high >= stop
+                hit_tp2 = low <= tp2
+                hit_tp1 = low <= tp1
 
-                hit_sl = (
-                    high >= stop
-                )
-
-                hit_tp2 = (
-                    low <= final_tp
-                )
-
-                hit_tp1 = (
-                    low <= tp1
-                )
-
-            # =================================================
-            # STOP LOSS
-            # =================================================
-
+            # SL priority
             if hit_sl:
-
-                edit_telegram(
-
-                    trade["message_id"],
-
-                    stop_loss_message(
-                        trade,
-                        candle_time
-                    )
-                )
-
+                edit_telegram(trade.get("message_id"), stop_loss_message(trade, candle_time))
                 send_to_sheet({
-
-                    "action":
-                        "OUTCOME",
-
-                    "pair":
-                        pair,
-
-                    "side":
-                        trade["side"],
-
-                    "entry":
-                        entry,
-
-                    "stop":
-                        stop,
-
-                    "tp1":
-                        tp1,
-
-                    "tp2":
-                        final_tp,
-
-                    "outcome":
-                        "LOSS",
-
-                    "result_r":
-                        -1,
-
-                    "entry_time":
-                        trade[
-                            "entry_hit_time"
-                        ],
-
-                    "exit_time":
-                        candle_time
+                    "action": "OUTCOME",
+                    "status": "LOSS",
+                    "pair": pair,
+                    "model": trade.get("model"),
+                    "side": trade["side"],
+                    "entry": entry,
+                    "stop": stop,
+                    "tp1": tp1,
+                    "tp2": tp2,
+                    "result_r": -1,
+                    "exit_time": candle_time,
                 })
-
                 closed = True
-
                 break
-
-            # =================================================
-            # TP2
-            # =================================================
 
             if hit_tp2:
-
-                edit_telegram(
-
-                    trade["message_id"],
-
-                    tp2_win_message(
-                        trade,
-                        candle_time
-                    )
-                )
-
+                edit_telegram(trade.get("message_id"), tp2_win_message(trade, candle_time))
                 send_to_sheet({
-
-                    "action":
-                        "OUTCOME",
-
-                    "pair":
-                        pair,
-
-                    "side":
-                        trade["side"],
-
-                    "entry":
-                        entry,
-
-                    "stop":
-                        stop,
-
-                    "tp1":
-                        tp1,
-
-                    "tp2":
-                        final_tp,
-
-                    "outcome":
-                        "WIN",
-
-                    "result_r":
-                        float(
-                            trade["rr"]
-                        ),
-
-                    "entry_time":
-                        trade[
-                            "entry_hit_time"
-                        ],
-
-                    "exit_time":
-                        candle_time
+                    "action": "OUTCOME",
+                    "status": "WIN",
+                    "pair": pair,
+                    "model": trade.get("model"),
+                    "side": trade["side"],
+                    "entry": entry,
+                    "stop": stop,
+                    "tp1": tp1,
+                    "tp2": tp2,
+                    "result_r": float(trade["rr"]),
+                    "exit_time": candle_time,
                 })
-
                 closed = True
-
                 break
 
-            # =================================================
-            # TP1
-            # =================================================
-
-            if (
-                hit_tp1
-                and
-                not tp1_hit
-            ):
-
+            if hit_tp1 and not tp1_hit:
                 trade["tp1_hit"] = True
-
-                trade["tp1_time"] = (
-                    candle_time
-                )
-
                 tp1_hit = True
+                edit_telegram(trade.get("message_id"), tp1_hit_message(trade))
+                send_to_sheet({
+                    "action": "TP1_HIT",
+                    "pair": pair,
+                    "model": trade.get("model"),
+                    "side": trade["side"],
+                    "tp1": tp1,
+                    "exit_time": candle_time,
+                })
 
+            # max hold
+            if j - signal_index >= MAX_HOLD_BARS:
                 edit_telegram(
-
-                    trade["message_id"],
-
-                    tp1_hit_message(
-                        trade
-                    )
+                    trade.get("message_id"),
+                    f"<b>TENSION TRADING DESK</b>\n<b>{trade.get('model')}</b>\n\n"
+                    f"⏱️ <b>TIME EXIT</b>\n\n<b>{trade['side']} {pair}</b>\n"
+                    f"No TP2/SL within max hold.\n\nBuilt on Data.\nDriven by Discipline.",
                 )
+                closed = True
+                break
 
-            trade[
-                "last_checked_index"
-            ] = j
-
-        if closed:
-            continue
-
-        # =====================================================
-        # MAX HOLD
-        # =====================================================
-
-        entry_index = int(
-            trade.get(
-                "entry_hit_index",
-                signal_index
-            )
-        )
-
-        bars_held = (
-            latest_index
-            -
-            entry_index
-        )
-
-        if bars_held >= MAX_HOLD_BARS:
-
-            exit_price = float(
-                df["close"].iloc[
-                    latest_index
-                ]
-            )
-
-            risk = abs(
-                entry
-                -
-                stop
-            )
-
-            if risk <= 0:
-
-                result_r = 0.0
-
-            elif direction == 1:
-
-                result_r = (
-                    exit_price
-                    -
-                    entry
-                ) / risk
-
-            else:
-
-                result_r = (
-                    entry
-                    -
-                    exit_price
-                ) / risk
-
-            result_r = float(
-                result_r
-            )
-
-            if result_r > 0:
-                outcome = "WIN"
-
-            elif result_r < 0:
-                outcome = "LOSS"
-
-            else:
-                outcome = "BE"
-
-            text = (
-                "⏱️ <b>TRADE CLOSED — MAX HOLD</b>\n"
-                "\n"
-                f"<b>{trade['side']} "
-                f"{pair}</b>\n"
-                "\n"
-                f"Entry: <b>{entry:.5f}</b>\n"
-                f"Exit: <b>{exit_price:.5f}</b>\n"
-                f"Bars Held: <b>{bars_held}</b>\n"
-                "\n"
-                f"Result: <b>{result_r:+.2f}R</b>\n"
-                "\n"
-                f"<b>FINAL VERDICT: {outcome}</b>\n"
-                "\n"
-                "<b>Built on Data.</b>\n"
-                "<b>Driven by Discipline.</b>"
-            )
-
-            edit_telegram(
-                trade["message_id"],
-                text
-            )
-
-            send_to_sheet({
-
-                "action":
-                    "OUTCOME",
-
-                "pair":
-                    pair,
-
-                "side":
-                    trade["side"],
-
-                "entry":
-                    entry,
-
-                "stop":
-                    stop,
-
-                "tp1":
-                    tp1,
-
-                "tp2":
-                    final_tp,
-
-                "outcome":
-                    "TIMEOUT",
-
-                "result_r":
-                    result_r,
-
-                "entry_time":
-                    trade[
-                        "entry_hit_time"
-                    ],
-
-                "exit_time":
-                    str(
-                        df["datetime"].iloc[
-                            latest_index
-                        ]
-                    )
-            })
-
-            continue
-
-        trade[
-            "last_checked_index"
-        ] = latest_index
-
-        remaining.append(
-            trade
-        )
+        if not closed:
+            remaining.append(trade)
 
     state["pending"] = remaining
+
+
+# ============================================================
+# ANALYZE ONE MODEL ON ONE PAIR
+# ============================================================
+
+def analyze(model, pair, cfg, h4, h1, m15):
+    if h4 is None or h1 is None or m15 is None:
+        return None
+    if len(h1) < 60 or len(m15) < 80:
+        return None
+
+    bias = h4_bias(h4)
+    if bias == 0:
+        return None
+
+    hi = len(h1) - 2  # last completed H1
+    mi = len(m15) - 1
+
+    if model == "SMC":
+        direction, score = score_smc(h1, hi)
+    else:
+        direction, score = score_adv(h1, hi)
+
+    if direction == 0 or score < SCORE_THRESHOLD:
+        return None
+    if direction != bias:
+        return None
+    if not m15_entry_ok(m15, mi, direction):
+        return None
+
+    entry = float(m15["close"].iloc[mi])
+    stop = calculate_stop(m15, mi, direction)
+    if stop is None:
+        return None
+
+    rr = float(cfg["rr"])
+    tp1 = fixed_target(entry, stop, direction, 1.5)
+    tp2 = fixed_target(entry, stop, direction, rr)
+    if tp1 is None or tp2 is None:
+        return None
+
+    # reject absurd geometry
+    risk = abs(entry - stop)
+    if risk <= 0:
+        return None
+    if abs(tp1 - entry) / risk < 0.9:
+        return None
+
+    candle_time = str(m15["datetime"].iloc[mi])
+    return {
+        "model": model,
+        "pair": pair,
+        "direction": direction,
+        "side": "BUY" if direction == 1 else "SELL",
+        "score": score,
+        "entry": entry,
+        "stop": float(stop),
+        "tp1": float(tp1),
+        "tp2": float(tp2),
+        "rr": rr,
+        "candle_time": candle_time,
+        "candle_key": f"{model}|{pair}|{candle_time}|{direction}",
+    }
 
 
 # ============================================================
@@ -2576,401 +650,109 @@ def check_pending_trades(
 # ============================================================
 
 def main():
-
     print("=" * 70)
-
-    print(
-        "TENSION TRADING DESK"
-    )
-
-    print(
-        "COMBINED SMC — TOP 5"
-    )
-
-    print(
-        "FIXED RR PRODUCTION ENGINE"
-    )
-
-    print(
-        "TRADE LIFECYCLE v3"
-    )
-
+    print("TENSION TRADING DESK v4")
+    print("H4 bias + H1 POI + M15 entry")
+    print("Models: SMC | ADV_SMC (separate)")
+    print("No setup-wait | Re-edit TP/SL enabled")
     print("=" * 70)
 
     if not TWELVE_DATA_KEY:
-
-        print(
-            "ERROR: TWELVE_DATA_KEY missing."
-        )
-
+        print("Missing TWELVE_DATA_KEY")
         return
-
-    if not BOT_TOKEN:
-
-        print(
-            "WARNING: BOT_TOKEN missing."
-        )
-
-    if not CHAT_ID:
-
-        print(
-            "WARNING: CHAT_ID missing."
-        )
 
     state = load_state()
 
-    for pair in PAIRS:
+    for pair in ALL_PAIRS:
+        print(f"\n--- {pair} ---")
+        h4 = fetch(pair, "4h", 400)
+        h1 = fetch(pair, "1h", 800)
+        m15 = fetch(pair, "15min", 1500)
 
-        print("\n")
-        print("-" * 70)
-
-        print(
-            f"SCANNING {pair}"
-        )
-
-        print("-" * 70)
-
-        # ====================================================
-        # 15M
-        # ====================================================
-
-        print(
-            "Downloading 15m..."
-        )
-
-        ltf = fetch(
-            pair,
-            ENTRY_TF,
-            OUTPUTSIZE
-        )
-
-        if ltf is None:
-
-            print(
-                f"{pair}: 15m failed."
-            )
-
+        if m15 is None:
+            print("  data failed")
             continue
 
-        # ====================================================
-        # 1H
-        # ====================================================
+        h1 = add_atr(h1) if h1 is not None else None
+        m15 = add_atr(m15)
 
-        print(
-            "Downloading 1h..."
-        )
+        # manage existing active trades first
+        check_pending_trades(state, pair, m15)
 
-        htf = fetch(
-            pair,
-            HTF_TF,
-            2500
-        )
+        models_to_run = []
+        if pair in SMC_PAIRS:
+            models_to_run.append(("SMC", SMC_PAIRS[pair]))
+        if pair in ADV_PAIRS:
+            models_to_run.append(("ADV_SMC", ADV_PAIRS[pair]))
 
-        if htf is None:
+        for model, cfg in models_to_run:
+            signal = analyze(model, pair, cfg, h4, h1, m15)
+            if signal is None:
+                print(f"  {model}: no setup")
+                continue
 
-            print(
-                f"{pair}: 1h failed."
+            key = signal["candle_key"]
+            if state["last_alert_keys"].get(f"{model}:{pair}") == key:
+                print(f"  {model}: already alerted")
+                continue
+
+            # avoid duplicate active same side/model/pair
+            dup = any(
+                t.get("pair") == pair
+                and t.get("model") == model
+                and t.get("direction") == signal["direction"]
+                and t.get("status") == "ACTIVE"
+                for t in state["pending"]
             )
-
-            continue
-
-        # ====================================================
-        # PREPARE
-        # ====================================================
-
-        df = attach_htf(
-            ltf,
-            htf
-        )
-
-        df = add_atr(
-            df
-        )
-
-        print(
-            f"Candles: {len(df):,}"
-        )
-
-        if len(df) < 100:
-
-            print(
-                f"{pair}: insufficient data."
-            )
-
-            continue
-
-        # ====================================================
-        # RESOLVE EXISTING TRADES FIRST
-        # ====================================================
-
-        check_pending_trades(
-            state,
-            pair,
-            df
-        )
-
-        # ====================================================
-        # CURRENT SIGNAL
-        # ====================================================
-
-        signal = analyze_pair(
-            df,
-            pair
-        )
-
-        if signal is None:
-
-            print(
-                f"{pair}: no qualifying signal."
-            )
-
-            continue
-
-        print(
-            f"{pair}: SIGNAL FOUND"
-        )
-
-        print(
-            f"Side: {signal['side']}"
-        )
-
-        print(
-            f"Score: {signal['score']}"
-        )
-
-        print(
-            f"Threshold: "
-            f"{CONFIG[pair]['threshold']}"
-        )
-
-        print(
-            f"RR: {signal['rr']}R"
-        )
-
-        # ====================================================
-        # DUPLICATE PROTECTION
-        # ====================================================
-
-        last_key = (
-            state[
-                "last_alert_keys"
-            ].get(pair)
-        )
-
-        if last_key == signal[
-            "candle_key"
-        ]:
-
-            print(
-                f"{pair}: duplicate signal "
-                "already alerted."
-            )
-
-            continue
-
-        # ====================================================
-        # BUILD SETUP TELEGRAM
-        # ====================================================
-
-        alert = build_alert(
-
-            pair=pair,
-
-            direction=
-                signal["direction"],
-
-            score=
-                signal["score"],
-
-            current_score=
-                signal["current_score"],
-
-            advanced_score=
-                signal["advanced_score"],
-
-            entry=
-                signal["entry"],
-
-            stop=
-                signal["stop"],
-
-            tp1=
-                signal["tp1"],
-
-            tp2=
-                signal["tp2"],
-
-            rr=
-                signal["rr"],
-
-            candle_time=
-                signal["candle_time"]
-        )
-
-        message_id = send_telegram(
-            alert
-        )
-
-        # ====================================================
-        # SAVE ALERT KEY
-        # ====================================================
-
-        state[
-            "last_alert_keys"
-        ][pair] = signal[
-            "candle_key"
-        ]
-
-        # ====================================================
-        # CREATE WAITING-ENTRY TRADE
-        # ====================================================
-
-        if message_id:
-
-            state["pending"].append({
-
-                "pair":
-                    pair,
-
-                "message_id":
-                    int(message_id),
-
-                "direction":
-                    int(
-                        signal["direction"]
-                    ),
-
-                "side":
-                    signal["side"],
-
-                "score":
-                    signal["score"],
-
-                "current_score":
-                    signal["current_score"],
-
-                "advanced_score":
-                    signal["advanced_score"],
-
-                "entry":
-                    signal["entry"],
-
-                "stop":
-                    signal["stop"],
-
-                "tp1":
-                    signal["tp1"],
-
-                "tp2":
-                    signal["tp2"],
-
-                "rr":
-                    signal["rr"],
-
-                "candle_time":
-                    signal["candle_time"],
-
-                "candle_key":
-                    signal["candle_key"],
-
-                "status":
-                    "WAITING_ENTRY",
-
-                "entry_hit":
-                    False,
-
-                "entry_hit_time":
-                    None,
-
-                "entry_hit_index":
-                    None,
-
-                "tp1_hit":
-                    False,
-
-                "tp1_time":
-                    None,
-
-                "last_checked_index":
-                    len(df) - 1
+            if dup:
+                print(f"  {model}: active trade already open")
+                continue
+
+            msg = build_signal_message(signal)
+            message_id = send_telegram(msg)
+            print(f"  {model}: signal sent -> {signal['side']}")
+
+            state["last_alert_keys"][f"{model}:{pair}"] = key
+
+            if message_id:
+                state["pending"].append({
+                    "model": model,
+                    "pair": pair,
+                    "message_id": message_id,
+                    "direction": signal["direction"],
+                    "side": signal["side"],
+                    "score": signal["score"],
+                    "entry": signal["entry"],
+                    "stop": signal["stop"],
+                    "tp1": signal["tp1"],
+                    "tp2": signal["tp2"],
+                    "rr": signal["rr"],
+                    "candle_time": signal["candle_time"],
+                    "candle_key": key,
+                    "status": "ACTIVE",
+                    "entry_hit": True,
+                    "tp1_hit": False,
+                    "last_checked_index": len(m15) - 1,
+                })
+
+            send_to_sheet({
+                "action": "NEW_SIGNAL",
+                "status": "ACTIVE",
+                "model": model,
+                "pair": pair,
+                "side": signal["side"],
+                "score": signal["score"],
+                "entry": signal["entry"],
+                "stop": signal["stop"],
+                "tp1": signal["tp1"],
+                "tp2": signal["tp2"],
+                "rr": signal["rr"],
+                "candle_time": signal["candle_time"],
             })
 
-        # ====================================================
-        # SHEET — NEW SETUP
-        # ====================================================
-
-        send_to_sheet({
-
-            "action":
-                "NEW_SIGNAL",
-
-            "status":
-                "WAITING_ENTRY",
-
-            "pair":
-                pair,
-
-            "side":
-                signal["side"],
-
-            "score":
-                signal["score"],
-
-            "current_score":
-                signal["current_score"],
-
-            "advanced_score":
-                signal["advanced_score"],
-
-            "threshold":
-                CONFIG[pair][
-                    "threshold"
-                ],
-
-            "entry":
-                signal["entry"],
-
-            "stop":
-                signal["stop"],
-
-            "tp1":
-                signal["tp1"],
-
-            "tp2":
-                signal["tp2"],
-
-            "rr":
-                signal["rr"],
-
-            "candle_time":
-                signal["candle_time"]
-        })
-
-        print(
-            f"{pair}: setup processed."
-        )
-
-    # ========================================================
-    # SAVE STATE
-    # ========================================================
-
-    save_state(
-        state
-    )
-
-    print("\n")
-
-    print("=" * 70)
-
-    print(
-        "SCAN COMPLETE"
-    )
-
-    print(
-        f"Pending trades: "
-        f"{len(state['pending'])}"
-    )
-
+    save_state(state)
+    print("\n" + "=" * 70)
+    print(f"SCAN COMPLETE | pending active trades: {len(state['pending'])}")
     print("=" * 70)
 
 
