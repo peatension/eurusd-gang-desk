@@ -17,17 +17,5 @@
     "GBPJPY_BUY_2026-09-22 20:00:00": true,
     "GBPJPY_SELL_2026-09-23 07:15:00": true
   },
-  "pending": [
-    {
-      "pair": "GBPJPY",
-      "direction": "SELL",
-      "entry": 210.06961,
-      "sl": 210.16975,
-      "tp1": 210.03817,
-      "tp2": 209.99382,
-      "original_text": "<b>TENSION TRADING DESK</b>\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<b>CRT ENGINE</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\ud83d\udd34 <b>GBPJPY \u00b7 SELL</b> \u25bc\n<i>Classic CRT / Turtle Soup</i>\n\n<pre>Entry  210.06961\nSL     210.16975\nTP1    210.03817  (50%)\nTP2    209.99382  (Opposite)\n</pre>\nRange Size : 8.9 pips\nNews Impact : \ud83d\udfe2 LOW IMPACT\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<i>Built on Data. Driven by Discipline.</i>",
-      "tp1_hit": false,
-      "model": "Classic CRT / Turtle Soup"
-    }
-  ]
+  "pending": []
 }
