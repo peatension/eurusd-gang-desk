@@ -1,387 +1,274 @@
-"""
-CRT ENGINE - Multi Pair + Multi Subscriber
-Tension Trading Desk
-Classic CRT + Turtle Soup
-Auto /start registration | Admin notifications
-"""
+# crt_engine.py
+# Tension Trading Desk — High-Frequency CRT Engine (Phase 2.3 Production)
+# Motto: Built on Data. / Driven by Discipline.
 
+import numpy as np
+import pandas as pd
 import requests
-import os
-import json
-from datetime import datetime, timezone
+from typing import Dict, Optional, Tuple
 
-# ---------------- CONFIG ----------------
-TWELVE_DATA_KEY = os.environ.get("TWELVE_DATA_KEY", "")
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN", "")
-FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
-SHEET_URL = "https://script.google.com/macros/s/AKfycbzG8tMonpxdGyHgkrvXOaGjDJPpvqgO4Rkuey8wxu5jt7nr7HB4S7fO1fycKIKW4zguQA/exec"
+class HighFrequencyCRTEngine:
+    """
+    High-Frequency Candle Range Theory (CRT) Engine with Outcome Tracking & Telegram Dispatcher.
+    Primary Horizon: M30 (C1)
+    Execution Horizon: M5 (Colab) / M1-M3 (Live)
+    Final 5 Pure Forex Universe: USD/JPY, EUR/JPY, AUD/USD, EUR/USD, GBP/AUD
+    """
+    
+    PORTFOLIO_CONFIG = {
+        "USD/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:USDJPY", "desc": "High-Expectancy JPY Expansion Driver"},
+        "EUR/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:EURJPY", "desc": "High-Expectancy JPY Expansion Driver"},
+        "GBP/AUD": {"rr_gate": 2.0, "tag": "HIGH-VOL", "broker_prefix": "OANDA:GBPAUD", "desc": "High-Beta Volume Engine"},
+        "EUR/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:EURUSD", "desc": "Core Major Benchmark"},
+        "AUD/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:AUDUSD", "desc": "High Win-Rate Major Engine"}
+    }
 
-ADMIN_CHAT_ID = "7080941387"          # Your personal ID
-STATE_FILE = "crt_state.json"
-SUBSCRIBERS_FILE = "subscribers.json"
-SL_BUFFER_PIPS = 5
+    def __init__(self, account_balance: float = 10000.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
+        self.account_balance = account_balance
+        self.risk_pct = risk_pct
+        self.risk_amount = account_balance * risk_pct
+        self.sl_pip_offset = sl_pip_offset
+        self.atr_mult = atr_mult
 
-PAIRS = [
-    {"symbol": "EUR/JPY", "label": "EURJPY", "pip": 0.01},
-    {"symbol": "AUD/JPY", "label": "AUDJPY", "pip": 0.01},
-    {"symbol": "USD/JPY", "label": "USDJPY", "pip": 0.01},
-    {"symbol": "GBP/JPY", "label": "GBPJPY", "pip": 0.01},
-]
+    def get_c1_levels(self, df_m30: pd.DataFrame) -> Tuple[float, float, float]:
+        """Extracts C1 High, Low, and 50% Equilibrium level from previous completed M30 candle."""
+        prev = df_m30.iloc[-2]
+        c1_high = float(prev["high"])
+        c1_low = float(prev["low"])
+        c1_mid = (c1_high + c1_low) / 2.0
+        return c1_high, c1_low, c1_mid
 
-# ---------------- TELEGRAM HELPERS ----------------
-def tg_api(method, data=None):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
-    try:
-        resp = requests.post(url, data=data or {}, timeout=10)
-        return resp.json()
-    except Exception as e:
-        print("Telegram API error:", e)
-        return {}
+    def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
+        """Calculates Average True Range (ATR) on the entry timeframe."""
+        high_low = df["high"] - df["low"]
+        high_close = (df["high"] - df["close"].shift()).abs()
+        low_close = (df["low"] - df["close"].shift()).abs()
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        return float(tr.rolling(period).mean().iloc[-1])
 
-def send_message(chat_id, text, parse_mode="HTML"):
-    return tg_api("sendMessage", {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": parse_mode
-    })
+    def calculate_lot_size(self, pair: str, risk_pips: float) -> float:
+        """Calculates standard lot size based on fixed dollar risk."""
+        if risk_pips <= 0:
+            return 0.01
+        pip_value_usd = 10.0 if "USD" in pair.split("/")[1] else 8.5  
+        lots = round(self.risk_amount / (risk_pips * pip_value_usd), 2)
+        return max(0.01, lots)
 
-def edit_message(chat_id, message_id, text):
-    return tg_api("editMessageText", {
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": text,
-        "parse_mode": "HTML"
-    })
-
-def notify_admin(text):
-    send_message(ADMIN_CHAT_ID, f"<b>ADMIN</b>\n{text}")
-
-# ---------------- SUBSCRIBERS ----------------
-def load_subscribers():
-    if os.path.exists(SUBSCRIBERS_FILE):
-        try:
-            with open(SUBSCRIBERS_FILE) as f:
-                return json.load(f)
-        except:
-            pass
-    return []
-
-def save_subscribers(subs):
-    with open(SUBSCRIBERS_FILE, "w") as f:
-        json.dump(subs, f, indent=2)
-
-def add_subscriber(chat_id, name=""):
-    subs = load_subscribers()
-    chat_id = str(chat_id)
-    if chat_id not in [str(s["id"]) for s in subs]:
-        subs.append({"id": chat_id, "name": name, "joined": str(datetime.now(timezone.utc))})
-        save_subscribers(subs)
-        notify_admin(f"New subscriber: {name or chat_id}")
-        return True
-    return False
-
-def remove_subscriber(chat_id):
-    subs = load_subscribers()
-    chat_id = str(chat_id)
-    new_subs = [s for s in subs if str(s["id"]) != chat_id]
-    if len(new_subs) != len(subs):
-        save_subscribers(new_subs)
-        notify_admin(f"Subscriber removed: {chat_id}")
-        return True
-    return False
-
-# ---------------- COMMAND HANDLER ----------------
-def process_commands():
-    """Check for new /start /stop /help /status /pairs messages"""
-    data = tg_api("getUpdates", {"timeout": 0, "limit": 20})
-    results = data.get("result", [])
-    if not results:
-        return
-
-    offset = None
-    for upd in results:
-        offset = upd["update_id"] + 1
-        msg = upd.get("message") or upd.get("edited_message")
-        if not msg:
-            continue
-
-        chat_id = str(msg["chat"]["id"])
-        text = (msg.get("text") or "").strip().lower()
-        name = msg.get("from", {}).get("first_name", "")
-
-        if text.startswith("/start"):
-            added = add_subscriber(chat_id, name)
-            if added:
-                send_message(chat_id,
-                    "<b>TENSION TRADING DESK</b>\n"
-                    "CRT Engine activated.\n\n"
-                    "You will now receive CRT signals.\n"
-                    "Send /help for more info.")
-            else:
-                send_message(chat_id, "You are already registered for CRT signals.")
-
-        elif text.startswith("/stop"):
-            remove_subscriber(chat_id)
-            send_message(chat_id, "You have been unsubscribed from CRT signals.")
-
-        elif text.startswith("/help"):
-            send_message(chat_id,
-                "<b>CRT ENGINE – Help</b>\n\n"
-                "Signals are based on Classic CRT + Turtle Soup.\n"
-                "TP1 = 50% of the candle range\n"
-                "TP2 = Opposite side of the range\n\n"
-                "<b>Commands</b>\n"
-                "/start – Receive signals\n"
-                "/stop – Stop receiving signals\n"
-                "/status – Show active trades\n"
-                "/pairs – List scanned pairs")
-
-        elif text.startswith("/pairs"):
-            pairs_text = "\n".join([p["label"] for p in PAIRS])
-            send_message(chat_id, f"<b>Active Pairs</b>\n{pairs_text}")
-
-        elif text.startswith("/status"):
-            state = load_state()
-            pending = state.get("pending", [])
-            if not pending:
-                send_message(chat_id, "No active CRT trades at the moment.")
-            else:
-                lines = []
-                for t in pending:
-                    lines.append(f"{t['pair']} {t['direction']} | Entry {t['entry']}")
-                send_message(chat_id, "<b>Active Trades</b>\n" + "\n".join(lines))
-
-    # Clear processed updates
-    if offset:
-        tg_api("getUpdates", {"offset": offset, "timeout": 0})
-
-# ---------------- NEWS IMPACT ----------------
-def get_news_impact():
-    if FINNHUB_API_KEY:
-        try:
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            url = "https://finnhub.io/api/v1/calendar/economic"
-            params = {"from": today, "to": today, "token": FINNHUB_API_KEY}
-            resp = requests.get(url, params=params, timeout=8)
-            events = resp.json().get("economicCalendar", [])
-            for ev in events:
-                if str(ev.get("impact", "")).lower() == "high" and str(ev.get("country", "")).upper() in ("US", "EU", "GB"):
-                    return f"🔴 HIGH IMPACT – {ev.get('event', 'High Impact Event')}"
-        except Exception as e:
-            print("Finnhub error:", e)
-
-    hour = datetime.now(timezone.utc).hour
-    if hour in (12, 13, 14, 18, 19):
-        return "🔴 HIGH IMPACT – Caution"
-    if hour in (11, 15, 17, 20):
-        return "🟡 MEDIUM IMPACT"
-    return "🟢 LOW IMPACT"
-
-# ---------------- DATA & CRT LOGIC ----------------
-def fetch_candles(symbol, count=80):
-    url = "https://api.twelvedata.com/time_series"
-    params = {"symbol": symbol, "interval": "15min", "outputsize": count, "apikey": TWELVE_DATA_KEY}
-    try:
-        resp = requests.get(url, params=params, timeout=15)
-        data = resp.json()
-        if "values" not in data:
+    def scan_signal(
+        self, 
+        pair: str, 
+        df_m30: pd.DataFrame, 
+        df_entry: pd.DataFrame
+    ) -> Optional[Dict[str, object]]:
+        """Scans for active boundary sweeps and returns an initial signal ticket."""
+        if pair not in self.PORTFOLIO_CONFIG:
             return None
-        candles = list(reversed(data["values"]))
-        for c in candles:
-            for k in ("open", "high", "low", "close"):
-                c[k] = float(c[k])
-        return candles
-    except:
+
+        cfg = self.PORTFOLIO_CONFIG[pair]
+        rr_gate = cfg["rr_gate"]
+        tag = cfg["tag"]
+        tv_symbol = cfg["broker_prefix"]
+
+        c1_high, c1_low, c1_mid = self.get_c1_levels(df_m30)
+        curr = df_entry.iloc[-1]
+        
+        pip_factor = 0.01 if "JPY" in pair else 0.0001
+        decimals = 3 if "JPY" in pair else 5
+        
+        atr_val = self.calculate_atr(df_entry)
+        sl_buffer = max(self.sl_pip_offset * pip_factor, self.atr_mult * atr_val)
+
+        # Bullish Sweep (Low breached, Close reclaimed above C1 Low)
+        if curr["low"] < c1_low and curr["close"] > c1_low:
+            entry_price = c1_low
+            stop_loss = curr["low"] - sl_buffer
+            risk = entry_price - stop_loss
+            risk_pips = risk / pip_factor
+            tp1 = c1_mid
+            tp2 = c1_high
+
+            if risk > 0 and (tp1 - entry_price) / risk >= rr_gate:
+                lots = self.calculate_lot_size(pair, risk_pips)
+                tv_url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
+                return self._build_pro_ticket(
+                    pair=pair, order_type="BUY_LIMIT", tag=tag, 
+                    entry=entry_price, sl=stop_loss, tp1=tp1, tp2=tp2, 
+                    risk=risk, risk_pips=risk_pips, lots=lots, tv_url=tv_url, decimals=decimals
+                )
+
+        # Bearish Sweep (High breached, Close reclaimed below C1 High)
+        elif curr["high"] > c1_high and curr["close"] < c1_high:
+            entry_price = c1_high
+            stop_loss = curr["high"] + sl_buffer
+            risk = stop_loss - entry_price
+            risk_pips = risk / pip_factor
+            tp1 = c1_mid
+            tp2 = c1_low
+
+            if risk > 0 and (entry_price - tp1) / risk >= rr_gate:
+                lots = self.calculate_lot_size(pair, risk_pips)
+                tv_url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
+                return self._build_pro_ticket(
+                    pair=pair, order_type="SELL_LIMIT", tag=tag, 
+                    entry=entry_price, sl=stop_loss, tp1=tp1, tp2=tp2, 
+                    risk=risk, risk_pips=risk_pips, lots=lots, tv_url=tv_url, decimals=decimals
+                )
+
         return None
 
-def get_crt_signal(candles, pip):
-    if len(candles) < 3:
-        return None
-    prev, curr = candles[-2], candles[-1]
-    range_high, range_low = prev["high"], prev["low"]
-    range_size = range_high - range_low
-    if range_size < 8 * pip:
-        return None
-    mid = (range_high + range_low) / 2
+    def evaluate_trade_outcome(self, active_ticket: Dict[str, object], df_live: pd.DataFrame) -> Dict[str, object]:
+        """
+        Monitors an active signal against subsequent price bars to determine 
+        if the trade resolved in a WIN (TP Hit), LOSS (SL Hit), or remains ACTIVE_PENDING.
+        """
+        ticket = active_ticket.copy()
+        entry = ticket["entry_price"]
+        sl = ticket["stop_loss"]
+        tp1 = ticket["tp1_equilibrium"]
+        tp2 = ticket["tp2_expansion"]
+        order_type = ticket["order_type"]
 
-    if curr["low"] < range_low and curr["close"] > range_low:
-        entry = curr["close"]
-        sl = curr["low"] - SL_BUFFER_PIPS * pip
-        return {"direction": "BUY", "entry": round(entry,5), "sl": round(sl,5),
-                "tp1": round(mid,5), "tp2": round(range_high,5),
-                "candle_time": curr.get("datetime"), "range_size": round(range_size/pip,1),
-                "model": "Classic CRT / Turtle Soup"}
+        latest_candle = df_live.iloc[-1]
+        high = float(latest_candle["high"])
+        low = float(latest_candle["low"])
 
-    if curr["high"] > range_high and curr["close"] < range_high:
-        entry = curr["close"]
-        sl = curr["high"] + SL_BUFFER_PIPS * pip
-        return {"direction": "SELL", "entry": round(entry,5), "sl": round(sl,5),
-                "tp1": round(mid,5), "tp2": round(range_low,5),
-                "candle_time": curr.get("datetime"), "range_size": round(range_size/pip,1),
-                "model": "Classic CRT / Turtle Soup"}
-    return None
-
-# ---------------- STATE ----------------
-def load_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE) as f:
-                return json.load(f)
-        except:
-            pass
-    return {"alerts": {}, "pending": []}
-
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
-
-# ---------------- ALERT BUILDER ----------------
-def build_alert(pair_label, signal):
-    emoji = "🟢" if signal["direction"] == "BUY" else "🔴"
-    arrow = "▲" if signal["direction"] == "BUY" else "▼"
-    news = get_news_impact()
-
-    return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"{'═'*21}\n"
-        f"<b>CRT ENGINE</b>\n"
-        f"{'─'*21}\n\n"
-        f"{emoji} <b>{pair_label} · {signal['direction']}</b> {arrow}\n"
-        f"<i>{signal['model']}</i>\n\n"
-        f"<pre>"
-        f"Entry  {signal['entry']}\n"
-        f"SL     {signal['sl']}\n"
-        f"TP1    {signal['tp1']}  (50%)\n"
-        f"TP2    {signal['tp2']}  (Opposite)\n"
-        f"</pre>\n"
-        f"Range Size : {signal['range_size']} pips\n"
-        f"News Impact : {news}\n\n"
-        f"{'═'*21}\n"
-        f"<i>Built on Data. Driven by Discipline.</i>"
-    )
-
-def broadcast(text):
-    """Send to all subscribers + keep admin informed"""
-    subs = load_subscribers()
-    for s in subs:
-        send_message(s["id"], text)
-    # Also send to admin if admin is not already in subscribers
-    if ADMIN_CHAT_ID not in [str(s["id"]) for s in subs]:
-        send_message(ADMIN_CHAT_ID, text)
-
-# ---------------- PENDING MANAGEMENT ----------------
-def check_pending_trades(state, pair_label, candles):
-    if not candles:
-        return
-    latest = candles[-1]
-    high, low = latest["high"], latest["low"]
-    still_pending = []
-
-    for trade in state.get("pending", []):
-        if trade.get("pair") != pair_label:
-            still_pending.append(trade)
-            continue
-
-        direction = trade["direction"]
-        sl, tp1, tp2 = trade["sl"], trade["tp1"], trade["tp2"]
-        msg_id = trade.get("message_id")
-        original = trade.get("original_text", "")
-        tp1_hit = trade.get("tp1_hit", False)
-        chat_ids = trade.get("chat_ids", [])
-
-        outcome = None
-        banner = None
-
-        if direction == "BUY":
+        if order_type == "BUY_LIMIT":
             if low <= sl:
-                outcome, banner = "LOSS", "❌ <b>LOSS — SL hit</b>"
+                ticket["status"] = "CLOSED"
+                ticket["verdict"] = "TRADE_VERDICT_LOSS (-1.00R)"
+                ticket["net_r"] = -1.00
+                ticket["pnl_usd"] = f"-${self.risk_amount:.2f}"
             elif high >= tp2:
-                outcome, banner = "WIN", "✅ <b>WIN — TP2 hit</b>"
-            elif high >= tp1 and not tp1_hit:
-                trade["tp1_hit"] = True
-                banner = ("🟡 <b>TP1 HIT — running for TP2</b>\n"
-                          "Consider moving SL to breakeven if you want to protect the trade.")
-        else:
+                rr_val = round((tp2 - entry) / (entry - sl), 2)
+                ticket["status"] = "CLOSED"
+                ticket["verdict"] = f"TRADE_VERDICT_WIN (+{rr_val}R)"
+                ticket["net_r"] = rr_val
+                ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
+            elif high >= tp1:
+                rr_val = round((tp1 - entry) / (entry - sl), 2)
+                ticket["status"] = "PARTIAL_CLOSED"
+                ticket["verdict"] = f"TRADE_VERDICT_WIN_TP1 (+{rr_val}R)"
+                ticket["net_r"] = rr_val
+                ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
+
+        elif order_type == "SELL_LIMIT":
             if high >= sl:
-                outcome, banner = "LOSS", "❌ <b>LOSS — SL hit</b>"
+                ticket["status"] = "CLOSED"
+                ticket["verdict"] = "TRADE_VERDICT_LOSS (-1.00R)"
+                ticket["net_r"] = -1.00
+                ticket["pnl_usd"] = f"-${self.risk_amount:.2f}"
             elif low <= tp2:
-                outcome, banner = "WIN", "✅ <b>WIN — TP2 hit</b>"
-            elif low <= tp1 and not tp1_hit:
-                trade["tp1_hit"] = True
-                banner = ("🟡 <b>TP1 HIT — running for TP2</b>\n"
-                          "Consider moving SL to breakeven if you want to protect the trade.")
+                rr_val = round((entry - tp2) / (sl - entry), 2)
+                ticket["status"] = "CLOSED"
+                ticket["verdict"] = f"TRADE_VERDICT_WIN (+{rr_val}R)"
+                ticket["net_r"] = rr_val
+                ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
+            elif low <= tp1:
+                rr_val = round((entry - tp1) / (sl - entry), 2)
+                ticket["status"] = "PARTIAL_CLOSED"
+                ticket["verdict"] = f"TRADE_VERDICT_WIN_TP1 (+{rr_val}R)"
+                ticket["net_r"] = rr_val
+                ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
 
-        if banner:
-            new_text = original + f"\n\n{'─'*21}\n{banner}"
-            # Edit on all chats that received the original (simplified: broadcast edit is limited,
-            # so we mainly rely on original message_id if single, else just log)
-            if msg_id:
-                # We store only one message_id for simplicity in this version
-                pass
-            if outcome in ("WIN", "LOSS"):
-                pass  # closed
-            else:
-                still_pending.append(trade)
-        else:
-            still_pending.append(trade)
+        return ticket
 
-    state["pending"] = still_pending
+    def _build_pro_ticket(
+        self, pair: str, order_type: str, tag: str, 
+        entry: float, sl: float, tp1: float, tp2: float, 
+        risk: float, risk_pips: float, lots: float, tv_url: str, decimals: int
+    ) -> Dict[str, object]:
+        rr_tp1 = round(abs(tp1 - entry) / risk, 2)
+        rr_tp2 = round(abs(tp2 - entry) / risk, 2)
 
-# ---------------- MAIN ----------------
-if __name__ == "__main__":
-    print(f"[{datetime.now(timezone.utc)}] CRT Engine starting...")
+        return {
+            "symbol": pair,
+            "tag": f"[{tag}]",
+            "verdict": "TRADE_STATUS_OPEN",
+            "order_type": order_type,
+            "entry_price": round(entry, decimals),
+            "stop_loss": round(sl, decimals),
+            "risk_pips": round(risk_pips, 1),
+            "recommended_lots": lots,
+            "risk_usd": f"${self.risk_amount:.2f}",
+            "tp1_equilibrium": round(tp1, decimals),
+            "tp2_expansion": round(tp2, decimals),
+            "rr_tp1": f"+{rr_tp1}R",
+            "rr_tp2": f"+{rr_tp2}R",
+            "net_r": 0.0,
+            "pnl_usd": "$0.00",
+            "tradingview_link": tv_url,
+            "status": "ACTIVE_PENDING"
+        }
 
-    # 1. Process any new commands (/start, /stop, etc.)
-    process_commands()
+    def format_terminal_output(self, ticket: Dict[str, object]) -> str:
+        """Outputs an executive trade receipt for terminal logs."""
+        header_line = "=================================================="
+        return f"""
+{header_line}
+⚡ TTD ORDER TICKET | {ticket['symbol']} {ticket['tag']}
+{header_line}
+• Status        : {ticket['status']}
+• Final Verdict : {ticket['verdict']}
+• Realized PnL  : {ticket['pnl_usd']} ({ticket['net_r']}R)
+• Action        : {ticket['order_type']}
+• Entry Limit   : {ticket['entry_price']}
+• Stop Loss     : {ticket['stop_loss']} ({ticket['risk_pips']} pips)
+• Position Size : {ticket['recommended_lots']} Lots
+--------------------------------------------------
+• TP1 (Eq Mid)  : {ticket['tp1_equilibrium']} ({ticket['rr_tp1']})
+• TP2 (Full Range): {ticket['tp2_expansion']} ({ticket['rr_tp2']})
+--------------------------------------------------
+🔗 TradingView  : {ticket['tradingview_link']}
+{header_line}
+"""
 
-    # 2. Load state
-    state = load_state()
-    if "alerts" not in state:
-        state["alerts"] = {}
-    if "pending" not in state:
-        state["pending"] = []
+    def format_telegram_signal(self, ticket: Dict[str, object]) -> str:
+        """Formats a clean, executive Telegram signal using HTML mode."""
+        symbol = ticket.get("symbol", "EUR/USD")
+        order_type = ticket.get("order_type", "BUY_LIMIT")
+        tag = ticket.get("tag", "[CORE-FX]")
+        
+        action_emoji = "🟢 BUY" if "BUY" in order_type else "🔴 SELL"
+        
+        entry = ticket.get("entry_price")
+        sl = ticket.get("stop_loss")
+        tp1 = ticket.get("tp1_equilibrium")
+        tp2 = ticket.get("tp2_expansion")
+        risk_pips = ticket.get("risk_pips")
+        lots = ticket.get("recommended_lots")
+        tv_link = ticket.get("tradingview_link")
 
-    # 3. Scan pairs
-    for pair in PAIRS:
-        symbol, label, pip = pair["symbol"], pair["label"], pair["pip"]
-        print(f"\n--- {label} ---")
+        return f"""<b>TENSION TRADING DESK</b> {tag}
+━━━━━━━━━━━━━━━━━━━━
 
-        candles = fetch_candles(symbol)
-        if not candles:
-            continue
+⚡ <b>CRT SIGNAL DETECTED</b>
 
-        check_pending_trades(state, label, candles)
+<b>PAIR:</b> <code>{symbol}</code>
+<b>ACTION:</b> {action_emoji}
 
-        signal = get_crt_signal(candles, pip)
-        if signal is None:
-            print("No setup")
-            continue
+<b>ENTRY:</b> <code>{entry}</code>
+<b>SL:</b>    <code>{sl}</code> ({risk_pips} pips)
+<b>TP1:</b>   <code>{tp1}</code> (Equilibrium)
+<b>TP2:</b>   <code>{tp2}</code> (Expansion)
 
-        alert_key = f"{label}_{signal['direction']}_{signal['candle_time']}"
-        if state["alerts"].get(alert_key):
-            print("Already alerted")
-            continue
+<b>LOT SIZE:</b> <code>{lots} Lots</code>
+━━━━━━━━━━━━━━━━━━━━
+🔗 <a href="{tv_link}">Open TradingView Chart</a>"""
 
-        text = build_alert(label, signal)
-        broadcast(text)          # send to all subscribers
-
-        state["alerts"][alert_key] = True
-        state["pending"].append({
-            "pair": label,
-            "direction": signal["direction"],
-            "entry": signal["entry"],
-            "sl": signal["sl"],
-            "tp1": signal["tp1"],
-            "tp2": signal["tp2"],
-            "original_text": text,
-            "tp1_hit": False,
-            "model": signal["model"]
-        })
-        print(f"Alert sent → {signal['direction']}")
-
-    if len(state["alerts"]) > 300:
-        keys = list(state["alerts"].keys())[-150:]
-        state["alerts"] = {k: state["alerts"][k] for k in keys}
-
-    save_state(state)
-    print("\nDone.")
+    def send_telegram_broadcast(self, ticket: Dict[str, object], bot_token: str, chat_id: str) -> bool:
+        """Transmits the formatted signal ticket directly to Telegram."""
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": self.format_telegram_signal(ticket),
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            res_data = response.json()
+            return res_data.get("ok", False)
+        except Exception as e:
+            print(f"Error broadcasting to Telegram: {e}")
+            return False
