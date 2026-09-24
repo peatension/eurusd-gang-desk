@@ -4,6 +4,7 @@
 
 import os
 import json
+import time
 import numpy as np
 import pandas as pd
 import requests
@@ -19,8 +20,7 @@ class HighFrequencyCRTEngine:
         "USD/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:USDJPY", "desc": "High-Expectancy JPY Expansion Driver"},
         "EUR/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:EURJPY", "desc": "High-Expectancy JPY Expansion Driver"},
         "GBP/AUD": {"rr_gate": 2.0, "tag": "HIGH-VOL", "broker_prefix": "OANDA:GBPAUD", "desc": "High-Beta Volume Engine"},
-        "EUR/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:EURUSD", "desc": "Core Major Benchmark"},
-        "AUD/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:AUDUSD", "desc": "High Win-Rate Major Engine"}
+        "EUR/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:EURUSD", "desc": "Core Major Benchmark"}
     }
 
     def __init__(self, starting_balance: float = 500.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
@@ -121,14 +121,14 @@ class HighFrequencyCRTEngine:
                             "⚡ <b>CRT Engine Status</b>\n\n"
                             "System State: <b>ONLINE & MONITORING</b>\n"
                             "Timeframe: M5 Execution / M30 Structure\n"
-                            "Status: Scanning Final 5 Portfolio for sweeps..."
+                            "Status: Scanning Active 4 Portfolio Pairs for sweeps..."
                         )
                         self.send_telegram_message(bot_token, chat_id, status_text)
 
                     # 5. /pairs: List scanned pairs
                     elif text.startswith("/pairs"):
                         pairs_list = "\n".join([f"• <code>{pair}</code> ({cfg['tag']}) — {cfg['desc']}" for pair, cfg in self.PORTFOLIO_CONFIG.items()])
-                        pairs_text = f"📊 <b>Scanned Portfolio Pairs (Final 5)</b>\n\n{pairs_list}"
+                        pairs_text = f"📊 <b>Scanned Portfolio Pairs (Active 4)</b>\n\n{pairs_list}"
                         self.send_telegram_message(bot_token, chat_id, pairs_text)
 
                     # 6. /portfolio: Show portfolio details & starting capital
@@ -366,8 +366,8 @@ class HighFrequencyCRTEngine:
         return None
 
     def run_market_scan(self, bot_token: str, tw_data_key: str, subscribers: List[str]) -> None:
-        """Loops through the 5 portfolio pairs, fetches candles, scans for setups, and broadcasts."""
-        print("⚡ Running 5-pair portfolio market scan...")
+        """Loops through the 4 portfolio pairs, fetches candles, scans for setups, and broadcasts with a safety buffer."""
+        print("⚡ Running 4-pair portfolio market scan...")
         for pair in self.PORTFOLIO_CONFIG.keys():
             print(f"Analyzing {pair}...")
             df_m30 = self.fetch_twelve_data_candles(pair, "30min", tw_data_key, outputsize=50)
@@ -382,6 +382,9 @@ class HighFrequencyCRTEngine:
                         self.send_telegram_message(bot_token, chat_id, msg)
             else:
                 print(f"Skipping {pair} due to missing candle data feed.")
+            
+            # Tiny safety buffer between pairs to prevent API clustering
+            time.sleep(2)
 
 
 if __name__ == "__main__":
@@ -398,7 +401,7 @@ if __name__ == "__main__":
         subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID)
         print(f"Active subscribers synced: {len(subscribers)}")
         
-        # 2. Then execute the 5-minute market scan cycle (triggered by external cron)
+        # 2. Then execute the 4-pair market scan cycle (triggered by external cron)
         if TWELVE_DATA_KEY:
             engine.run_market_scan(TELEGRAM_BOT_TOKEN, TWELVE_DATA_KEY, subscribers)
         else:
