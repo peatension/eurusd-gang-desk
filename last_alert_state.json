@@ -1,5 +1,27 @@
 {
   "version": 4,
-  "last_alert_keys": {},
-  "pending": []
+  "last_alert_keys": {
+    "ADV_SMC:EUR/USD": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1"
+  },
+  "pending": [
+    {
+      "model": "ADV_SMC",
+      "pair": "EUR/USD",
+      "message_id": 60,
+      "direction": -1,
+      "side": "SELL",
+      "score": 6.0,
+      "entry": 1.13737,
+      "stop": 1.1400626785714285,
+      "tp1": 1.1333309821428572,
+      "tp2": 1.131984642857143,
+      "rr": 2.0,
+      "candle_time": "2026-09-24 19:15:00",
+      "candle_key": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1",
+      "status": "ACTIVE",
+      "entry_hit": true,
+      "tp1_hit": false,
+      "last_checked_index": 1499
+    }
+  ]
 }
