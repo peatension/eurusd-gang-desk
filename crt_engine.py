@@ -320,6 +320,21 @@ class HighFrequencyCRTEngine:
 ━━━━━━━━━━━━━━━━━━━━
 📊 <a href="{tv_link}">Open Live TradingView Chart</a>"""
 
+    def format_caution_signal(self, symbol: str, tp1: float) -> str:
+        """Sends a street-wise Nigerian humor caution alert when TP1 is hit but TP2 looks shaky."""
+        return f"""<b>CRT TRADING BOT</b> ⚠️
+━━━━━━━━━━━━━━━━━━━━
+
+🚨 <b>MARKET AWARENESS CAUTION</b>
+
+<b>PAIR:</b> <code>{symbol}</code>
+🎯 <b>TP1 HIT AT:</b> <code>{tp1}</code>
+
+⚠️ <i>"Tp 1 hit, but TP2? Not really sure for this side oo! Better take TP1 and jejely run. No go find vawulence where market no send you. Secure your bag abeg! 😂"</i>
+
+━━━━━━━━━━━━━━━━━━━━
+💼 <i>Discipline over greed. Build on Data.</i>"""
+
     def broadcast_to_all_subscribers(self, ticket: Dict[str, object], bot_token: str, subscribers: List[str]) -> None:
         message_text = self.format_telegram_signal(ticket)
         for chat_id in subscribers:
