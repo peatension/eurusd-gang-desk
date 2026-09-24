@@ -1,7 +1,8 @@
 {
   "version": 4,
   "last_alert_keys": {
-    "ADV_SMC:EUR/USD": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1"
+    "ADV_SMC:EUR/USD": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1",
+    "ADV_SMC:USD/CAD": "ADV_SMC|USD/CAD|2026-09-25 00:15:00|1"
   },
   "pending": [
     {
@@ -18,6 +19,25 @@
       "rr": 2.0,
       "candle_time": "2026-09-24 19:15:00",
       "candle_key": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1",
+      "status": "ACTIVE",
+      "entry_hit": true,
+      "tp1_hit": false,
+      "last_checked_index": 1499
+    },
+    {
+      "model": "ADV_SMC",
+      "pair": "USD/CAD",
+      "message_id": 61,
+      "direction": 1,
+      "side": "BUY",
+      "score": 4.0,
+      "entry": 1.4138,
+      "stop": 1.410090892857143,
+      "tp1": 1.4193636607142854,
+      "tp2": 1.421218214285714,
+      "rr": 2.0,
+      "candle_time": "2026-09-25 00:15:00",
+      "candle_key": "ADV_SMC|USD/CAD|2026-09-25 00:15:00|1",
       "status": "ACTIVE",
       "entry_hit": true,
       "tp1_hit": false,
