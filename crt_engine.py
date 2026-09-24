@@ -2,6 +2,7 @@
 # Tension Trading Desk — High-Frequency CRT Engine (Phase 2.3 Production)
 # Motto: Built on Data. / Driven by Discipline.
 
+import os
 import numpy as np
 import pandas as pd
 import requests
@@ -117,10 +118,7 @@ class HighFrequencyCRTEngine:
         return None
 
     def evaluate_trade_outcome(self, active_ticket: Dict[str, object], df_live: pd.DataFrame) -> Dict[str, object]:
-        """
-        Monitors an active signal against subsequent price bars to determine 
-        if the trade resolved in a WIN (TP Hit), LOSS (SL Hit), or remains ACTIVE_PENDING.
-        """
+        """Monitors active signals against price action to evaluate outcomes."""
         ticket = active_ticket.copy()
         entry = ticket["entry_price"]
         sl = ticket["stop_loss"]
@@ -135,38 +133,38 @@ class HighFrequencyCRTEngine:
         if order_type == "BUY_LIMIT":
             if low <= sl:
                 ticket["status"] = "CLOSED"
-                ticket["verdict"] = "TRADE_VERDICT_LOSS (-1.00R)"
+                ticket["verdict"] = "🛑 STOP LOSS HIT (-1.00R)"
                 ticket["net_r"] = -1.00
                 ticket["pnl_usd"] = f"-${self.risk_amount:.2f}"
             elif high >= tp2:
                 rr_val = round((tp2 - entry) / (entry - sl), 2)
                 ticket["status"] = "CLOSED"
-                ticket["verdict"] = f"TRADE_VERDICT_WIN (+{rr_val}R)"
+                ticket["verdict"] = f"🎯 FULL TP2 HIT (+{rr_val}R)"
                 ticket["net_r"] = rr_val
                 ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
             elif high >= tp1:
                 rr_val = round((tp1 - entry) / (entry - sl), 2)
                 ticket["status"] = "PARTIAL_CLOSED"
-                ticket["verdict"] = f"TRADE_VERDICT_WIN_TP1 (+{rr_val}R)"
+                ticket["verdict"] = f"📈 TP1 REACHED (+{rr_val}R)"
                 ticket["net_r"] = rr_val
                 ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
 
         elif order_type == "SELL_LIMIT":
             if high >= sl:
                 ticket["status"] = "CLOSED"
-                ticket["verdict"] = "TRADE_VERDICT_LOSS (-1.00R)"
+                ticket["verdict"] = "🛑 STOP LOSS HIT (-1.00R)"
                 ticket["net_r"] = -1.00
                 ticket["pnl_usd"] = f"-${self.risk_amount:.2f}"
             elif low <= tp2:
                 rr_val = round((entry - tp2) / (sl - entry), 2)
                 ticket["status"] = "CLOSED"
-                ticket["verdict"] = f"TRADE_VERDICT_WIN (+{rr_val}R)"
+                ticket["verdict"] = f"🎯 FULL TP2 HIT (+{rr_val}R)"
                 ticket["net_r"] = rr_val
                 ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
             elif low <= tp1:
                 rr_val = round((entry - tp1) / (sl - entry), 2)
                 ticket["status"] = "PARTIAL_CLOSED"
-                ticket["verdict"] = f"TRADE_VERDICT_WIN_TP1 (+{rr_val}R)"
+                ticket["verdict"] = f"📈 TP1 REACHED (+{rr_val}R)"
                 ticket["net_r"] = rr_val
                 ticket["pnl_usd"] = f"+${self.risk_amount * rr_val:.2f}"
 
@@ -183,7 +181,7 @@ class HighFrequencyCRTEngine:
         return {
             "symbol": pair,
             "tag": f"[{tag}]",
-            "verdict": "TRADE_STATUS_OPEN",
+            "verdict": "⚡ ACTIVE SETUP",
             "order_type": order_type,
             "entry_price": round(entry, decimals),
             "stop_loss": round(sl, decimals),
@@ -223,12 +221,12 @@ class HighFrequencyCRTEngine:
 """
 
     def format_telegram_signal(self, ticket: Dict[str, object]) -> str:
-        """Formats a clean, executive Telegram signal using HTML mode."""
+        """Formats an executive Telegram signal with situational emojis using HTML mode."""
         symbol = ticket.get("symbol", "EUR/USD")
         order_type = ticket.get("order_type", "BUY_LIMIT")
         tag = ticket.get("tag", "[CORE-FX]")
         
-        action_emoji = "🟢 BUY" if "BUY" in order_type else "🔴 SELL"
+        action_emoji = "🟢 <b>BUY LIMIT SWEEP</b>" if "BUY" in order_type else "🔴 <b>SELL LIMIT SWEEP</b>"
         
         entry = ticket.get("entry_price")
         sl = ticket.get("stop_loss")
@@ -241,19 +239,19 @@ class HighFrequencyCRTEngine:
         return f"""<b>TENSION TRADING DESK</b> {tag}
 ━━━━━━━━━━━━━━━━━━━━
 
-⚡ <b>CRT SIGNAL DETECTED</b>
+🚨 <b>CRT LIQUIDITY SWEEP DETECTED</b>
 
 <b>PAIR:</b> <code>{symbol}</code>
 <b>ACTION:</b> {action_emoji}
 
-<b>ENTRY:</b> <code>{entry}</code>
-<b>SL:</b>    <code>{sl}</code> ({risk_pips} pips)
-<b>TP1:</b>   <code>{tp1}</code> (Equilibrium)
-<b>TP2:</b>   <code>{tp2}</code> (Expansion)
+🎯 <b>ENTRY:</b> <code>{entry}</code>
+🛡️ <b>SL:</b>    <code>{sl}</code> ({risk_pips} pips)
+⚖️ <b>TP1:</b>   <code>{tp1}</code> (Equilibrium)
+🚀 <b>TP2:</b>   <code>{tp2}</code> (Expansion)
 
-<b>LOT SIZE:</b> <code>{lots} Lots</code>
+💰 <b>RISK SIZE:</b> <code>{lots} Lots</code>
 ━━━━━━━━━━━━━━━━━━━━
-🔗 <a href="{tv_link}">Open TradingView Chart</a>"""
+📊 <a href="{tv_link}">Open Live TradingView Chart</a>"""
 
     def send_telegram_broadcast(self, ticket: Dict[str, object], bot_token: str, chat_id: str) -> bool:
         """Transmits the formatted signal ticket directly to Telegram."""
@@ -272,3 +270,13 @@ class HighFrequencyCRTEngine:
         except Exception as e:
             print(f"Error broadcasting to Telegram: {e}")
             return False
+
+
+if __name__ == "__main__":
+    # Environment execution runner for GitHub Actions workflow integration
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
+    CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+    print("⚡ TTD CRT Engine initialized successfully.")
+    print("Ready for live market polling loops via GitHub Actions.")
