@@ -11,8 +11,8 @@ from typing import Dict, Optional, Tuple, List
 
 class HighFrequencyCRTEngine:
     """
-    High-Frequency Candle Range Theory (CRT) Bot with Full Command Routing,
-    Admin-Restricted Settings, and Multi-User Dispatcher.
+    High-Frequency Candle Range Theory (CRT) Bot with $500 Starting Capital,
+    Profit Tracking, Admin-Restricted Settings, and Multi-User Dispatcher.
     """
     
     PORTFOLIO_CONFIG = {
@@ -23,10 +23,11 @@ class HighFrequencyCRTEngine:
         "AUD/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:AUDUSD", "desc": "High Win-Rate Major Engine"}
     }
 
-    def __init__(self, account_balance: float = 10000.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
-        self.account_balance = account_balance
+    def __init__(self, starting_balance: float = 500.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
+        self.starting_balance = starting_balance
+        self.account_balance = starting_balance  # Can scale dynamically with market results
         self.risk_pct = risk_pct
-        self.risk_amount = account_balance * risk_pct
+        self.risk_amount = self.account_balance * risk_pct
         self.sl_pip_offset = sl_pip_offset
         self.atr_mult = atr_mult
 
@@ -66,6 +67,10 @@ class HighFrequencyCRTEngine:
         subscribers = self.load_subscribers(filepath)
         url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
         
+        # Calculate mock/dynamic profit for display purposes based on starting balance
+        current_profit_loss = self.account_balance - self.starting_balance
+        pnl_sign = "+" if current_profit_loss >= 0 else ""
+
         try:
             response = requests.get(url, timeout=10)
             res_data = response.json()
@@ -79,7 +84,7 @@ class HighFrequencyCRTEngine:
                     if not chat_id:
                         continue
 
-                    # 1. /start: Subscribe to signals[span_0](start_span)[span_0](end_span)
+                    # 1. /start: Subscribe to signals
                     if text.startswith("/start"):
                         if chat_id not in subscribers:
                             subscribers.append(chat_id)
@@ -89,7 +94,7 @@ class HighFrequencyCRTEngine:
                             "🟢 <b>Successfully Subscribed!</b>\nYou are now registered to receive CRT liquidity sweep alerts."
                         )
 
-                    # 2. /stop: Unsubscribe from signals[span_1](start_span)[span_1](end_span)
+                    # 2. /stop: Unsubscribe from signals
                     elif text.startswith("/stop"):
                         if chat_id in subscribers:
                             subscribers.remove(chat_id)
@@ -99,7 +104,7 @@ class HighFrequencyCRTEngine:
                             "🔴 <b>Unsubscribed.</b>\nYou will no longer receive CRT signals. Type /start to re-enable."
                         )
 
-                    # 3. /help: How to read the signals[span_2](start_span)[span_2](end_span)
+                    # 3. /help: How to read the signals
                     elif text.startswith("/help"):
                         help_text = (
                             "📖 <b>How to Read CRT Signals</b>\n\n"
@@ -111,7 +116,7 @@ class HighFrequencyCRTEngine:
                         )
                         self.send_telegram_message(bot_token, chat_id, help_text)
 
-                    # 4. /status: Show active trades / bot status[span_3](start_span)[span_3](end_span)
+                    # 4. /status: Show active trades / bot status
                     elif text.startswith("/status"):
                         status_text = (
                             "⚡ <b>CRT Engine Status</b>\n\n"
@@ -121,19 +126,20 @@ class HighFrequencyCRTEngine:
                         )
                         self.send_telegram_message(bot_token, chat_id, status_text)
 
-                    # 5. /pairs: List scanned pairs[span_4](start_span)[span_4](end_span)
+                    # 5. /pairs: List scanned pairs
                     elif text.startswith("/pairs"):
                         pairs_list = "\n".join([f"• <code>{pair}</code> ({cfg['tag']}) — {cfg['desc']}" for pair, cfg in self.PORTFOLIO_CONFIG.items()])
                         pairs_text = f"📊 <b>Scanned Portfolio Pairs (Final 5)</b>\n\n{pairs_list}"
                         self.send_telegram_message(bot_token, chat_id, pairs_text)
 
-                    # 6. /portfolio: Show portfolio details & risk metrics
+                    # 6. /portfolio: Show portfolio details & starting capital
                     elif text.startswith("/portfolio"):
                         portfolio_text = (
                             "💼 <b>Active Portfolio Configuration</b>\n\n"
-                            f"• Account Capital: <code>${self.account_balance:.2f}</code>\n"
+                            f"• Starting Capital: <code>${self.starting_balance:.2f}</code>\n"
+                            f"• Current Balance: <code>${self.account_balance:.2f}</code>\n"
+                            f"• Net P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
                             f"• Risk Per Trade: <code>{self.risk_pct * 100}%</code> (${self.risk_amount:.2f})\n"
-                            f"• Total Monitored Assets: <code>{len(self.PORTFOLIO_CONFIG)} Pairs</code>\n"
                             "• Strategy: Candle Range Theory (CRT) Liquidity Sweeps"
                         )
                         self.send_telegram_message(bot_token, chat_id, portfolio_text)
@@ -142,10 +148,10 @@ class HighFrequencyCRTEngine:
                     elif text.startswith("/stats"):
                         stats_text = (
                             "📈 <b>CRT Performance Metrics</b>\n\n"
-                            "• Total R Captured: <code>+14.5R (Monthly)</code>\n"
+                            f"• Initial Baseline: <code>${self.starting_balance:.2f}</code>\n"
+                            f"• Total Profit/Loss: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
                             "• Win Rate: <code>68.2%</code>\n"
-                            "• Average RR: <code>2.4R</code>\n"
-                            "• Status: <i>Tracking active trades via JSON state.</i>"
+                            "• Average RR: <code>2.4R</code>"
                         )
                         self.send_telegram_message(bot_token, chat_id, stats_text)
 
@@ -153,13 +159,14 @@ class HighFrequencyCRTEngine:
                     elif text.startswith("/ping"):
                         self.send_telegram_message(bot_token, chat_id, "pong 🏓 — CRT Engine is fully operational.")
 
-                    # 9. /settings: ADMIN-ONLY control panel
+                    # 9. /settings: ADMIN-ONLY control panel showing starting vs current balance
                     elif text.startswith("/settings"):
                         if admin_chat_id and chat_id == str(admin_chat_id):
                             admin_text = (
                                 "⚙️ <b>Admin Control Panel</b>\n\n"
-                                f"• Admin ID: <code>{admin_chat_id}</code>\n"
-                                f"• Account Balance: <code>${self.account_balance:.2f}</code>\n"
+                                f"• Starting Baseline: <code>${self.starting_balance:.2f}</code>\n"
+                                f"• Current Equity: <code>${self.account_balance:.2f}</code>\n"
+                                f"• Total P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
                                 f"• Risk %: <code>{self.risk_pct * 100}%</code>\n"
                                 f"• Registered Subscribers: <code>{len(subscribers)}</code>\n\n"
                                 "<i>Admin authorization verified.</i>"
@@ -329,7 +336,6 @@ if __name__ == "__main__":
     
     if TELEGRAM_BOT_TOKEN:
         engine = HighFrequencyCRTEngine()
-        # Process all incoming commands and route admin checks
         subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID)
         print(f"Active subscribers synced: {len(subscribers)}")
     else:
