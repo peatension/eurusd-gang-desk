@@ -19,17 +19,5 @@
     "AUDJPY_SELL_2026-09-23 22:00:00": true,
     "EURJPY_BUY_2026-09-24 02:45:00": true
   },
-  "pending": [
-    {
-      "pair": "EURJPY",
-      "direction": "BUY",
-      "entry": 180.18902,
-      "sl": 180.08858,
-      "tp1": 180.24982,
-      "tp2": 180.31527,
-      "original_text": "<b>TENSION TRADING DESK</b>\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<b>CRT ENGINE</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\ud83d\udfe2 <b>EURJPY \u00b7 BUY</b> \u25b2\n<i>Classic CRT / Turtle Soup</i>\n\n<pre>Entry  180.18902\nSL     180.08858\nTP1    180.24982  (50%)\nTP2    180.31527  (Opposite)\n</pre>\nRange Size : 13.1 pips\nNews Impact : \ud83d\udfe2 LOW IMPACT\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n<i>Built on Data. Driven by Discipline.</i>",
-      "tp1_hit": true,
-      "model": "Classic CRT / Turtle Soup"
-    }
-  ]
+  "pending": []
 }
