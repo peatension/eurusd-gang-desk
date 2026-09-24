@@ -321,7 +321,6 @@ class HighFrequencyCRTEngine:
 📊 <a href="{tv_link}">Open Live TradingView Chart</a>"""
 
     def format_caution_signal(self, symbol: str, tp1: float) -> str:
-        """Sends a street-wise Nigerian humor caution alert when TP1 is hit but TP2 looks shaky."""
         return f"""<b>CRT TRADING BOT</b> ⚠️
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -340,6 +339,50 @@ class HighFrequencyCRTEngine:
         for chat_id in subscribers:
             self.send_telegram_message(bot_token, chat_id, message_text)
 
+    def fetch_twelve_data_candles(self, symbol: str, interval: str, tw_data_key: str, outputsize: int = 100) -> Optional[pd.DataFrame]:
+        """Fetches M30 or M5 candle data from Twelve Data API."""
+        url = "https://api.twelvedata.com/time_series"
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "outputsize": outputsize,
+            "apikey": tw_data_key,
+            "format": "JSON"
+        }
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            if "values" in data:
+                df = pd.DataFrame(data["values"])
+                df = df.iloc[::-1].reset_index(drop=True)
+                for col in ["open", "high", "low", "close", "volume"]:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                return df
+            else:
+                print(f"Twelve Data warning for {symbol} ({interval}): {data.get('message', 'No values returned')}")
+        except Exception as e:
+            print(f"Error fetching data from Twelve Data for {symbol}: {e}")
+        return None
+
+    def run_market_scan(self, bot_token: str, tw_data_key: str, subscribers: List[str]) -> None:
+        """Loops through the 5 portfolio pairs, fetches candles, scans for setups, and broadcasts."""
+        print("⚡ Running 5-pair portfolio market scan...")
+        for pair in self.PORTFOLIO_CONFIG.keys():
+            print(f"Analyzing {pair}...")
+            df_m30 = self.fetch_twelve_data_candles(pair, "30min", tw_data_key, outputsize=50)
+            df_m5 = self.fetch_twelve_data_candles(pair, "5min", tw_data_key, outputsize=50)
+
+            if df_m30 is not None and df_m5 is not None and not df_m30.empty and not df_m5.empty:
+                signal_ticket = self.scan_signal(pair, df_m30, df_m5)
+                if signal_ticket:
+                    print(f"🚀 Signal detected on {pair}! Broadcasting to {len(subscribers)} subscribers.")
+                    for chat_id in subscribers:
+                        msg = self.format_telegram_signal(signal_ticket)
+                        self.send_telegram_message(bot_token, chat_id, msg)
+            else:
+                print(f"Skipping {pair} due to missing candle data feed.")
+
 
 if __name__ == "__main__":
     TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -350,7 +393,15 @@ if __name__ == "__main__":
     
     if TELEGRAM_BOT_TOKEN:
         engine = HighFrequencyCRTEngine()
+        
+        # 1. First sync subscribers and handle incoming telegram commands
         subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID)
         print(f"Active subscribers synced: {len(subscribers)}")
+        
+        # 2. Then execute the 5-minute market scan cycle (triggered by external cron)
+        if TWELVE_DATA_KEY:
+            engine.run_market_scan(TELEGRAM_BOT_TOKEN, TWELVE_DATA_KEY, subscribers)
+        else:
+            print("Warning: TWELVE_DATA_KEY missing. Market scan skipped.")
     else:
         print("Warning: TELEGRAM_BOT_TOKEN missing from environment variables.")
