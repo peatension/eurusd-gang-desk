@@ -25,7 +25,7 @@ class HighFrequencyCRTEngine:
 
     def __init__(self, starting_balance: float = 500.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
         self.starting_balance = starting_balance
-        self.account_balance = starting_balance  # Can scale dynamically with market results
+        self.account_balance = starting_balance  
         self.risk_pct = risk_pct
         self.risk_amount = self.account_balance * risk_pct
         self.sl_pip_offset = sl_pip_offset
@@ -67,7 +67,6 @@ class HighFrequencyCRTEngine:
         subscribers = self.load_subscribers(filepath)
         url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
         
-        # Calculate mock/dynamic profit for display purposes based on starting balance
         current_profit_loss = self.account_balance - self.starting_balance
         pnl_sign = "+" if current_profit_loss >= 0 else ""
 
@@ -328,9 +327,9 @@ class HighFrequencyCRTEngine:
 
 
 if __name__ == "__main__":
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
-    ADMIN_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+    ADMIN_CHAT_ID = os.getenv("ADMIN_ID")
 
     print("⚡ CRT Engine initialized successfully.")
     
