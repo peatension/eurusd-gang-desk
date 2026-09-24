@@ -160,7 +160,7 @@ class HighFrequencyCRTEngine:
 
                     # 9. /settings: ADMIN-ONLY control panel showing starting vs current balance
                     elif text.startswith("/settings"):
-                        if admin_chat_id and chat_id == str(admin_chat_id):
+                        if admin_chat_id and chat_id == str(7080941387):
                             admin_text = (
                                 "⚙️ <b>Admin Control Panel</b>\n\n"
                                 f"• Starting Baseline: <code>${self.starting_balance:.2f}</code>\n"
