@@ -1,383 +1,779 @@
-# crt_engine.py
-# CRT Trading Bot — High-Frequency Engine & Full Telegram Command Suite
-# Motto: Built on Data. / Driven by Discipline.
+"""
+TENSION TRADING DESK — CRT Engine (dual stream + multi-user)
+
+Streams (parallel — both can fire same pair/time):
+  CRT H1  = H1 C1 + M5 TS entry
+  CRT M30 = M30 C1 + M5 TS entry
+
+Modules (walk-forward locked):
+  TS ON | OCL OFF | FVG OFF | DOL OFF
+  BE = suggestion text only (not automated)
+
+Telegram:
+  /start /stop /help /status /pairs /ping
+  Multi-subscriber broadcast (subscribers.json)
+  Safe getUpdates via last_update_id in state
+  Risk pips on signal | OANDA-style TradingView links
+
+Motto: Built on Data. / Driven by Discipline.
+"""
 
 import os
 import json
 import time
-import numpy as np
-import pandas as pd
 import requests
-from typing import Dict, Optional, Tuple, List
+import pandas as pd
+import numpy as np
 
-class HighFrequencyCRTEngine:
-    """
-    High-Frequency Candle Range Theory (CRT) Bot with $500 Starting Capital,
-    Profit Tracking, and Multi-User Dispatcher.
-    """
-    
-    PORTFOLIO_CONFIG = {
-        "USD/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:USDJPY", "desc": "High-Expectancy JPY Expansion Driver"},
-        "EUR/JPY": {"rr_gate": 3.0, "tag": "HIGH-EXP", "broker_prefix": "OANDA:EURJPY", "desc": "High-Expectancy JPY Expansion Driver"},
-        "GBP/AUD": {"rr_gate": 2.0, "tag": "HIGH-VOL", "broker_prefix": "OANDA:GBPAUD", "desc": "High-Beta Volume Engine"},
-        "EUR/USD": {"rr_gate": 2.0, "tag": "CORE-FX",  "broker_prefix": "OANDA:EURUSD", "desc": "Core Major Benchmark"}
+# ============================================================
+# ENV
+# ============================================================
+
+TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+SHEET_URL = os.getenv("SHEET_URL", "")
+
+STATE_FILE = "last_alert_state_crt.json"
+SUBSCRIBERS_FILE = "subscribers.json"
+STATE_VERSION = 2
+
+MIN_RR = 1.5
+MAX_HOLD_BARS = 200
+ATR_PERIOD = 14
+
+PAIRS = {
+    "EUR/USD": {"pip": 0.0001, "tv": "OANDA:EURUSD"},
+    "AUD/USD": {"pip": 0.0001, "tv": "OANDA:AUDUSD"},
+    "USD/CHF": {"pip": 0.0001, "tv": "OANDA:USDCHF"},
+    "EUR/JPY": {"pip": 0.01, "tv": "OANDA:EURJPY"},
+}
+
+STREAMS = {
+    "CRT H1": "1h",
+    "CRT M30": "30min",
+}
+
+
+# ============================================================
+# SUBSCRIBERS
+# ============================================================
+
+def load_subscribers():
+    ids = set()
+    if CHAT_ID:
+        ids.add(str(CHAT_ID))
+    if os.path.exists(SUBSCRIBERS_FILE):
+        try:
+            with open(SUBSCRIBERS_FILE, "r") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                for x in data:
+                    ids.add(str(x))
+        except Exception as e:
+            print("Subscriber load error:", e)
+    return sorted(ids)
+
+
+def save_subscribers(subscribers):
+    try:
+        with open(SUBSCRIBERS_FILE, "w") as f:
+            json.dump(sorted(set(str(x) for x in subscribers)), f, indent=2)
+    except Exception as e:
+        print("Subscriber save error:", e)
+
+
+# ============================================================
+# TELEGRAM
+# ============================================================
+
+def send_telegram_to(chat_id, text):
+    if not BOT_TOKEN or not chat_id:
+        return None
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
     }
+    try:
+        data = requests.post(url, json=payload, timeout=20).json()
+        if data.get("ok"):
+            return data["result"]["message_id"]
+        print(f"Telegram error ({chat_id}):", data)
+    except Exception as e:
+        print(f"Telegram send error ({chat_id}):", e)
+    return None
 
-    def __init__(self, starting_balance: float = 500.0, risk_pct: float = 0.01, sl_pip_offset: float = 1.5, atr_mult: float = 0.25):
-        self.starting_balance = starting_balance
-        self.account_balance = starting_balance  
-        self.risk_pct = risk_pct
-        self.risk_amount = self.account_balance * risk_pct
-        self.sl_pip_offset = sl_pip_offset
-        self.atr_mult = atr_mult
 
-    def load_subscribers(self, filepath: str = "subscribers.json") -> List[str]:
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, "r") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        return [str(chat_id) for chat_id in data]
-            except Exception as e:
-                print(f"Error loading subscribers: {e}")
-        return []
-
-    def save_subscribers(self, subscribers: List[str], filepath: str = "subscribers.json") -> None:
-        try:
-            with open(filepath, "w") as f:
-                json.dump(list(set(subscribers)), f, indent=4)
-        except Exception as e:
-            print(f"Error saving subscribers: {e}")
-
-    def send_telegram_message(self, bot_token: str, chat_id: str, text: str) -> None:
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True
-        }
-        try:
-            requests.post(url, json=payload, timeout=5)
-        except Exception as e:
-            print(f"Failed to send message to {chat_id}: {e}")
-
-    def process_telegram_commands(self, bot_token: str, filepath: str = "subscribers.json") -> List[str]:
-        """Polls Telegram getUpdates API and routes all user commands."""
-        subscribers = self.load_subscribers(filepath)
-        url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
-        
-        current_profit_loss = self.account_balance - self.starting_balance
-        pnl_sign = "+" if current_profit_loss >= 0 else ""
-
-        try:
-            response = requests.get(url, timeout=10)
-            res_data = response.json()
-            if res_data.get("ok", False):
-                for result in res_data.get("result", []):
-                    message = result.get("message", {})
-                    chat = message.get("chat", {})
-                    chat_id = str(chat.get("id"))
-                    text = message.get("text", "").strip().lower()
-                    
-                    if not chat_id:
-                        continue
-
-                    # 1. /start: Subscribe to signals
-                    if text.startswith("/start"):
-                        if chat_id not in subscribers:
-                            subscribers.append(chat_id)
-                            print(f"New subscriber added: {chat_id}")
-                        self.send_telegram_message(
-                            bot_token, chat_id, 
-                            "🟢 <b>Successfully Subscribed!</b>\nYou are now registered to receive CRT liquidity sweep alerts."
-                        )
-
-                    # 2. /stop: Unsubscribe from signals
-                    elif text.startswith("/stop"):
-                        if chat_id in subscribers:
-                            subscribers.remove(chat_id)
-                            print(f"Subscriber removed: {chat_id}")
-                        self.send_telegram_message(
-                            bot_token, chat_id, 
-                            "🔴 <b>Unsubscribed.</b>\nYou will no longer receive CRT signals. Type /start to re-enable."
-                        )
-
-                    # 3. /help: How to read the signals
-                    elif text.startswith("/help"):
-                        help_text = (
-                            "📖 <b>How to Read CRT Signals</b>\n\n"
-                            "• <b>Entry:</b> The target boundary (C1 High/Low) for limit orders.\n"
-                            "• <b>SL (Stop Loss):</b> Placed beyond the sweep extreme with buffer.\n"
-                            "• <b>TP1 (Equilibrium):</b> First profit target at 50% range midpoint.\n"
-                            "• <b>TP2 (Expansion):</b> Final profit target at opposite range boundary.\n"
-                            "• <b>Risk Size:</b> Calculated automatically based on account risk rules."
-                        )
-                        self.send_telegram_message(bot_token, chat_id, help_text)
-
-                    # 4. /status: Show active trades / bot status
-                    elif text.startswith("/status"):
-                        status_text = (
-                            "⚡ <b>CRT Engine Status</b>\n\n"
-                            "System State: <b>ONLINE & MONITORING</b>\n"
-                            "Timeframe: M5 Execution / M30 Structure\n"
-                            "Status: Scanning Active 4 Portfolio Pairs for sweeps..."
-                        )
-                        self.send_telegram_message(bot_token, chat_id, status_text)
-
-                    # 5. /pairs: List scanned pairs
-                    elif text.startswith("/pairs"):
-                        pairs_list = "\n".join([f"• <code>{pair}</code> ({cfg['tag']}) — {cfg['desc']}" for pair, cfg in self.PORTFOLIO_CONFIG.items()])
-                        pairs_text = f"📊 <b>Scanned Portfolio Pairs (Active 4)</b>\n\n{pairs_list}"
-                        self.send_telegram_message(bot_token, chat_id, pairs_text)
-
-                    # 6. /portfolio: Show portfolio details & starting capital
-                    elif text.startswith("/portfolio"):
-                        portfolio_text = (
-                            "💼 <b>Active Portfolio Configuration</b>\n\n"
-                            f"• Starting Capital: <code>${self.starting_balance:.2f}</code>\n"
-                            f"• Current Balance: <code>${self.account_balance:.2f}</code>\n"
-                            f"• Net P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
-                            f"• Risk Per Trade: <code>{self.risk_pct * 100}%</code> (${self.risk_amount:.2f})\n"
-                            "• Strategy: Candle Range Theory (CRT) Liquidity Sweeps"
-                        )
-                        self.send_telegram_message(bot_token, chat_id, portfolio_text)
-
-                    # 7. /stats: Show historical performance overview
-                    elif text.startswith("/stats"):
-                        stats_text = (
-                            "📈 <b>CRT Performance Metrics</b>\n\n"
-                            f"• Initial Baseline: <code>${self.starting_balance:.2f}</code>\n"
-                            f"• Total Profit/Loss: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
-                            "• Win Rate: <code>68.2%</code>\n"
-                            "• Average RR: <code>2.4R</code>"
-                        )
-                        self.send_telegram_message(bot_token, chat_id, stats_text)
-
-                    # 8. /ping: Quick health check
-                    elif text.startswith("/ping"):
-                        self.send_telegram_message(bot_token, chat_id, "pong 🏓 — CRT Engine is fully operational.")
-
-                    # 9. /settings: OPEN TO ALL USERS (Admin check removed)
-                    elif text.startswith("/settings"):
-                        settings_text = (
-                            "⚙️ <b>Control Panel / Settings</b>\n\n"
-                            f"• Starting Baseline: <code>${self.starting_balance:.2f}</code>\n"
-                            f"• Current Equity: <code>${self.account_balance:.2f}</code>\n"
-                            f"• Total P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
-                            f"• Risk %: <code>{self.risk_pct * 100}%</code>\n"
-                            f"• Registered Subscribers: <code>{len(subscribers)}</code>\n\n"
-                            "<i>System settings are fully operational.</i>"
-                        )
-                        self.send_telegram_message(bot_token, chat_id, settings_text)
-            
-            self.save_subscribers(subscribers, filepath)
-        except Exception as e:
-            print(f"Error processing Telegram commands: {e}")
-            
-        return subscribers
-
-    def get_c1_levels(self, df_m30: pd.DataFrame) -> Tuple[float, float, float]:
-        prev = df_m30.iloc[-2]
-        c1_high = float(prev["high"])
-        c1_low = float(prev["low"])
-        c1_mid = (c1_high + c1_low) / 2.0
-        return c1_high, c1_low, c1_mid
-
-    def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
-        high_low = df["high"] - df["low"]
-        high_close = (df["high"] - df["close"].shift()).abs()
-        low_close = (df["low"] - df["close"].shift()).abs()
-        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-        return float(tr.rolling(period).mean().iloc[-1])
-
-    def calculate_lot_size(self, pair: str, risk_pips: float) -> float:
-        if risk_pips <= 0:
-            return 0.01
-        pip_value_usd = 10.0 if "USD" in pair.split("/")[1] else 8.5  
-        lots = round(self.risk_amount / (risk_pips * pip_value_usd), 2)
-        return max(0.01, lots)
-
-    def scan_signal(self, pair: str, df_m30: pd.DataFrame, df_entry: pd.DataFrame) -> Optional[Dict[str, object]]:
-        if pair not in self.PORTFOLIO_CONFIG:
-            return None
-
-        cfg = self.PORTFOLIO_CONFIG[pair]
-        rr_gate = cfg["rr_gate"]
-        tag = cfg["tag"]
-        tv_symbol = cfg["broker_prefix"]
-
-        c1_high, c1_low, c1_mid = self.get_c1_levels(df_m30)
-        curr = df_entry.iloc[-1]
-        
-        pip_factor = 0.01 if "JPY" in pair else 0.0001
-        decimals = 3 if "JPY" in pair else 5
-        
-        atr_val = self.calculate_atr(df_entry)
-        sl_buffer = max(self.sl_pip_offset * pip_factor, self.atr_mult * atr_val)
-
-        # Bullish Sweep Setup
-        if curr["low"] < c1_low and curr["close"] > c1_low:
-            entry_price = c1_low
-            stop_loss = curr["low"] - sl_buffer
-            risk = entry_price - stop_loss
-            risk_pips = risk / pip_factor
-            tp1 = c1_mid
-            tp2 = c1_high
-
-            if risk > 0 and (tp1 - entry_price) / risk >= rr_gate:
-                lots = self.calculate_lot_size(pair, risk_pips)
-                tv_url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
-                return self._build_pro_ticket(
-                    pair=pair, order_type="BUY_LIMIT", tag=tag, 
-                    entry=entry_price, sl=stop_loss, tp1=tp1, tp2=tp2, 
-                    risk=risk, risk_pips=risk_pips, lots=lots, tv_url=tv_url, decimals=decimals
-                )
-
-        # Bearish Sweep Setup
-        elif curr["high"] > c1_high and curr["close"] < c1_high:
-            entry_price = c1_high
-            stop_loss = curr["high"] + sl_buffer
-            risk = stop_loss - entry_price
-            risk_pips = risk / pip_factor
-            tp1 = c1_mid
-            tp2 = c1_low
-
-            if risk > 0 and (entry_price - tp1) / risk >= rr_gate:
-                lots = self.calculate_lot_size(pair, risk_pips)
-                tv_url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
-                return self._build_pro_ticket(
-                    pair=pair, order_type="SELL_LIMIT", tag=tag, 
-                    entry=entry_price, sl=stop_loss, tp1=tp1, tp2=tp2, 
-                    risk=risk, risk_pips=risk_pips, lots=lots, tv_url=tv_url, decimals=decimals
-                )
-
+def broadcast(text):
+    """Send to all subscribers. Returns message_id from CHAT_ID for edits."""
+    subs = load_subscribers()
+    if not subs:
+        print("No subscribers.")
         return None
 
-    def _build_pro_ticket(
-        self, pair: str, order_type: str, tag: str, 
-        entry: float, sl: float, tp1: float, tp2: float, 
-        risk: float, risk_pips: float, lots: float, tv_url: str, decimals: int
-    ) -> Dict[str, object]:
-        rr_tp1 = round(abs(tp1 - entry) / risk, 2)
-        rr_tp2 = round(abs(tp2 - entry) / risk, 2)
+    primary = str(CHAT_ID) if CHAT_ID else subs[0]
+    primary_mid = None
+    for cid in subs:
+        mid = send_telegram_to(cid, text)
+        if str(cid) == primary and mid:
+            primary_mid = mid
+        time.sleep(0.05)
+    return primary_mid
 
-        return {
-            "symbol": pair,
-            "tag": f"[{tag}]",
-            "verdict": "⚡ ACTIVE SETUP",
-            "order_type": order_type,
-            "entry_price": round(entry, decimals),
-            "stop_loss": round(sl, decimals),
-            "risk_pips": round(risk_pips, 1),
-            "recommended_lots": lots,
-            "risk_usd": f"${self.risk_amount:.2f}",
-            "tp1_equilibrium": round(tp1, decimals),
-            "tp2_expansion": round(tp2, decimals),
-            "rr_tp1": f"+{rr_tp1}R",
-            "rr_tp2": f"+{rr_tp2}R",
-            "net_r": 0.0,
-            "pnl_usd": "$0.00",
-            "tradingview_link": tv_url,
-            "status": "ACTIVE_PENDING"
-        }
 
-    def format_telegram_signal(self, ticket: Dict[str, object]) -> str:
-        symbol = ticket.get("symbol", "EUR/USD")
-        order_type = ticket.get("order_type", "BUY_LIMIT")
-        tag = ticket.get("tag", "[CORE-FX]")
-        
-        action_emoji = "🟢 <b>BUY LIMIT SWEEP</b>" if "BUY" in order_type else "🔴 <b>SELL LIMIT SWEEP</b>"
-        
-        entry = ticket.get("entry_price")
-        sl = ticket.get("stop_loss")
-        tp1 = ticket.get("tp1_equilibrium")
-        tp2 = ticket.get("tp2_expansion")
-        risk_pips = ticket.get("risk_pips")
-        lots = ticket.get("recommended_lots")
-        tv_link = ticket.get("tradingview_link")
+def edit_telegram(message_id, text, chat_id=None):
+    target = str(chat_id or CHAT_ID or "")
+    if not BOT_TOKEN or not target or not message_id:
+        return False
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    payload = {
+        "chat_id": target,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    try:
+        data = requests.post(url, json=payload, timeout=20).json()
+        return bool(data.get("ok"))
+    except Exception as e:
+        print("Telegram edit error:", e)
+        return False
 
-        return f"""<b>CRT TRADING BOT</b> {tag}
-━━━━━━━━━━━━━━━━━━━━
 
-🚨 <b>CRT LIQUIDITY SWEEP DETECTED</b>
+def process_commands(state):
+    """Safe getUpdates with offset stored in state."""
+    if not BOT_TOKEN:
+        return
 
-<b>PAIR:</b> <code>{symbol}</code>
-<b>ACTION:</b> {action_emoji}
+    subscribers = load_subscribers()
+    offset = int(state.get("last_update_id", 0)) + 1
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+    try:
+        data = requests.get(
+            url, params={"offset": offset, "timeout": 0}, timeout=15
+        ).json()
+    except Exception as e:
+        print("getUpdates error:", e)
+        return
 
-🎯 <b>ENTRY:</b> <code>{entry}</code>
-🛡️ <b>SL:</b>    <code>{sl}</code> ({risk_pips} pips)
-⚖️ <b>TP1:</b>   <code>{tp1}</code> (Equilibrium)
-🚀 <b>TP2:</b>   <code>{tp2}</code> (Expansion)
+    if not data.get("ok"):
+        return
 
-💰 <b>RISK SIZE:</b> <code>{lots} Lots</code>
-━━━━━━━━━━━━━━━━━━━━
-📊 <a href="{tv_link}">Open Live TradingView Chart</a>"""
+    for result in data.get("result", []):
+        uid = int(result.get("update_id", 0))
+        state["last_update_id"] = max(int(state.get("last_update_id", 0)), uid)
 
-    def fetch_twelve_data_candles(self, symbol: str, interval: str, tw_data_key: str, outputsize: int = 100) -> Optional[pd.DataFrame]:
-        """Fetches M30 or M5 candle data from Twelve Data API."""
-        url = "https://api.twelvedata.com/time_series"
-        params = {
-            "symbol": symbol,
-            "interval": interval,
-            "outputsize": outputsize,
-            "apikey": tw_data_key,
-            "format": "JSON"
-        }
+        message = result.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = str(chat.get("id", ""))
+        text = (message.get("text") or "").strip()
+        if not chat_id or not text:
+            continue
+
+        low = text.lower()
+
+        if low.startswith("/start"):
+            if chat_id not in subscribers:
+                subscribers.append(chat_id)
+                save_subscribers(subscribers)
+            send_telegram_to(
+                chat_id,
+                "🟢 <b>Subscribed — Tension Trading Desk CRT</b>\n\n"
+                "You will receive dual-stream CRT alerts:\n"
+                "• <b>CRT H1</b>\n"
+                "• <b>CRT M30</b>\n\n"
+                "Commands: /help /status /pairs /ping /stop",
+            )
+
+        elif low.startswith("/stop"):
+            if chat_id in subscribers:
+                subscribers = [x for x in subscribers if x != chat_id]
+                save_subscribers(subscribers)
+            send_telegram_to(
+                chat_id,
+                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive CRT signals.",
+            )
+
+        elif low.startswith("/help"):
+            send_telegram_to(
+                chat_id,
+                "📖 <b>How to read CRT signals</b>\n\n"
+                "• <b>C1</b> — Range candle (H1 or M30)\n"
+                "• <b>Entry</b> — After M5 Turtle Soup (sweep + reject)\n"
+                "• <b>SL</b> — Beyond sweep extreme + buffer\n"
+                "• <b>TP1</b> — C1 midpoint (measured R shown)\n"
+                "• <b>TP2</b> — Opposite C1 boundary\n"
+                "• <b>RR</b> — Measured from geometry (not fixed)\n\n"
+                "H1 and M30 can both fire — they are alternatives.\n"
+                "BE after TP1 is a <b>suggestion only</b> (not auto).",
+            )
+
+        elif low.startswith("/status"):
+            send_telegram_to(
+                chat_id,
+                "⚡ <b>CRT Engine Status</b>\n\n"
+                "State: <b>ONLINE</b>\n"
+                "Streams: <b>CRT H1</b> + <b>CRT M30</b>\n"
+                "Entry: M5 TS | Modules: TS ON\n"
+                f"Pairs: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
+            )
+
+        elif low.startswith("/pairs"):
+            lines = "\n".join([f"• <code>{p}</code>" for p in PAIRS.keys()])
+            send_telegram_to(
+                chat_id,
+                f"📊 <b>CRT scanned pairs</b>\n\n{lines}\n\n"
+                "Streams: CRT H1 · CRT M30",
+            )
+
+        elif low.startswith("/ping"):
+            send_telegram_to(chat_id, "pong 🏓 — CRT engine operational.")
+
+    save_subscribers(subscribers)
+
+
+def send_to_sheet(record):
+    if not SHEET_URL:
+        return
+    try:
+        requests.post(SHEET_URL, json=record, timeout=20)
+    except Exception as e:
+        print("Sheet error:", e)
+
+
+def tradingview_url(pair):
+    tv = PAIRS.get(pair, {}).get("tv")
+    if tv:
+        return f"https://www.tradingview.com/chart/?symbol={tv}"
+    return f"https://www.tradingview.com/symbols/{pair.replace('/', '')}/"
+
+
+# ============================================================
+# DATA
+# ============================================================
+
+def fetch(symbol, interval, outputsize=500, retries=4):
+    url = "https://api.twelvedata.com/time_series"
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "outputsize": outputsize,
+        "apikey": TWELVE_DATA_KEY,
+        "format": "JSON",
+    }
+    for _ in range(retries):
         try:
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
+            data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
                 df = pd.DataFrame(data["values"])
-                df = df.iloc[::-1].reset_index(drop=True)
-                for col in ["open", "high", "low", "close", "volume"]:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                df["datetime"] = pd.to_datetime(df["datetime"])
+                for col in ("open", "high", "low", "close"):
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                df = df.dropna().sort_values("datetime").reset_index(drop=True)
+                time.sleep(8)
                 return df
-            else:
-                print(f"Twelve Data warning for {symbol} ({interval}): {data.get('message', 'No values returned')}")
+            if data.get("code") == 429 or "credits" in str(data).lower():
+                print(f"Rate limit {symbol} {interval}, waiting...")
+                time.sleep(65)
+                continue
+            print(f"API error {symbol} {interval}:", data)
+            return None
         except Exception as e:
-            print(f"Error fetching data from Twelve Data for {symbol}: {e}")
+            print(f"Fetch error {symbol} {interval}:", e)
+            time.sleep(10)
+    return None
+
+
+def add_atr(df):
+    prev = df["close"].shift(1)
+    tr = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - prev).abs(),
+            (df["low"] - prev).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    out = df.copy()
+    out["atr"] = tr.rolling(ATR_PERIOD).mean()
+    return out
+
+
+# ============================================================
+# CRT LOGIC
+# ============================================================
+
+def find_c1_row(c1_df, t):
+    if c1_df is None or len(c1_df) < 2:
+        return None
+    completed = c1_df[c1_df["datetime"] < t]
+    if len(completed) == 0:
+        return None
+    return completed.iloc[-1]
+
+
+def ts_long(m5, i, crl, crh):
+    if i < 3:
+        return False
+    swept = any(float(m5["low"].iloc[k]) < crl for k in range(i - 3, i + 1))
+    c_o = float(m5["open"].iloc[i])
+    c_h = float(m5["high"].iloc[i])
+    c_l = float(m5["low"].iloc[i])
+    c_c = float(m5["close"].iloc[i])
+    if not swept:
+        return False
+    if not (c_c > crl and c_c < crh):
+        return False
+    full = c_h - c_l
+    if full <= 0:
+        return False
+    return ((c_c - c_l) / full >= 0.55) or (c_c > c_o)
+
+
+def ts_short(m5, i, crl, crh):
+    if i < 3:
+        return False
+    swept = any(float(m5["high"].iloc[k]) > crh for k in range(i - 3, i + 1))
+    c_o = float(m5["open"].iloc[i])
+    c_h = float(m5["high"].iloc[i])
+    c_l = float(m5["low"].iloc[i])
+    c_c = float(m5["close"].iloc[i])
+    if not swept:
+        return False
+    if not (c_c < crh and c_c > crl):
+        return False
+    full = c_h - c_l
+    if full <= 0:
+        return False
+    return ((c_h - c_c) / full >= 0.55) or (c_c < c_o)
+
+
+def analyze_stream(stream_label, c1_df, m5, pair, pip):
+    if c1_df is None or m5 is None or len(m5) < 60:
         return None
 
-    def run_market_scan(self, bot_token: str, tw_data_key: str, subscribers: List[str]) -> None:
-        """Loops through the 4 portfolio pairs, fetches candles, scans for setups, and broadcasts with a safety buffer."""
-        print("⚡ Running 4-pair portfolio market scan...")
-        for pair in self.PORTFOLIO_CONFIG.keys():
-            print(f"Analyzing {pair}...")
-            df_m30 = self.fetch_twelve_data_candles(pair, "30min", tw_data_key, outputsize=50)
-            df_m5 = self.fetch_twelve_data_candles(pair, "5min", tw_data_key, outputsize=50)
+    i = len(m5) - 1
+    t = m5["datetime"].iloc[i]
+    c1 = find_c1_row(c1_df, t)
+    if c1 is None:
+        return None
 
-            if df_m30 is not None and df_m5 is not None and not df_m30.empty and not df_m5.empty:
-                signal_ticket = self.scan_signal(pair, df_m30, df_m5)
-                if signal_trigger := signal_ticket:
-                    print(f"🚀 Signal detected on {pair}! Broadcasting to {len(subscribers)} subscribers.")
-                    for chat_id in subscribers:
-                        msg = self.format_telegram_signal(signal_trigger)
-                        self.send_telegram_message(bot_token, chat_id, msg)
+    crh = float(c1["high"])
+    crl = float(c1["low"])
+    mid = (crh + crl) / 2.0
+    if crh - crl < 5 * pip:
+        return None
+
+    direction = extreme = entry = None
+    if ts_long(m5, i, crl, crh):
+        direction = 1
+        extreme = float(m5["low"].iloc[i - 3 : i + 1].min())
+        entry = crl
+    elif ts_short(m5, i, crl, crh):
+        direction = -1
+        extreme = float(m5["high"].iloc[i - 3 : i + 1].max())
+        entry = crh
+    else:
+        return None
+
+    atr = m5["atr"].iloc[i]
+    if pd.isna(atr) or atr <= 0:
+        buf = 1.5 * pip
+    else:
+        buf = max(1.5 * pip, 0.25 * float(atr))
+
+    if direction == 1:
+        stop = extreme - buf
+        tp1, tp2 = mid, crh
+    else:
+        stop = extreme + buf
+        tp1, tp2 = mid, crl
+
+    risk = abs(entry - stop)
+    if risk <= 0:
+        return None
+
+    rr1 = abs(tp1 - entry) / risk
+    rr2 = abs(tp2 - entry) / risk
+    if rr1 < MIN_RR:
+        return None
+
+    risk_pips = risk / pip
+    candle_time = str(m5["datetime"].iloc[i])
+
+    return {
+        "stream": stream_label,
+        "pair": pair,
+        "direction": direction,
+        "side": "BUY" if direction == 1 else "SELL",
+        "entry": float(entry),
+        "stop": float(stop),
+        "tp1": float(tp1),
+        "tp2": float(tp2),
+        "rr1": float(rr1),
+        "rr2": float(rr2),
+        "risk_pips": float(risk_pips),
+        "crh": crh,
+        "crl": crl,
+        "mid": mid,
+        "candle_time": candle_time,
+        "candle_key": f"{stream_label}|{pair}|{candle_time}|{direction}",
+        "c1_tf": STREAMS[stream_label],
+    }
+
+
+# ============================================================
+# STATE
+# ============================================================
+
+def load_state():
+    default = {
+        "version": STATE_VERSION,
+        "last_alert_keys": {},
+        "pending": [],
+        "last_update_id": 0,
+    }
+    if not os.path.exists(STATE_FILE):
+        return default
+    try:
+        with open(STATE_FILE, "r") as f:
+            state = json.load(f)
+        if state.get("version") != STATE_VERSION:
+            print("CRT state version mismatch — reset pending, keep update offset.")
+            default["last_update_id"] = int(state.get("last_update_id", 0))
+            return default
+        state.setdefault("last_alert_keys", {})
+        state.setdefault("pending", [])
+        state.setdefault("last_update_id", 0)
+        return state
+    except Exception as e:
+        print("State load error:", e)
+        return default
+
+
+def save_state(state):
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, STATE_FILE)
+
+
+# ============================================================
+# MESSAGES
+# ============================================================
+
+def build_signal_message(sig):
+    emoji = "🟢" if sig["direction"] == 1 else "🔴"
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"════════════════════\n"
+        f"<b>{sig['stream']}</b> · TS\n"
+        f"────────────────────\n\n"
+        f"{emoji} <b>{sig['side']} {sig['pair']}</b>\n\n"
+        f"C1 TF: <b>{sig['c1_tf'].upper()}</b> · Entry: <b>M5</b>\n\n"
+        f"C1 High <b>{sig['crh']:.5f}</b>\n"
+        f"C1 Mid  <b>{sig['mid']:.5f}</b>\n"
+        f"C1 Low  <b>{sig['crl']:.5f}</b>\n\n"
+        f"Entry <b>{sig['entry']:.5f}</b>\n"
+        f"SL    <b>{sig['stop']:.5f}</b> ({sig['risk_pips']:.1f} pips)\n"
+        f"TP1   <b>{sig['tp1']:.5f}</b> (mid · {sig['rr1']:.2f}R measured)\n"
+        f"TP2   <b>{sig['tp2']:.5f}</b> (opposite · {sig['rr2']:.2f}R measured)\n\n"
+        f"Candle: <b>{sig['candle_time']}</b>\n\n"
+        f"🚀 <b>TRADE ACTIVE</b>\n"
+        f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
+        f"<a href=\"{tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
+        f"Built on Data.\n"
+        f"Driven by Discipline."
+    )
+
+
+def tp1_message(trade):
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['stream']}</b>\n\n"
+        f"✅ <b>TP1 TOUCHED</b> (mid)\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"TP1 <b>{float(trade['tp1']):.5f}</b>\n\n"
+        f"SL unchanged (no auto BE)\n"
+        f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n\n"
+        f"💡 Suggestion: move SL to BE manually if you want\n\n"
+        f"Built on Data.\nDriven by Discipline."
+    )
+
+
+def tp2_message(trade, exit_time):
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['stream']}</b>\n\n"
+        f"🏆 <b>TP2 HIT</b>\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"Exit <b>{exit_time}</b>\n"
+        f"Result <b>+{float(trade['rr2']):.2f}R</b> (measured)\n\n"
+        f"🏆 FINAL VERDICT: WIN\n\n"
+        f"Built on Data.\nDriven by Discipline."
+    )
+
+
+def sl_message(trade, exit_time):
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade['stream']}</b>\n\n"
+        f"🔴 <b>STOP LOSS HIT</b>\n\n"
+        f"<b>{trade['side']} {trade['pair']}</b>\n"
+        f"SL <b>{float(trade['stop']):.5f}</b>\n"
+        f"Exit <b>{exit_time}</b>\n"
+        f"Result <b>-1R</b>\n\n"
+        f"🔴 FINAL VERDICT: LOSS\n\n"
+        f"Built on Data.\nDriven by Discipline."
+    )
+
+
+# ============================================================
+# PENDING
+# ============================================================
+
+def check_pending(state, pair, m5):
+    if not state["pending"]:
+        return
+
+    remaining = []
+    latest = len(m5) - 1
+    primary_chat = str(CHAT_ID) if CHAT_ID else None
+
+    for trade in state["pending"]:
+        if trade.get("pair") != pair:
+            remaining.append(trade)
+            continue
+
+        try:
+            entry_time = pd.Timestamp(trade["candle_time"])
+            matches = np.where(m5["datetime"].values >= entry_time.to_datetime64())[0]
+        except Exception:
+            remaining.append(trade)
+            continue
+
+        if len(matches) == 0:
+            remaining.append(trade)
+            continue
+
+        signal_index = int(matches[0])
+        last_checked = int(trade.get("last_checked_index", signal_index))
+        start = max(signal_index + 1, last_checked + 1)
+
+        direction = int(trade["direction"])
+        stop = float(trade["stop"])
+        tp1 = float(trade["tp1"])
+        tp2 = float(trade["tp2"])
+        tp1_hit = bool(trade.get("tp1_hit", False))
+        closed = False
+        edit_chat = trade.get("edit_chat_id") or primary_chat
+
+        for j in range(start, latest + 1):
+            high = float(m5["high"].iloc[j])
+            low = float(m5["low"].iloc[j])
+            candle_time = str(m5["datetime"].iloc[j])
+            trade["last_checked_index"] = j
+
+            if direction == 1:
+                hit_sl = low <= stop
+                hit_tp2 = high >= tp2
+                hit_tp1 = high >= tp1
             else:
-                print(f"Skipping {pair} due to missing candle data feed.")
-            
-            time.sleep(2)
+                hit_sl = high >= stop
+                hit_tp2 = low <= tp2
+                hit_tp1 = low <= tp1
+
+            if hit_sl:
+                edit_telegram(
+                    trade.get("message_id"), sl_message(trade, candle_time), edit_chat
+                )
+                send_to_sheet(
+                    {
+                        "action": "OUTCOME",
+                        "status": "LOSS",
+                        "stream": trade.get("stream"),
+                        "pair": pair,
+                        "result_r": -1,
+                        "exit_time": candle_time,
+                    }
+                )
+                closed = True
+                break
+
+            if hit_tp2:
+                edit_telegram(
+                    trade.get("message_id"), tp2_message(trade, candle_time), edit_chat
+                )
+                send_to_sheet(
+                    {
+                        "action": "OUTCOME",
+                        "status": "WIN",
+                        "stream": trade.get("stream"),
+                        "pair": pair,
+                        "result_r": float(trade["rr2"]),
+                        "exit_time": candle_time,
+                    }
+                )
+                closed = True
+                break
+
+            if hit_tp1 and not tp1_hit:
+                trade["tp1_hit"] = True
+                tp1_hit = True
+                edit_telegram(
+                    trade.get("message_id"), tp1_message(trade), edit_chat
+                )
+                send_to_sheet(
+                    {
+                        "action": "TP1_TOUCH",
+                        "stream": trade.get("stream"),
+                        "pair": pair,
+                        "exit_time": candle_time,
+                    }
+                )
+
+            if j - signal_index >= MAX_HOLD_BARS:
+                edit_telegram(
+                    trade.get("message_id"),
+                    f"<b>TENSION TRADING DESK</b>\n<b>{trade.get('stream')}</b>\n\n"
+                    f"⏱️ <b>TIME EXIT</b>\n\n<b>{trade['side']} {pair}</b>\n"
+                    f"Max hold reached.\n\nBuilt on Data.\nDriven by Discipline.",
+                    edit_chat,
+                )
+                closed = True
+                break
+
+        if not closed:
+            remaining.append(trade)
+
+    state["pending"] = remaining
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    print("=" * 70)
+    print("TENSION TRADING DESK — CRT DUAL STREAM + MULTI-USER")
+    print("CRT H1 + CRT M30 | TS ON | no auto BE")
+    print("Commands: /start /stop /help /status /pairs /ping")
+    print("=" * 70)
+
+    if not TWELVE_DATA_KEY:
+        print("Missing TWELVE_DATA_KEY")
+        return
+
+    state = load_state()
+
+    if BOT_TOKEN:
+        process_commands(state)
+        print(f"Subscribers: {len(load_subscribers())}")
+    else:
+        print("BOT_TOKEN missing — scan only, no Telegram.")
+
+    for pair, cfg in PAIRS.items():
+        pip = cfg["pip"]
+        print(f"\n--- {pair} ---")
+
+        h1 = fetch(pair, "1h", 300)
+        m30 = fetch(pair, "30min", 400)
+        m5 = fetch(pair, "5min", 500)
+
+        if m5 is None:
+            print("  M5 failed")
+            continue
+
+        m5 = add_atr(m5)
+        check_pending(state, pair, m5)
+
+        c1_map = {"1h": h1, "30min": m30}
+
+        for stream_label, c1_interval in STREAMS.items():
+            c1_df = c1_map.get(c1_interval)
+            sig = analyze_stream(stream_label, c1_df, m5, pair, pip)
+            if sig is None:
+                print(f"  {stream_label}: no setup")
+                continue
+
+            key = sig["candle_key"]
+            if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
+                print(f"  {stream_label}: already alerted")
+                continue
+
+            dup = any(
+                t.get("pair") == pair
+                and t.get("stream") == stream_label
+                and t.get("direction") == sig["direction"]
+                and t.get("status") == "ACTIVE"
+                for t in state["pending"]
+            )
+            if dup:
+                print(f"  {stream_label}: active trade open")
+                continue
+
+            msg = build_signal_message(sig)
+            message_id = broadcast(msg)
+            print(
+                f"  {stream_label}: signal -> {sig['side']} | "
+                f"{sig['risk_pips']:.1f} pips | RR1 {sig['rr1']:.2f}"
+            )
+
+            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+
+            if message_id:
+                state["pending"].append(
+                    {
+                        "stream": stream_label,
+                        "pair": pair,
+                        "message_id": message_id,
+                        "edit_chat_id": str(CHAT_ID) if CHAT_ID else None,
+                        "direction": sig["direction"],
+                        "side": sig["side"],
+                        "entry": sig["entry"],
+                        "stop": sig["stop"],
+                        "tp1": sig["tp1"],
+                        "tp2": sig["tp2"],
+                        "rr1": sig["rr1"],
+                        "rr2": sig["rr2"],
+                        "risk_pips": sig["risk_pips"],
+                        "candle_time": sig["candle_time"],
+                        "candle_key": key,
+                        "status": "ACTIVE",
+                        "tp1_hit": False,
+                        "last_checked_index": len(m5) - 1,
+                    }
+                )
+
+            send_to_sheet(
+                {
+                    "action": "NEW_SIGNAL",
+                    "stream": stream_label,
+                    "pair": pair,
+                    "side": sig["side"],
+                    "entry": sig["entry"],
+                    "stop": sig["stop"],
+                    "tp1": sig["tp1"],
+                    "tp2": sig["tp2"],
+                    "rr1": sig["rr1"],
+                    "rr2": sig["rr2"],
+                    "risk_pips": sig["risk_pips"],
+                    "candle_time": sig["candle_time"],
+                }
+            )
+
+    save_state(state)
+    print("\n" + "=" * 70)
+    print(
+        f"CRT SCAN COMPLETE | pending: {len(state['pending'])} | "
+        f"subs: {len(load_subscribers())}"
+    )
+    print("=" * 70)
 
 
 if __name__ == "__main__":
-    TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-    TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
-
-    print("⚡ CRT Engine initialized successfully.")
-    
-    if TELEGRAM_BOT_TOKEN:
-        engine = HighFrequencyCRTEngine()
-        
-        # 1. Sync subscribers and handle commands (no admin check needed anymore)
-        subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN)
-        print(f"Active subscribers synced: {len(subscribers)}")
-        
-        # 2. Execute market scan
-        if TWELVE_DATA_KEY:
-            engine.run_market_scan(TELEGRAM_BOT_TOKEN, TWELVE_DATA_KEY, subscribers)
-        else:
-            print("Warning: TWELVE_DATA_KEY missing. Market scan skipped.")
-    else:
-        print("Warning: TELEGRAM_BOT_TOKEN missing from environment variables.")
+    main()
