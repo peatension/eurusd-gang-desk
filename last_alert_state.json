@@ -2,7 +2,8 @@
   "version": 4,
   "last_alert_keys": {
     "ADV_SMC:EUR/USD": "ADV_SMC|EUR/USD|2026-09-24 19:15:00|-1",
-    "ADV_SMC:USD/CAD": "ADV_SMC|USD/CAD|2026-09-25 00:15:00|1"
+    "ADV_SMC:USD/CAD": "ADV_SMC|USD/CAD|2026-09-25 00:15:00|1",
+    "SMC:USD/JPY": "SMC|USD/JPY|2026-09-25 14:45:00|1"
   },
   "pending": [
     {
@@ -38,6 +39,25 @@
       "rr": 2.0,
       "candle_time": "2026-09-25 00:15:00",
       "candle_key": "ADV_SMC|USD/CAD|2026-09-25 00:15:00|1",
+      "status": "ACTIVE",
+      "entry_hit": true,
+      "tp1_hit": false,
+      "last_checked_index": 1499
+    },
+    {
+      "model": "SMC",
+      "pair": "USD/JPY",
+      "message_id": 74,
+      "direction": 1,
+      "side": "BUY",
+      "score": 3.0,
+      "entry": 158.41503,
+      "stop": 158.2805635714286,
+      "tp1": 158.61672964285714,
+      "tp2": 158.68396285714283,
+      "rr": 2.0,
+      "candle_time": "2026-09-25 14:45:00",
+      "candle_key": "SMC|USD/JPY|2026-09-25 14:45:00|1",
       "status": "ACTIVE",
       "entry_hit": true,
       "tp1_hit": false,
