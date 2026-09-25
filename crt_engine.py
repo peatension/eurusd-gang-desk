@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple, List
 class HighFrequencyCRTEngine:
     """
     High-Frequency Candle Range Theory (CRT) Bot with $500 Starting Capital,
-    Profit Tracking, Admin-Restricted Settings, and Multi-User Dispatcher.
+    Profit Tracking, and Multi-User Dispatcher.
     """
     
     PORTFOLIO_CONFIG = {
@@ -62,8 +62,8 @@ class HighFrequencyCRTEngine:
         except Exception as e:
             print(f"Failed to send message to {chat_id}: {e}")
 
-    def process_telegram_commands(self, bot_token: str, admin_chat_id: Optional[str], filepath: str = "subscribers.json") -> List[str]:
-        """Polls Telegram getUpdates API and routes all user and admin commands."""
+    def process_telegram_commands(self, bot_token: str, filepath: str = "subscribers.json") -> List[str]:
+        """Polls Telegram getUpdates API and routes all user commands."""
         subscribers = self.load_subscribers(filepath)
         url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
         
@@ -158,24 +158,18 @@ class HighFrequencyCRTEngine:
                     elif text.startswith("/ping"):
                         self.send_telegram_message(bot_token, chat_id, "pong 🏓 — CRT Engine is fully operational.")
 
-                    # 9. /settings: ADMIN-ONLY control panel showing starting vs current balance
+                    # 9. /settings: OPEN TO ALL USERS (Admin check removed)
                     elif text.startswith("/settings"):
-                        if admin_chat_id and chat_id == str(7080941387):
-                            admin_text = (
-                                "⚙️ <b>Admin Control Panel</b>\n\n"
-                                f"• Starting Baseline: <code>${self.starting_balance:.2f}</code>\n"
-                                f"• Current Equity: <code>${self.account_balance:.2f}</code>\n"
-                                f"• Total P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
-                                f"• Risk %: <code>{self.risk_pct * 100}%</code>\n"
-                                f"• Registered Subscribers: <code>{len(subscribers)}</code>\n\n"
-                                "<i>Admin authorization verified.</i>"
-                            )
-                            self.send_telegram_message(bot_token, chat_id, admin_text)
-                        else:
-                            self.send_telegram_message(
-                                bot_token, chat_id, 
-                                "⛔ <b>Access Denied:</b> The /settings command is restricted to the administrator."
-                            )
+                        settings_text = (
+                            "⚙️ <b>Control Panel / Settings</b>\n\n"
+                            f"• Starting Baseline: <code>${self.starting_balance:.2f}</code>\n"
+                            f"• Current Equity: <code>${self.account_balance:.2f}</code>\n"
+                            f"• Total P&L: <code>{pnl_sign}${current_profit_loss:.2f}</code>\n"
+                            f"• Risk %: <code>{self.risk_pct * 100}%</code>\n"
+                            f"• Registered Subscribers: <code>{len(subscribers)}</code>\n\n"
+                            "<i>System settings are fully operational.</i>"
+                        )
+                        self.send_telegram_message(bot_token, chat_id, settings_text)
             
             self.save_subscribers(subscribers, filepath)
         except Exception as e:
@@ -320,25 +314,6 @@ class HighFrequencyCRTEngine:
 ━━━━━━━━━━━━━━━━━━━━
 📊 <a href="{tv_link}">Open Live TradingView Chart</a>"""
 
-    def format_caution_signal(self, symbol: str, tp1: float) -> str:
-        return f"""<b>CRT TRADING BOT</b> ⚠️
-━━━━━━━━━━━━━━━━━━━━
-
-🚨 <b>MARKET AWARENESS CAUTION</b>
-
-<b>PAIR:</b> <code>{symbol}</code>
-🎯 <b>TP1 HIT AT:</b> <code>{tp1}</code>
-
-⚠️ <i>"Tp 1 hit, but TP2? Not really sure for this side oo! Better take TP1 and jejely run. No go find vawulence where market no send you. Secure your bag abeg! 😂"</i>
-
-━━━━━━━━━━━━━━━━━━━━
-💼 <i>Discipline over greed. Build on Data.</i>"""
-
-    def broadcast_to_all_subscribers(self, ticket: Dict[str, object], bot_token: str, subscribers: List[str]) -> None:
-        message_text = self.format_telegram_signal(ticket)
-        for chat_id in subscribers:
-            self.send_telegram_message(bot_token, chat_id, message_text)
-
     def fetch_twelve_data_candles(self, symbol: str, interval: str, tw_data_key: str, outputsize: int = 100) -> Optional[pd.DataFrame]:
         """Fetches M30 or M5 candle data from Twelve Data API."""
         url = "https://api.twelvedata.com/time_series"
@@ -375,33 +350,31 @@ class HighFrequencyCRTEngine:
 
             if df_m30 is not None and df_m5 is not None and not df_m30.empty and not df_m5.empty:
                 signal_ticket = self.scan_signal(pair, df_m30, df_m5)
-                if signal_ticket:
+                if signal_trigger := signal_ticket:
                     print(f"🚀 Signal detected on {pair}! Broadcasting to {len(subscribers)} subscribers.")
                     for chat_id in subscribers:
-                        msg = self.format_telegram_signal(signal_ticket)
+                        msg = self.format_telegram_signal(signal_trigger)
                         self.send_telegram_message(bot_token, chat_id, msg)
             else:
                 print(f"Skipping {pair} due to missing candle data feed.")
             
-            # Tiny safety buffer between pairs to prevent API clustering
             time.sleep(2)
 
 
 if __name__ == "__main__":
     TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
-    ADMIN_CHAT_ID = os.getenv("ADMIN_ID")
 
     print("⚡ CRT Engine initialized successfully.")
     
     if TELEGRAM_BOT_TOKEN:
         engine = HighFrequencyCRTEngine()
         
-        # 1. First sync subscribers and handle incoming telegram commands
-        subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID)
+        # 1. Sync subscribers and handle commands (no admin check needed anymore)
+        subscribers = engine.process_telegram_commands(TELEGRAM_BOT_TOKEN)
         print(f"Active subscribers synced: {len(subscribers)}")
         
-        # 2. Then execute the 4-pair market scan cycle (triggered by external cron)
+        # 2. Execute market scan
         if TWELVE_DATA_KEY:
             engine.run_market_scan(TELEGRAM_BOT_TOKEN, TWELVE_DATA_KEY, subscribers)
         else:
