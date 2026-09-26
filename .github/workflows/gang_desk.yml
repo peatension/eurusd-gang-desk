@@ -1,19 +1,17 @@
-name: TENSION TRADE DESK
+name: SMC Engine
 
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  scan:
+  run-smc:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -22,20 +20,28 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install requests pandas numpy
 
-      - name: Run Tension Trade Desk
+      - name: Run SMC Primary
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SHEET_URL: ${{ secrets.SHEET_URL }}
         run: python tension_trade_desk.py
 
-      - name: Save trade state
+      - name: Commit SMC state
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add last_alert_state.json
-          git commit -m "Update TTD trade state [skip ci]" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add last_alert_state_smc.json subscribers_smc.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No SMC state changes to commit."
+          else
+            git commit -m "chore(smc): persist state [skip ci]"
+            git push
+          fi
