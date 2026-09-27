@@ -1,6 +1,50 @@
 {
   "version": 2,
-  "last_alert_keys": {},
-  "pending": [],
+  "last_alert_keys": {
+    "CRT H1:EUR/JPY": "CRT H1|EUR/JPY|2026-09-28 08:10:00|1",
+    "CRT M30:EUR/JPY": "CRT M30|EUR/JPY|2026-09-28 08:10:00|1"
+  },
+  "pending": [
+    {
+      "stream": "CRT H1",
+      "pair": "EUR/JPY",
+      "message_id": 90,
+      "edit_chat_id": null,
+      "direction": 1,
+      "side": "BUY",
+      "entry": 179.09598,
+      "stop": 179.04902946428572,
+      "tp1": 179.190875,
+      "tp2": 179.28577,
+      "rr1": 2.021169696071406,
+      "rr2": 4.042339392142812,
+      "risk_pips": 4.695053571427366,
+      "candle_time": "2026-09-28 08:10:00",
+      "candle_key": "CRT H1|EUR/JPY|2026-09-28 08:10:00|1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 499
+    },
+    {
+      "stream": "CRT M30",
+      "pair": "EUR/JPY",
+      "message_id": 91,
+      "edit_chat_id": null,
+      "direction": 1,
+      "side": "BUY",
+      "entry": 179.09598,
+      "stop": 179.04902946428572,
+      "tp1": 179.190875,
+      "tp2": 179.28577,
+      "rr1": 2.021169696071406,
+      "rr2": 4.042339392142812,
+      "risk_pips": 4.695053571427366,
+      "candle_time": "2026-09-28 08:10:00",
+      "candle_key": "CRT M30|EUR/JPY|2026-09-28 08:10:00|1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 499
+    }
+  ],
   "last_update_id": 367135240
 }
