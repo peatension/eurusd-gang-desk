@@ -1,9 +1,9 @@
 """
-TENSION TRADING DESK — CRT Engine (dual stream + multi-user)
+TENSION TRADING DESK — 3C Model (dual stream + multi-user)
 
 Streams (parallel — both can fire same pair/time):
-  CRT H1  = H1 C1 + M5 TS entry
-  CRT M30 = M30 C1 + M5 TS entry
+  3C Model H1  = H1 C1 + M5 TS entry
+  3C Model M30 = M30 C1 + M5 TS entry
 
 Modules (walk-forward locked):
   TS ON | OCL OFF | FVG OFF | DOL OFF
@@ -50,8 +50,8 @@ PAIRS = {
 }
 
 STREAMS = {
-    "CRT H1": "1h",
-    "CRT M30": "30min",
+    "3C Model H1": "1h",
+    "3C Model M30": "30min",
 }
 
 
@@ -182,10 +182,10 @@ def process_commands(state):
                 save_subscribers(subscribers)
             send_telegram_to(
                 chat_id,
-                "🟢 <b>Subscribed — Tension Trading Desk CRT</b>\n\n"
-                "You will receive dual-stream CRT alerts:\n"
-                "• <b>CRT H1</b>\n"
-                "• <b>CRT M30</b>\n\n"
+                "🟢 <b>Subscribed — Tension Trading Desk 3C Model</b>\n\n"
+                "You will receive dual-stream 3C Model alerts:\n"
+                "• <b>3C Model H1</b>\n"
+                "• <b>3C Model M30</b>\n\n"
                 "Commands: /help /status /pairs /ping /stop",
             )
 
@@ -195,13 +195,13 @@ def process_commands(state):
                 save_subscribers(subscribers)
             send_telegram_to(
                 chat_id,
-                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive CRT signals.",
+                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive 3C Model signals.",
             )
 
         elif low.startswith("/help"):
             send_telegram_to(
                 chat_id,
-                "📖 <b>How to read CRT signals</b>\n\n"
+                "📖 <b>How to read 3C Model signals</b>\n\n"
                 "• <b>C1</b> — Range candle (H1 or M30)\n"
                 "• <b>Entry</b> — After M5 Turtle Soup (sweep + reject)\n"
                 "• <b>SL</b> — Beyond sweep extreme + buffer\n"
@@ -215,9 +215,9 @@ def process_commands(state):
         elif low.startswith("/status"):
             send_telegram_to(
                 chat_id,
-                "⚡ <b>CRT Engine Status</b>\n\n"
+                "⚡ <b>3C Model Status</b>\n\n"
                 "State: <b>ONLINE</b>\n"
-                "Streams: <b>CRT H1</b> + <b>CRT M30</b>\n"
+                "Streams: <b>3C Model H1</b> + <b>3C Model M30</b>\n"
                 "Entry: M5 TS | Modules: TS ON\n"
                 f"Pairs: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
             )
@@ -226,12 +226,12 @@ def process_commands(state):
             lines = "\n".join([f"• <code>{p}</code>" for p in PAIRS.keys()])
             send_telegram_to(
                 chat_id,
-                f"📊 <b>CRT scanned pairs</b>\n\n{lines}\n\n"
-                "Streams: CRT H1 · CRT M30",
+                f"📊 <b>3C Model scanned pairs</b>\n\n{lines}\n\n"
+                "Streams: 3C Model H1 · 3C Model M30",
             )
 
         elif low.startswith("/ping"):
-            send_telegram_to(chat_id, "pong 🏓 — CRT engine operational.")
+            send_telegram_to(chat_id, "pong 🏓 — 3C Model operational.")
 
     save_subscribers(subscribers)
 
@@ -304,7 +304,7 @@ def add_atr(df):
 
 
 # ============================================================
-# CRT LOGIC
+# 3C MODEL LOGIC
 # ============================================================
 
 def find_c1_row(c1_df, t):
@@ -443,7 +443,7 @@ def load_state():
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
         if state.get("version") != STATE_VERSION:
-            print("CRT state version mismatch — reset pending, keep update offset.")
+            print("3C Model state version mismatch — reset pending, keep update offset.")
             default["last_update_id"] = int(state.get("last_update_id", 0))
             return default
         state.setdefault("last_alert_keys", {})
@@ -659,8 +659,8 @@ def check_pending(state, pair, m5):
 
 def main():
     print("=" * 70)
-    print("TENSION TRADING DESK — CRT DUAL STREAM + MULTI-USER")
-    print("CRT H1 + CRT M30 | TS ON | no auto BE")
+    print("TENSION TRADING DESK — 3C MODEL + MULTI-USER")
+    print("3C Model H1 + 3C Model M30 | TS ON | no auto BE")
     print("Commands: /start /stop /help /status /pairs /ping")
     print("=" * 70)
 
@@ -769,7 +769,7 @@ def main():
     save_state(state)
     print("\n" + "=" * 70)
     print(
-        f"CRT SCAN COMPLETE | pending: {len(state['pending'])} | "
+        f"3C SCAN COMPLETE | pending: {len(state['pending'])} | "
         f"subs: {len(load_subscribers())}"
     )
     print("=" * 70)
