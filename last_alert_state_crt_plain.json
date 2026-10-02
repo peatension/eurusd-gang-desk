@@ -192,8 +192,8 @@
       "candle_time": "2026-10-03 04:00:00",
       "candle_key": "CRT 4H\u219230m|AUD/USD|2026-10-02 23:00:00|-1",
       "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 399
+      "tp1_hit": true,
+      "last_checked_index": 499
     },
     {
       "stream": "CRT 4H\u219215m",
@@ -212,8 +212,8 @@
       "candle_time": "2026-10-03 04:00:00",
       "candle_key": "CRT 4H\u219215m|AUD/USD|2026-10-02 23:00:00|-1",
       "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 399
+      "tp1_hit": true,
+      "last_checked_index": 499
     }
   ]
 }
