@@ -1,7 +1,7 @@
 """
 TENSION TRADING DESK — CRT plain (same-TF)
 ==========================================
-Separate from the hybrid M5-sweep engine (3C Model in crt_engine.py).
+Separate from the hybrid M5-sweep engine (3C Model in 3c_model.py).
 
 Locked research survivors, plain only (no OHP/OLP/OB/FVG):
   CRT 1H→15m
@@ -25,7 +25,9 @@ import json
 import numpy as np
 import pandas as pd
 
-import crt_engine as desk
+import importlib
+
+desk = importlib.import_module("3c_model")
 
 STATE_FILE = "last_alert_state_crt_plain.json"
 STATE_VERSION = 1
@@ -74,7 +76,6 @@ def find_setup(htf, pip):
     if htf is None or len(htf) < 5:
         return None
 
-    # iloc[-1] may still be forming; use the last fully closed bar as C2
     c2 = htf.iloc[-2]
     c1 = htf.iloc[-3]
     crh = float(c1["high"])
@@ -114,7 +115,6 @@ def ltf_entry(ltf, setup):
         return None
     direction = setup["direction"]
     crh, crl = setup["crh"], setup["crl"]
-    # only the latest few bars — live alert, not a historical replay
     window = after.tail(12)
     hit = None
     for _, row in window.iterrows():
