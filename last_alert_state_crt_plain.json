@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "last_alert_keys": {
+    "CRT 4H\u219230m:EUR/USD": "CRT 4H\u219230m|EUR/USD|2026-10-02 03:00:00|1",
+    "CRT 4H\u219215m:EUR/USD": "CRT 4H\u219215m|EUR/USD|2026-10-02 03:00:00|1"
+  },
+  "pending": [
+    {
+      "stream": "CRT 4H\u219230m",
+      "pair": "EUR/USD",
+      "message_id": 94,
+      "edit_chat_id": null,
+      "direction": 1,
+      "side": "BUY",
+      "entry": 1.1217,
+      "stop": 1.121402142857143,
+      "tp1": 1.12569,
+      "tp2": 1.12968,
+      "rr1": 13.395683453248624,
+      "rr2": 26.791366906496503,
+      "risk_pips": 2.9785714285690545,
+      "candle_time": "2026-10-02 10:00:00",
+      "candle_key": "CRT 4H\u219230m|EUR/USD|2026-10-02 03:00:00|1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 399
+    },
+    {
+      "stream": "CRT 4H\u219215m",
+      "pair": "EUR/USD",
+      "message_id": 95,
+      "edit_chat_id": null,
+      "direction": 1,
+      "side": "BUY",
+      "entry": 1.1217,
+      "stop": 1.12144,
+      "tp1": 1.12569,
+      "tp2": 1.12968,
+      "rr1": 15.346153846158773,
+      "rr2": 30.692307692316692,
+      "risk_pips": 2.5999999999992696,
+      "candle_time": "2026-10-02 10:15:00",
+      "candle_key": "CRT 4H\u219215m|EUR/USD|2026-10-02 03:00:00|1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 399
+    }
+  ]
+}
