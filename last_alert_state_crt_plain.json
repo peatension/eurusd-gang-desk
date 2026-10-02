@@ -10,7 +10,9 @@
     "CRT 1H\u219215m:AUD/USD": "CRT 1H\u219215m|AUD/USD|2026-10-02 18:00:00|-1",
     "CRT 1H\u21925m:AUD/USD": "CRT 1H\u21925m|AUD/USD|2026-10-02 18:00:00|-1",
     "CRT 1H\u219215m:EUR/JPY": "CRT 1H\u219215m|EUR/JPY|2026-10-02 21:00:00|1",
-    "CRT 1H\u21925m:EUR/JPY": "CRT 1H\u21925m|EUR/JPY|2026-10-02 21:00:00|1"
+    "CRT 1H\u21925m:EUR/JPY": "CRT 1H\u21925m|EUR/JPY|2026-10-02 21:00:00|1",
+    "CRT 4H\u219230m:AUD/USD": "CRT 4H\u219230m|AUD/USD|2026-10-02 23:00:00|-1",
+    "CRT 4H\u219215m:AUD/USD": "CRT 4H\u219215m|AUD/USD|2026-10-02 23:00:00|-1"
   },
   "pending": [
     {
@@ -172,6 +174,46 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 499
+    },
+    {
+      "stream": "CRT 4H\u219230m",
+      "pair": "AUD/USD",
+      "message_id": 122,
+      "edit_chat_id": null,
+      "direction": -1,
+      "side": "SELL",
+      "entry": 0.69686,
+      "stop": 0.6977914285714286,
+      "tp1": 0.69503,
+      "tp2": 0.6932,
+      "rr1": 1.9647239263803418,
+      "rr2": 3.9294478527606835,
+      "risk_pips": 9.31428571428583,
+      "candle_time": "2026-10-03 04:00:00",
+      "candle_key": "CRT 4H\u219230m|AUD/USD|2026-10-02 23:00:00|-1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 399
+    },
+    {
+      "stream": "CRT 4H\u219215m",
+      "pair": "AUD/USD",
+      "message_id": 123,
+      "edit_chat_id": null,
+      "direction": -1,
+      "side": "SELL",
+      "entry": 0.69686,
+      "stop": 0.6977,
+      "tp1": 0.69503,
+      "tp2": 0.6932,
+      "rr1": 2.1785714285715514,
+      "rr2": 4.357142857143103,
+      "risk_pips": 8.399999999999519,
+      "candle_time": "2026-10-03 04:00:00",
+      "candle_key": "CRT 4H\u219215m|AUD/USD|2026-10-02 23:00:00|-1",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 399
     }
   ]
 }
