@@ -6,6 +6,9 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   run-crt:
     runs-on: ubuntu-latest
@@ -25,25 +28,24 @@ jobs:
           pip install --upgrade pip
           pip install requests pandas numpy
 
-      - name: Run CRT Engine
+      - name: Run 3C Model + CRT plain
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SHEET_URL: ${{ secrets.SHEET_URL }}
-        run: python crt_engine.py
+        run: python desk_runner.py
 
-      - name: Commit CRT state
+      - name: Commit state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Persist alert state + subscribers across runs
-          git add last_alert_state_crt.json subscribers.json 2>/dev/null || true
+          git add last_alert_state_crt.json last_alert_state_crt_plain.json subscribers.json 2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No CRT state changes to commit."
+            echo "No state changes to commit."
           else
-            git commit -m "chore(crt): persist state [skip ci]"
+            git commit -m "chore: persist 3C Model and CRT plain state [skip ci]"
             git push
           fi
