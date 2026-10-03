@@ -432,7 +432,6 @@ def ts_long(m5, i, crl, crh):
         return False
     return ((c_c - c_l) / full >= 0.55) or (c_c > c_o)
 
-
 def ts_short(m5, i, crl, crh):
     if i < 3:
         return False
