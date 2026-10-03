@@ -114,7 +114,7 @@ def log_outcome(record):
 
 
 def outcome_notice(trade, status, result_r, exit_time):
-    """Short WIN/LOSS message sent to ALL subscribers (edit alone is not enough)."""
+    """Short WIN/LOSS message sent to ALL subscribers."""
     if status == "WIN":
         head = "🏆 FINAL VERDICT: WIN"
         line = f"Result <b>+{float(result_r):.2f}R</b>"
@@ -123,7 +123,12 @@ def outcome_notice(trade, status, result_r, exit_time):
         line = "Result <b>-1.00R</b>"
     else:
         head = f"⏱️ {status}"
-        line = f"Result <b>{float(result_r):+.2f}R</b>" if result_r is not None else "Result n/a"
+        line = (
+            f"Result <b>{float(result_r):+.2f}R</b>"
+            if result_r is not None
+            else "Result n/a"
+        )
+
     return (
         f"<b>TENSION TRADING DESK</b>\n"
         f"<b>{trade.get('stream')}</b>\n\n"
@@ -142,11 +147,17 @@ def resolve_trade(trade, status, result_r, exit_time, edit_text):
     3) Log outcome for weekly scorecard.
     """
     edit_chat = trade.get("edit_chat_id") or (str(CHAT_ID) if CHAT_ID else None)
+
     if trade.get("message_id") and edit_text:
         ok = edit_telegram(trade.get("message_id"), edit_text, edit_chat)
         if not ok:
-            print(f"  edit failed for {trade.get('stream')} {trade.get('pair')} — still broadcasting outcome")
+            print(
+                f"  edit failed for {trade.get('stream')} "
+                f"{trade.get('pair')} — still broadcasting outcome"
+            )
+
     broadcast(outcome_notice(trade, status, result_r, exit_time))
+
     log_outcome(
         {
             "stream": trade.get("stream"),
@@ -173,6 +184,7 @@ def resolve_trade(trade, status, result_r, exit_time, edit_text):
 def send_telegram_to(chat_id, text):
     if not BOT_TOKEN or not chat_id:
         return None
+
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -180,6 +192,7 @@ def send_telegram_to(chat_id, text):
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+
     try:
         data = requests.post(url, json=payload, timeout=20).json()
         if data.get("ok"):
@@ -187,6 +200,7 @@ def send_telegram_to(chat_id, text):
         print(f"Telegram error ({chat_id}):", data)
     except Exception as e:
         print(f"Telegram send error ({chat_id}):", e)
+
     return None
 
 
@@ -199,18 +213,22 @@ def broadcast(text):
 
     primary = str(CHAT_ID) if CHAT_ID else subs[0]
     primary_mid = None
+
     for cid in subs:
         mid = send_telegram_to(cid, text)
         if str(cid) == primary and mid:
             primary_mid = mid
         time.sleep(0.05)
+
     return primary_mid
 
 
 def edit_telegram(message_id, text, chat_id=None):
     target = str(chat_id or CHAT_ID or "")
+
     if not BOT_TOKEN or not target or not message_id:
         return False
+
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
     payload = {
         "chat_id": target,
@@ -219,6 +237,7 @@ def edit_telegram(message_id, text, chat_id=None):
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+
     try:
         data = requests.post(url, json=payload, timeout=20).json()
         return bool(data.get("ok"))
@@ -235,9 +254,12 @@ def process_commands(state):
     subscribers = load_subscribers()
     offset = int(state.get("last_update_id", 0)) + 1
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+
     try:
         data = requests.get(
-            url, params={"offset": offset, "timeout": 0}, timeout=15
+            url,
+            params={"offset": offset, "timeout": 0},
+            timeout=15,
         ).json()
     except Exception as e:
         print("getUpdates error:", e)
@@ -248,12 +270,16 @@ def process_commands(state):
 
     for result in data.get("result", []):
         uid = int(result.get("update_id", 0))
-        state["last_update_id"] = max(int(state.get("last_update_id", 0)), uid)
+        state["last_update_id"] = max(
+            int(state.get("last_update_id", 0)),
+            uid,
+        )
 
         message = result.get("message") or {}
         chat = message.get("chat") or {}
         chat_id = str(chat.get("id", ""))
         text = (message.get("text") or "").strip()
+
         if not chat_id or not text:
             continue
 
@@ -263,6 +289,7 @@ def process_commands(state):
             if chat_id not in subscribers:
                 subscribers.append(chat_id)
                 save_subscribers(subscribers)
+
             send_telegram_to(
                 chat_id,
                 "🟢 <b>Subscribed — Tension Trading Desk 3C Model</b>\n\n"
@@ -276,9 +303,11 @@ def process_commands(state):
             if chat_id in subscribers:
                 subscribers = [x for x in subscribers if x != chat_id]
                 save_subscribers(subscribers)
+
             send_telegram_to(
                 chat_id,
-                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive 3C Model signals.",
+                "🔴 <b>Unsubscribed.</b>\n"
+                "You will no longer receive 3C Model signals.",
             )
 
         elif low.startswith("/help"):
@@ -306,7 +335,9 @@ def process_commands(state):
             )
 
         elif low.startswith("/pairs"):
-            lines = "\n".join([f"• <code>{p}</code>" for p in PAIRS.keys()])
+            lines = "\n".join(
+                [f"• <code>{p}</code>" for p in PAIRS.keys()]
+            )
             send_telegram_to(
                 chat_id,
                 f"📊 <b>3C Model scanned pairs</b>\n\n{lines}\n\n"
@@ -322,6 +353,7 @@ def process_commands(state):
 def send_to_sheet(record):
     if not SHEET_URL:
         return
+
     try:
         requests.post(SHEET_URL, json=record, timeout=20)
     except Exception as e:
@@ -330,23 +362,39 @@ def send_to_sheet(record):
 
 def tradingview_url(pair):
     tv = PAIRS.get(pair, {}).get("tv")
+
     if tv:
         return f"https://www.tradingview.com/chart/?symbol={tv}"
-    return f"https://www.tradingview.com/symbols/{pair.replace('/', '')}/"
+
+    return (
+        "https://www.tradingview.com/symbols/"
+        f"{pair.replace('/', '')}/"
+    )
 
 
 def format_times(dt_like):
-    """12-hour Nigeria WAT (UTC+1) + 12-hour UTC. Example: 2:30 PM WAT (1:30 PM UTC) · 03 Oct 2026"""
+    """
+    12-hour Nigeria WAT (UTC+1) + 12-hour UTC.
+    Example: 2:30 PM WAT (1:30 PM UTC) · 03 Oct 2026
+    """
     try:
         ts = pd.Timestamp(dt_like)
+
         if ts.tzinfo is None:
             ts = ts.tz_localize("UTC")
         else:
             ts = ts.tz_convert("UTC")
+
         wat = ts + pd.Timedelta(hours=1)
+
         def ampm(x):
             return x.strftime("%I:%M %p").lstrip("0")
-        return f"{ampm(wat)} WAT ({ampm(ts)} UTC) · {wat.strftime('%d %b %Y')}"
+
+        return (
+            f"{ampm(wat)} WAT ({ampm(ts)} UTC) · "
+            f"{wat.strftime('%d %b %Y')}"
+        )
+
     except Exception:
         return str(dt_like)
 
@@ -357,6 +405,7 @@ def format_times(dt_like):
 
 def fetch(symbol, interval, outputsize=500, retries=4):
     url = "https://api.twelvedata.com/time_series"
+
     params = {
         "symbol": symbol,
         "interval": interval,
@@ -364,31 +413,63 @@ def fetch(symbol, interval, outputsize=500, retries=4):
         "apikey": TWELVE_DATA_KEY,
         "format": "JSON",
     }
+
     for _ in range(retries):
         try:
-            data = requests.get(url, params=params, timeout=30).json()
+            data = requests.get(
+                url,
+                params=params,
+                timeout=30,
+            ).json()
+
             if "values" in data:
                 df = pd.DataFrame(data["values"])
                 df["datetime"] = pd.to_datetime(df["datetime"])
+
                 for col in ("open", "high", "low", "close"):
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                df = df.dropna().sort_values("datetime").reset_index(drop=True)
+                    df[col] = pd.to_numeric(
+                        df[col],
+                        errors="coerce",
+                    )
+
+                df = (
+                    df.dropna()
+                    .sort_values("datetime")
+                    .reset_index(drop=True)
+                )
+
                 time.sleep(8)
                 return df
-            if data.get("code") == 429 or "credits" in str(data).lower():
-                print(f"Rate limit {symbol} {interval}, waiting...")
+
+            if (
+                data.get("code") == 429
+                or "credits" in str(data).lower()
+            ):
+                print(
+                    f"Rate limit {symbol} {interval}, waiting..."
+                )
                 time.sleep(65)
                 continue
-            print(f"API error {symbol} {interval}:", data)
+
+            print(
+                f"API error {symbol} {interval}:",
+                data,
+            )
             return None
+
         except Exception as e:
-            print(f"Fetch error {symbol} {interval}:", e)
+            print(
+                f"Fetch error {symbol} {interval}:",
+                e,
+            )
             time.sleep(10)
+
     return None
 
 
 def add_atr(df):
     prev = df["close"].shift(1)
+
     tr = pd.concat(
         [
             df["high"] - df["low"],
@@ -397,8 +478,10 @@ def add_atr(df):
         ],
         axis=1,
     ).max(axis=1)
+
     out = df.copy()
     out["atr"] = tr.rolling(ATR_PERIOD).mean()
+
     return out
 
 
@@ -409,78 +492,126 @@ def add_atr(df):
 def find_c1_row(c1_df, t):
     if c1_df is None or len(c1_df) < 2:
         return None
+
     completed = c1_df[c1_df["datetime"] < t]
+
     if len(completed) == 0:
         return None
+
     return completed.iloc[-1]
 
 
 def ts_long(m5, i, crl, crh):
     if i < 3:
         return False
-    swept = any(float(m5["low"].iloc[k]) < crl for k in range(i - 3, i + 1))
+
+    swept = any(
+        float(m5["low"].iloc[k]) < crl
+        for k in range(i - 3, i + 1)
+    )
+
     c_o = float(m5["open"].iloc[i])
     c_h = float(m5["high"].iloc[i])
     c_l = float(m5["low"].iloc[i])
     c_c = float(m5["close"].iloc[i])
+
     if not swept:
         return False
+
     if not (c_c > crl and c_c < crh):
         return False
+
     full = c_h - c_l
+
     if full <= 0:
         return False
-    return ((c_c - c_l) / full >= 0.55) or (c_c > c_o)
+
+    return (
+        ((c_c - c_l) / full >= 0.55)
+        or (c_c > c_o)
+    )
+
 
 def ts_short(m5, i, crl, crh):
     if i < 3:
         return False
-    swept = any(float(m5["high"].iloc[k]) > crh for k in range(i - 3, i + 1))
+
+    swept = any(
+        float(m5["high"].iloc[k]) > crh
+        for k in range(i - 3, i + 1)
+    )
+
     c_o = float(m5["open"].iloc[i])
     c_h = float(m5["high"].iloc[i])
     c_l = float(m5["low"].iloc[i])
     c_c = float(m5["close"].iloc[i])
+
     if not swept:
         return False
+
     if not (c_c < crh and c_c > crl):
         return False
+
     full = c_h - c_l
+
     if full <= 0:
         return False
-    return ((c_h - c_c) / full >= 0.55) or (c_c < c_o)
+
+    return (
+        ((c_h - c_c) / full >= 0.55)
+        or (c_c < c_o)
+    )
+
+
 def analyze_stream(stream_label, c1_df, m5, pair, pip):
     if c1_df is None or m5 is None or len(m5) < 60:
         return None
 
     i = len(m5) - 1
     t = m5["datetime"].iloc[i]
+
     c1 = find_c1_row(c1_df, t)
+
     if c1 is None:
         return None
 
     crh = float(c1["high"])
     crl = float(c1["low"])
     mid = (crh + crl) / 2.0
+
     if crh - crl < 5 * pip:
         return None
 
-    direction = extreme = entry = None
+    direction = None
+    extreme = None
+    entry = None
+
     if ts_long(m5, i, crl, crh):
         direction = 1
-        extreme = float(m5["low"].iloc[i - 3 : i + 1].min())
+        extreme = float(
+            m5["low"].iloc[i - 3:i + 1].min()
+        )
         entry = crl
+
     elif ts_short(m5, i, crl, crh):
         direction = -1
-        extreme = float(m5["high"].iloc[i - 3 : i + 1].max())
+        extreme = float(
+            m5["high"].iloc[i - 3:i + 1].max()
+        )
         entry = crh
+
     else:
         return None
 
     atr = m5["atr"].iloc[i]
+
     if pd.isna(atr) or atr <= 0:
         buf = 1.5 * pip
     else:
-        buf = max(1.5 * pip, 0.25 * float(atr))
+        buf = max(
+            1.5 * pip,
+            0.25 * float(atr),
+        )
 
     if direction == 1:
         stop = extreme - buf
@@ -490,11 +621,13 @@ def analyze_stream(stream_label, c1_df, m5, pair, pip):
         tp1, tp2 = mid, crl
 
     risk = abs(entry - stop)
+
     if risk <= 0:
         return None
 
     rr1 = abs(tp1 - entry) / risk
     rr2 = abs(tp2 - entry) / risk
+
     if rr1 < MIN_RR:
         return None
 
@@ -517,7 +650,10 @@ def analyze_stream(stream_label, c1_df, m5, pair, pip):
         "crl": crl,
         "mid": mid,
         "candle_time": candle_time,
-        "candle_key": f"{stream_label}|{pair}|{candle_time}|{direction}",
+        "candle_key": (
+            f"{stream_label}|{pair}|"
+            f"{candle_time}|{direction}"
+        ),
         "c1_tf": STREAMS[stream_label],
     }
 
@@ -533,19 +669,30 @@ def load_state():
         "pending": [],
         "last_update_id": 0,
     }
+
     if not os.path.exists(STATE_FILE):
         return default
+
     try:
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
+
         if state.get("version") != STATE_VERSION:
-            print("3C Model state version mismatch — reset pending, keep update offset.")
-            default["last_update_id"] = int(state.get("last_update_id", 0))
+            print(
+                "3C Model state version mismatch — "
+                "reset pending, keep update offset."
+            )
+            default["last_update_id"] = int(
+                state.get("last_update_id", 0)
+            )
             return default
+
         state.setdefault("last_alert_keys", {})
         state.setdefault("pending", [])
         state.setdefault("last_update_id", 0)
+
         return state
+
     except Exception as e:
         print("State load error:", e)
         return default
@@ -553,8 +700,10 @@ def load_state():
 
 def save_state(state):
     tmp = STATE_FILE + ".tmp"
+
     with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
+
     os.replace(tmp, STATE_FILE)
 
 
@@ -564,6 +713,7 @@ def save_state(state):
 
 def build_signal_message(sig):
     emoji = "🟢" if sig["direction"] == 1 else "🔴"
+
     return (
         f"<b>TENSION TRADING DESK</b>\n"
         f"════════════════════\n"
@@ -575,13 +725,17 @@ def build_signal_message(sig):
         f"C1 Mid  <b>{sig['mid']:.5f}</b>\n"
         f"C1 Low  <b>{sig['crl']:.5f}</b>\n\n"
         f"Entry <b>{sig['entry']:.5f}</b>\n"
-        f"SL    <b>{sig['stop']:.5f}</b> ({sig['risk_pips']:.1f} pips)\n"
-        f"TP1   <b>{sig['tp1']:.5f}</b> (mid · {sig['rr1']:.2f}R measured)\n"
-        f"TP2   <b>{sig['tp2']:.5f}</b> (opposite · {sig['rr2']:.2f}R measured)\n\n"
+        f"SL    <b>{sig['stop']:.5f}</b> "
+        f"({sig['risk_pips']:.1f} pips)\n"
+        f"TP1   <b>{sig['tp1']:.5f}</b> "
+        f"(mid · {sig['rr1']:.2f}R measured)\n"
+        f"TP2   <b>{sig['tp2']:.5f}</b> "
+        f"(opposite · {sig['rr2']:.2f}R measured)\n\n"
         f"Candle: <b>{format_times(sig['candle_time'])}</b>\n\n"
         f"🚀 <b>TRADE ACTIVE</b>\n"
         f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
-        f"<a href=\"{tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
+        f"<a href=\"{tradingview_url(sig['pair'])}\">"
+        f"Open {sig['pair']} on TradingView</a>\n\n"
         f"Built on Data.\n"
         f"Driven by Discipline."
     )
@@ -647,7 +801,9 @@ def check_pending(state, pair, m5):
 
         try:
             entry_time = pd.Timestamp(trade["candle_time"])
-            matches = np.where(m5["datetime"].values >= entry_time.to_datetime64())[0]
+            matches = np.where(
+                m5["datetime"].values >= entry_time.to_datetime64()
+            )[0]
         except Exception:
             remaining.append(trade)
             continue
@@ -657,8 +813,13 @@ def check_pending(state, pair, m5):
             continue
 
         signal_index = int(matches[0])
-        last_checked = int(trade.get("last_checked_index", signal_index))
-        start = max(signal_index + 1, last_checked + 1)
+        last_checked = int(
+            trade.get("last_checked_index", signal_index)
+        )
+        start = max(
+            signal_index + 1,
+            last_checked + 1,
+        )
 
         direction = int(trade["direction"])
         stop = float(trade["stop"])
@@ -672,6 +833,7 @@ def check_pending(state, pair, m5):
             high = float(m5["high"].iloc[j])
             low = float(m5["low"].iloc[j])
             candle_time = str(m5["datetime"].iloc[j])
+
             trade["last_checked_index"] = j
 
             if direction == 1:
@@ -691,6 +853,7 @@ def check_pending(state, pair, m5):
                     candle_time,
                     sl_message(trade, candle_time),
                 )
+
                 send_to_sheet(
                     {
                         "action": "OUTCOME",
@@ -701,6 +864,7 @@ def check_pending(state, pair, m5):
                         "exit_time": candle_time,
                     }
                 )
+
                 closed = True
                 break
 
@@ -712,6 +876,7 @@ def check_pending(state, pair, m5):
                     candle_time,
                     tp2_message(trade, candle_time),
                 )
+
                 send_to_sheet(
                     {
                         "action": "OUTCOME",
@@ -722,15 +887,20 @@ def check_pending(state, pair, m5):
                         "exit_time": candle_time,
                     }
                 )
+
                 closed = True
                 break
 
             if hit_tp1 and not tp1_hit:
                 trade["tp1_hit"] = True
                 tp1_hit = True
+
                 edit_telegram(
-                    trade.get("message_id"), tp1_message(trade), edit_chat
+                    trade.get("message_id"),
+                    tp1_message(trade),
+                    edit_chat,
                 )
+
                 send_to_sheet(
                     {
                         "action": "TP1_TOUCH",
@@ -742,11 +912,22 @@ def check_pending(state, pair, m5):
 
             if j - signal_index >= MAX_HOLD_BARS:
                 time_txt = (
-                    f"<b>TENSION TRADING DESK</b>\n<b>{trade.get('stream')}</b>\n\n"
-                    f"⏱️ <b>TIME EXIT</b>\n\n<b>{trade['side']} {pair}</b>\n"
-                    f"Max hold reached.\n\nBuilt on Data.\nDriven by Discipline."
+                    f"<b>TENSION TRADING DESK</b>\n"
+                    f"<b>{trade.get('stream')}</b>\n\n"
+                    f"⏱️ <b>TIME EXIT</b>\n\n"
+                    f"<b>{trade['side']} {pair}</b>\n"
+                    f"Max hold reached.\n\n"
+                    f"Built on Data.\nDriven by Discipline."
                 )
-                resolve_trade(trade, "TIME EXIT", 0.0, candle_time, time_txt)
+
+                resolve_trade(
+                    trade,
+                    "TIME EXIT",
+                    0.0,
+                    candle_time,
+                    time_txt,
+                )
+
                 closed = True
                 break
 
@@ -775,9 +956,13 @@ def main():
 
     if BOT_TOKEN:
         process_commands(state)
-        print(f"Subscribers: {len(load_subscribers())}")
+        print(
+            f"Subscribers: {len(load_subscribers())}"
+        )
     else:
-        print("BOT_TOKEN missing — scan only, no Telegram.")
+        print(
+            "BOT_TOKEN missing — scan only, no Telegram."
+        )
 
     for pair, cfg in PAIRS.items():
         pip = cfg["pip"]
@@ -794,18 +979,39 @@ def main():
         m5 = add_atr(m5)
         check_pending(state, pair, m5)
 
-        c1_map = {"1h": h1, "30min": m30}
+        c1_map = {
+            "1h": h1,
+            "30min": m30,
+        }
 
         for stream_label, c1_interval in STREAMS.items():
             c1_df = c1_map.get(c1_interval)
-            sig = analyze_stream(stream_label, c1_df, m5, pair, pip)
+
+            sig = analyze_stream(
+                stream_label,
+                c1_df,
+                m5,
+                pair,
+                pip,
+            )
+
             if sig is None:
-                print(f"  {stream_label}: no setup")
+                print(
+                    f"  {stream_label}: no setup"
+                )
                 continue
 
             key = sig["candle_key"]
-            if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
-                print(f"  {stream_label}: already alerted")
+
+            if (
+                state["last_alert_keys"].get(
+                    f"{stream_label}:{pair}"
+                )
+                == key
+            ):
+                print(
+                    f"  {stream_label}: already alerted"
+                )
                 continue
 
             dup = any(
@@ -815,18 +1021,26 @@ def main():
                 and t.get("status") == "ACTIVE"
                 for t in state["pending"]
             )
+
             if dup:
-                print(f"  {stream_label}: active trade open")
+                print(
+                    f"  {stream_label}: active trade open"
+                )
                 continue
 
             msg = build_signal_message(sig)
             message_id = broadcast(msg)
+
             print(
-                f"  {stream_label}: signal -> {sig['side']} | "
-                f"{sig['risk_pips']:.1f} pips | RR1 {sig['rr1']:.2f}"
+                f"  {stream_label}: signal -> "
+                f"{sig['side']} | "
+                f"{sig['risk_pips']:.1f} pips | "
+                f"RR1 {sig['rr1']:.2f}"
             )
 
-            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            state["last_alert_keys"][
+                f"{stream_label}:{pair}"
+            ] = key
 
             if message_id:
                 state["pending"].append(
@@ -834,7 +1048,11 @@ def main():
                         "stream": stream_label,
                         "pair": pair,
                         "message_id": message_id,
-                        "edit_chat_id": str(CHAT_ID) if CHAT_ID else None,
+                        "edit_chat_id": (
+                            str(CHAT_ID)
+                            if CHAT_ID
+                            else None
+                        ),
                         "direction": sig["direction"],
                         "side": sig["side"],
                         "entry": sig["entry"],
@@ -848,7 +1066,9 @@ def main():
                         "candle_key": key,
                         "status": "ACTIVE",
                         "tp1_hit": False,
-                        "last_checked_index": len(m5) - 1,
+                        "last_checked_index": (
+                            len(m5) - 1
+                        ),
                     }
                 )
 
@@ -870,9 +1090,11 @@ def main():
             )
 
     save_state(state)
+
     print("\n" + "=" * 70)
     print(
-        f"3C SCAN COMPLETE | pending: {len(state['pending'])} | "
+        f"3C SCAN COMPLETE | pending: "
+        f"{len(state['pending'])} | "
         f"subs: {len(load_subscribers())}"
     )
     print("=" * 70)
