@@ -41,11 +41,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add last_alert_state_crt.json last_alert_state_crt_plain.json subscribers.json 2>/dev/null || true
+          git add last_alert_state_crt.json last_alert_state_crt_plain.json subscribers.json outcomes.json 2>/dev/null || true
 
           if git diff --cached --quiet; then
             echo "No state changes to commit."
           else
-            git commit -m "chore: persist 3C Model and CRT plain state [skip ci]"
+            git commit -m "chore: persist state and outcomes [skip ci]"
             git push
           fi
