@@ -243,16 +243,30 @@ def check_pending(state, pair, ltf):
             else:
                 hit_sl, hit_tp2, hit_tp1 = high >= stop, low <= tp2, low <= tp1
             if hit_sl:
-                desk.edit_telegram(trade.get("message_id"), desk.sl_message(trade, candle_time), edit_chat)
+                desk.resolve_trade(
+                    trade,
+                    "LOSS",
+                    -1.0,
+                    candle_time,
+                    desk.sl_message(trade, candle_time),
+                )
                 closed = True
                 break
             if hit_tp2:
-                desk.edit_telegram(trade.get("message_id"), desk.tp2_message(trade, candle_time), edit_chat)
+                desk.resolve_trade(
+                    trade,
+                    "WIN",
+                    float(trade.get("rr2", 0)),
+                    candle_time,
+                    desk.tp2_message(trade, candle_time),
+                )
                 closed = True
                 break
             if hit_tp1 and not trade.get("tp1_hit"):
                 trade["tp1_hit"] = True
-                desk.edit_telegram(trade.get("message_id"), desk.tp1_message(trade), edit_chat)
+                desk.edit_telegram(
+                    trade.get("message_id"), desk.tp1_message(trade), edit_chat
+                )
         if not closed:
             remaining.append(trade)
     state["pending"] = remaining
