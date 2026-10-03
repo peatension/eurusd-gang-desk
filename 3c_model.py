@@ -129,7 +129,7 @@ def outcome_notice(trade, status, result_r, exit_time):
         f"<b>{trade.get('stream')}</b>\n\n"
         f"{head}\n\n"
         f"<b>{trade.get('side')} {trade.get('pair')}</b>\n"
-        f"Exit <b>{exit_time}</b>\n"
+        f"Exit <b>{format_times(exit_time)}</b>\n"
         f"{line}\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -333,6 +333,22 @@ def tradingview_url(pair):
     if tv:
         return f"https://www.tradingview.com/chart/?symbol={tv}"
     return f"https://www.tradingview.com/symbols/{pair.replace('/', '')}/"
+
+
+def format_times(dt_like):
+    """12-hour Nigeria WAT (UTC+1) + 12-hour UTC. Example: 2:30 PM WAT (1:30 PM UTC) · 03 Oct 2026"""
+    try:
+        ts = pd.Timestamp(dt_like)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        else:
+            ts = ts.tz_convert("UTC")
+        wat = ts + pd.Timedelta(hours=1)
+        def ampm(x):
+            return x.strftime("%I:%M %p").lstrip("0")
+        return f"{ampm(wat)} WAT ({ampm(ts)} UTC) · {wat.strftime('%d %b %Y')}"
+    except Exception:
+        return str(dt_like)
 
 
 # ============================================================
@@ -563,7 +579,7 @@ def build_signal_message(sig):
         f"SL    <b>{sig['stop']:.5f}</b> ({sig['risk_pips']:.1f} pips)\n"
         f"TP1   <b>{sig['tp1']:.5f}</b> (mid · {sig['rr1']:.2f}R measured)\n"
         f"TP2   <b>{sig['tp2']:.5f}</b> (opposite · {sig['rr2']:.2f}R measured)\n\n"
-        f"Candle: <b>{sig['candle_time']}</b>\n\n"
+        f"Candle: <b>{format_times(sig['candle_time'])}</b>\n\n"
         f"🚀 <b>TRADE ACTIVE</b>\n"
         f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
         f"<a href=\"{tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
@@ -592,7 +608,7 @@ def tp2_message(trade, exit_time):
         f"<b>{trade['stream']}</b>\n\n"
         f"🏆 <b>TP2 HIT</b>\n\n"
         f"<b>{trade['side']} {trade['pair']}</b>\n"
-        f"Exit <b>{exit_time}</b>\n"
+        f"Exit <b>{format_times(exit_time)}</b>\n"
         f"Result <b>+{float(trade['rr2']):.2f}R</b> (measured)\n\n"
         f"🏆 FINAL VERDICT: WIN\n\n"
         f"Built on Data.\nDriven by Discipline."
@@ -606,7 +622,7 @@ def sl_message(trade, exit_time):
         f"🔴 <b>STOP LOSS HIT</b>\n\n"
         f"<b>{trade['side']} {trade['pair']}</b>\n"
         f"SL <b>{float(trade['stop']):.5f}</b>\n"
-        f"Exit <b>{exit_time}</b>\n"
+        f"Exit <b>{format_times(exit_time)}</b>\n"
         f"Result <b>-1R</b>\n\n"
         f"🔴 FINAL VERDICT: LOSS\n\n"
         f"Built on Data.\nDriven by Discipline."
