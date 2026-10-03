@@ -36,6 +36,7 @@ SHEET_URL = os.getenv("SHEET_URL", "")
 
 STATE_FILE = "last_alert_state_crt.json"
 SUBSCRIBERS_FILE = "subscribers.json"
+OUTCOMES_FILE = "outcomes.json"
 STATE_VERSION = 2
 
 MIN_RR = 1.5
@@ -81,6 +82,88 @@ def save_subscribers(subscribers):
             json.dump(sorted(set(str(x) for x in subscribers)), f, indent=2)
     except Exception as e:
         print("Subscriber save error:", e)
+
+
+# ============================================================
+# OUTCOMES LOG (shared by 3C Model + CRT plain)
+# ============================================================
+
+def load_outcomes():
+    if not os.path.exists(OUTCOMES_FILE):
+        return []
+    try:
+        with open(OUTCOMES_FILE, "r") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception as e:
+        print("Outcomes load error:", e)
+        return []
+
+
+def log_outcome(record):
+    """Append a closed-trade record. Used for weekly metrics later."""
+    rows = load_outcomes()
+    rows.append(record)
+    try:
+        tmp = OUTCOMES_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(rows, f, indent=2)
+        os.replace(tmp, OUTCOMES_FILE)
+    except Exception as e:
+        print("Outcomes save error:", e)
+
+
+def outcome_notice(trade, status, result_r, exit_time):
+    """Short WIN/LOSS message sent to ALL subscribers (edit alone is not enough)."""
+    if status == "WIN":
+        head = "🏆 FINAL VERDICT: WIN"
+        line = f"Result <b>+{float(result_r):.2f}R</b>"
+    elif status == "LOSS":
+        head = "🔴 FINAL VERDICT: LOSS"
+        line = "Result <b>-1.00R</b>"
+    else:
+        head = f"⏱️ {status}"
+        line = f"Result <b>{float(result_r):+.2f}R</b>" if result_r is not None else "Result n/a"
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"<b>{trade.get('stream')}</b>\n\n"
+        f"{head}\n\n"
+        f"<b>{trade.get('side')} {trade.get('pair')}</b>\n"
+        f"Exit <b>{exit_time}</b>\n"
+        f"{line}\n\n"
+        f"Built on Data.\nDriven by Discipline."
+    )
+
+
+def resolve_trade(trade, status, result_r, exit_time, edit_text):
+    """
+    1) Try edit original signal (primary chat).
+    2) Always broadcast a short WIN/LOSS so every subscriber sees the result.
+    3) Log outcome for weekly scorecard.
+    """
+    edit_chat = trade.get("edit_chat_id") or (str(CHAT_ID) if CHAT_ID else None)
+    if trade.get("message_id") and edit_text:
+        ok = edit_telegram(trade.get("message_id"), edit_text, edit_chat)
+        if not ok:
+            print(f"  edit failed for {trade.get('stream')} {trade.get('pair')} — still broadcasting outcome")
+    broadcast(outcome_notice(trade, status, result_r, exit_time))
+    log_outcome(
+        {
+            "stream": trade.get("stream"),
+            "pair": trade.get("pair"),
+            "side": trade.get("side"),
+            "status": status,
+            "result_r": float(result_r) if result_r is not None else None,
+            "exit_time": exit_time,
+            "entry": trade.get("entry"),
+            "stop": trade.get("stop"),
+            "tp1": trade.get("tp1"),
+            "tp2": trade.get("tp2"),
+            "rr1": trade.get("rr1"),
+            "rr2": trade.get("rr2"),
+            "candle_time": trade.get("candle_time"),
+        }
+    )
 
 
 # ============================================================
@@ -350,9 +433,7 @@ def ts_short(m5, i, crl, crh):
     if full <= 0:
         return False
     return ((c_h - c_c) / full >= 0.55) or (c_c < c_o)
-
-
-def analyze_stream(stream_label, c1_df, m5, pair, pip):
+  def analyze_stream(stream_label, c1_df, m5, pair, pip):
     if c1_df is None or m5 is None or len(m5) < 60:
         return None
 
@@ -588,8 +669,12 @@ def check_pending(state, pair, m5):
                 hit_tp1 = low <= tp1
 
             if hit_sl:
-                edit_telegram(
-                    trade.get("message_id"), sl_message(trade, candle_time), edit_chat
+                resolve_trade(
+                    trade,
+                    "LOSS",
+                    -1.0,
+                    candle_time,
+                    sl_message(trade, candle_time),
                 )
                 send_to_sheet(
                     {
@@ -605,8 +690,12 @@ def check_pending(state, pair, m5):
                 break
 
             if hit_tp2:
-                edit_telegram(
-                    trade.get("message_id"), tp2_message(trade, candle_time), edit_chat
+                resolve_trade(
+                    trade,
+                    "WIN",
+                    float(trade["rr2"]),
+                    candle_time,
+                    tp2_message(trade, candle_time),
                 )
                 send_to_sheet(
                     {
@@ -637,13 +726,12 @@ def check_pending(state, pair, m5):
                 )
 
             if j - signal_index >= MAX_HOLD_BARS:
-                edit_telegram(
-                    trade.get("message_id"),
+                time_txt = (
                     f"<b>TENSION TRADING DESK</b>\n<b>{trade.get('stream')}</b>\n\n"
                     f"⏱️ <b>TIME EXIT</b>\n\n<b>{trade['side']} {pair}</b>\n"
-                    f"Max hold reached.\n\nBuilt on Data.\nDriven by Discipline.",
-                    edit_chat,
+                    f"Max hold reached.\n\nBuilt on Data.\nDriven by Discipline."
                 )
+                resolve_trade(trade, "TIME EXIT", 0.0, candle_time, time_txt)
                 closed = True
                 break
 
