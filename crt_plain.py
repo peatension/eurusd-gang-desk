@@ -196,7 +196,7 @@ def build_signal_message(sig):
         f"SL    <b>{sig['stop']:.5f}</b> ({sig['risk_pips']:.1f} pips)\n"
         f"TP1   <b>{sig['tp1']:.5f}</b> (mid · {sig['rr1']:.2f}R measured)\n"
         f"TP2   <b>{sig['tp2']:.5f}</b> (opposite · {sig['rr2']:.2f}R measured)\n\n"
-        f"Candle: <b>{sig['candle_time']}</b>\n\n"
+        f"Candle: <b>{desk.format_times(sig['candle_time'])}</b>\n\n"
         f"🚀 <b>TRADE ACTIVE</b>\n"
         f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
         f"<a href=\"{desk.tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
