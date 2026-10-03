@@ -448,7 +448,7 @@ def ts_short(m5, i, crl, crh):
     if full <= 0:
         return False
     return ((c_h - c_c) / full >= 0.55) or (c_c < c_o)
-  def analyze_stream(stream_label, c1_df, m5, pair, pip):
+def analyze_stream(stream_label, c1_df, m5, pair, pip):
     if c1_df is None or m5 is None or len(m5) < 60:
         return None
 
