@@ -1,22 +1,26 @@
 """
-Same Telegram bot. Two engines. Two files.
+Same Telegram bot. Two CRT engines (8 pairs).
 
-  3c_model.py   = 3C Model (hybrid M5 sweep)
-  crt_plain.py  = CRT plain (same-TF)
+  crt_plain.py  → CRT …  EUR/USD AUD/USD USD/CHF EUR/JPY
+  3c_model.py   → 3C …   GBP/USD USD/JPY USD/CAD GBP/JPY
+                  (also shared fetch/Telegram for crt_plain)
 
-Run this file on the schedule.
+Run: python desk_runner.py
 """
 
 import importlib
 
-model = importlib.import_module("3c_model")
+desk = importlib.import_module("3c_model")
 import crt_plain
 
 
 def main():
-    model.process_commands(model.load_state())
-    model.main()
-    crt_plain.main()
+    state = desk.load_state()
+    desk.process_commands(state)
+    desk.save_state(state)
+
+    crt_plain.main()   # set 1 — CRT …
+    desk.main()        # set 2 — 3C …
 
 
 if __name__ == "__main__":
