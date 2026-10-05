@@ -1,27 +1,19 @@
 """
-TENSION TRADING DESK — CRT plain (same-TF)
-==========================================
-Separate strategy from 3C Model (3c_model.py).
+TENSION TRADING DESK — CRT PLAIN (set 1)
+=======================================
+Pairs: EUR/USD | AUD/USD | USD/CHF | EUR/JPY
 
-FIRST-FACTORIAL STREAM MAP (not validation-strict filter):
-  PLAIN / MSS / CISD / FVG / TS  → all 5 HTF streams × core pairs
-  MODEL1 → only cells that were 3/3 on most pairs in first factorial
-  TBS → OFF
+Streams (Telegram: CRT …):
+  PLAIN + TS + MSS on all 5 HTF→LTF
+  MODEL1 on 1H→15m, 1H→5m, 30MIN→5m, 4H→15m
 
-Streams (HTF→LTF):
-  1H→15m | 1H→5m | 30MIN→5m | 4H→30m | 4H→15m
-
-Core rules (all models share):
-  C1 = prior closed HTF | C2 = sweep + close back inside (must close valid)
-  Entry = LTF model after valid C2
-  Entry price = C1 extreme | TP1 = mid | TP2 = opposite | SL beyond C2
-  No auto BE | No Premium/Discount filter
+Core: C1 + C2 close inside | LTF entry | TP1 mid | TP2 opposite | no BE
 
 Features:
-  Same Telegram message edit: ACTIVE → TP1 HIT → WIN/LOSS
-  Weekend: LIMIT / ENTRY PENDING (not market ACTIVE)
-  Reports WAT-gated once: weekly Sat 12:00 PM | monthly 1st 6:00 AM | yearly 1 Jan 00:00
-  Uses 3c_model only as infrastructure (fetch, Telegram, outcomes)
+  Dual times (setup candle + signal sent, WAT+UTC)
+  Same-message edit ACTIVE → TP1 HIT → WIN/LOSS (+ fallback broadcast)
+  Multi-chat message_ids | Weekend LIMIT / ENTRY PENDING
+  WAT reports once | Infra from 3c_model.py
 """
 
 import os
@@ -35,7 +27,7 @@ import importlib
 desk = importlib.import_module("3c_model")
 
 STATE_FILE = "last_alert_state_crt_plain.json"
-STATE_VERSION = 5
+STATE_VERSION = 6
 MIN_RR = 1.5
 OUTCOMES_ENGINE = "CRT_PLAIN"
 REPORT_WINDOW_MIN = 12
@@ -61,20 +53,18 @@ _BASE = [
     ("CRT 4H→15m", "4h", "15min"),
 ]
 
-# PLAIN / MSS / CISD / FVG / TS on all cells (first factorial: worked on most/all)
-for _m in ("PLAIN", "MSS", "CISD", "FVG", "TS"):
+# Live test: PLAIN + TS + MODEL1 + MSS only (CISD/FVG off)
+for _m in ("PLAIN", "TS", "MSS"):
     _add_streams(_m, _BASE)
 
-# MODEL1 only on cells that were 3/3 for most pairs in first factorial
+# MODEL1 on strong cells only
 STREAMS["CRT 1H→15m MODEL1"] = ("1h", "15min", "MODEL1")
 STREAMS["CRT 1H→5m MODEL1"] = ("1h", "5min", "MODEL1")
 STREAMS["CRT 30MIN→5m MODEL1"] = ("30min", "5min", "MODEL1")
 STREAMS["CRT 4H→15m MODEL1"] = ("4h", "15min", "MODEL1")
-# 4H→30m MODEL1 was weak on EUR/USD + EUR/JPY in first factorial → omit
 
 # Optional pair restrict (None = all CORE_PAIRS that exist in desk.PAIRS)
 STREAM_PAIRS = {
-    # MODEL1 30MIN weaker on USD/CHF in first factorial
     "CRT 30MIN→5m MODEL1": ["EUR/USD", "AUD/USD", "EUR/JPY"],
 }
 
@@ -143,15 +133,33 @@ def wat_now():
 
 
 def format_signal_time(dt_like):
+    """Naive feed times = UTC. Show WAT + UTC. No double-shift."""
     try:
-        utc = _as_utc(dt_like)
-        wat = utc + pd.Timedelta(hours=1)
-        wat_s = wat.strftime("%I:%M %p").lstrip("0")
-        utc_s = utc.strftime("%H:%M")
-        date_s = wat.strftime("%d %b %Y")
-        return f"🇳🇬 {wat_s} WAT · 🌐 {utc_s} UTC · {date_s}"
+        ts = pd.Timestamp(dt_like)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        else:
+            ts = ts.tz_convert("UTC")
+        try:
+            wat = ts.tz_convert("Africa/Lagos")
+        except Exception:
+            wat = ts + pd.Timedelta(hours=1)
+
+        def ampm(x):
+            return x.strftime("%I:%M %p").lstrip("0")
+
+        return f"{ampm(wat)} WAT · {ampm(ts)} UTC · {wat.strftime('%d %b %Y')}"
     except Exception:
         return str(dt_like)
+
+
+def format_dual_times(candle_time, signal_sent=None):
+    """Setup candle from feed + signal sent = bot wall clock at post time."""
+    sent = signal_sent or utc_now().isoformat()
+    return (
+        f"🕯 Setup candle: <b>{format_signal_time(candle_time)}</b>\n"
+        f"📤 Signal sent: <b>{format_signal_time(sent)}</b>"
+    )
 
 
 def forex_session(dt_like):
@@ -175,6 +183,13 @@ def is_weekend_utc(now=None):
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     return now.weekday() >= 5
+
+
+def drop_forming_bar(df):
+    """API includes the live unfinished candle — never use it for entry."""
+    if df is None or len(df) < 3:
+        return df
+    return df.iloc[:-1].copy()
 
 
 def in_wat_send_window(hour, minute, width_min=REPORT_WINDOW_MIN):
@@ -424,8 +439,8 @@ def build_signal_message(sig, weekend_limit=False):
         limit_side = "BUY LIMIT" if sig["direction"] == 1 else "SELL LIMIT"
         status = (
             f"📌 Status: <b>ENTRY PENDING</b>\n"
-            f"Order type: <b>{limit_side}</b> @ {sig['entry']:.5f}\n"
-            f"Weekend setup — fills when market trades through entry (Mon open)\n"
+            f"Order: <b>{limit_side}</b> @ {float(sig['entry']):.5f}\n"
+            f"Weekend — activates when price trades through entry\n"
         )
     else:
         status = (
@@ -443,7 +458,7 @@ def build_signal_message(sig, weekend_limit=False):
         f"Session: <b>{sig.get('session', '—')}</b>\n"
         f"Sweep: same TF as C1, close back inside\n\n"
         f"{_core_levels(sig)}\n"
-        f"Signal: <b>{format_signal_time(sig['candle_time'])}</b>\n\n"
+        f"{format_dual_times(sig.get('candle_time'), sig.get('signal_sent'))}\n\n"
         f"{status}\n"
         f"<a href=\"{desk.tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
         f"Built on Data.\nDriven by Discipline."
@@ -461,7 +476,7 @@ def tp1_update_message(trade):
         f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
         f"Session: <b>{trade.get('session', '—')}</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"Signal: <b>{format_signal_time(trade.get('candle_time'))}</b>\n\n"
+        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
         f"📌 Status: <b>TP1 HIT — ACTIVE</b>\n"
         f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n"
         f"💡 No automatic BE\n\n"
@@ -483,6 +498,7 @@ def tp2_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>+{rr2:.2f}R</b>\n\n"
         f"{_core_levels(trade)}\n"
+        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
         f"📌 Status: <b>CLOSED — WIN</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -501,29 +517,35 @@ def sl_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>-1.00R</b>\n\n"
         f"{_core_levels(trade)}\n"
+        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
         f"📌 Status: <b>CLOSED — LOSS</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
 
 
-def limit_cancelled_message(trade):
-    return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"<b>{trade['stream']}</b>\n\n"
-        f"⏹️ <b>LIMIT CANCELLED</b>\n\n"
-        f"<b>{trade['side']} {trade['pair']}</b>\n"
-        f"Entry was not filled at open.\n\n"
-        f"📌 Status: <b>CANCELLED</b>\n\n"
-        f"Built on Data.\nDriven by Discipline."
-    )
+def _edit_all_messages(trade, text):
+    """Edit every chat message_id stored for this trade. Returns True if any edit ok."""
+    ids = trade.get("message_ids") or {}
+    if not ids and trade.get("message_id"):
+        chat = trade.get("edit_chat_id") or (str(desk.CHAT_ID) if desk.CHAT_ID else None)
+        if chat:
+            ids = {str(chat): trade["message_id"]}
+    any_ok = False
+    for chat, mid in ids.items():
+        ok = desk.edit_telegram(mid, text, chat)
+        if ok:
+            any_ok = True
+        else:
+            print(f"  edit fail chat={chat} mid={mid} stream={trade.get('stream')}")
+    return any_ok
 
 
 def finalize_trade(trade, status, result_r, exit_time, edit_text):
-    edit_chat = trade.get("edit_chat_id") or (str(desk.CHAT_ID) if desk.CHAT_ID else None)
-    if trade.get("message_id") and edit_text:
-        ok = desk.edit_telegram(trade.get("message_id"), edit_text, edit_chat)
+    if edit_text:
+        ok = _edit_all_messages(trade, edit_text)
         if not ok:
-            print(f"  edit failed {trade.get('stream')} {trade.get('pair')}")
+            print(f"  all edits failed {trade.get('stream')} {trade.get('pair')} — broadcast fallback")
+            desk.broadcast(edit_text)
     if status in ("WIN", "LOSS"):
         desk.broadcast(desk.outcome_notice(trade, status, result_r, exit_time))
         desk.log_outcome(
@@ -543,6 +565,7 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
                 "rr1": trade.get("rr1"),
                 "rr2": trade.get("rr2"),
                 "candle_time": trade.get("candle_time"),
+                "signal_sent": trade.get("signal_sent"),
                 "session": trade.get("session"),
                 "tp1_hit": bool(trade.get("tp1_hit")),
                 "c1_tf": trade.get("c1_tf"),
@@ -556,55 +579,11 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
 # PENDING
 # ============================================================
 
-def check_pending_limits(state, pair, ltf):
-    if not state["pending"] or ltf is None or is_weekend_utc():
-        return
-    remaining = []
-    primary = str(desk.CHAT_ID) if desk.CHAT_ID else None
-    latest = ltf.iloc[-1]
-    for trade in state["pending"]:
-        if trade.get("pair") != pair:
-            remaining.append(trade)
-            continue
-        if trade.get("status") != "ENTRY_PENDING":
-            remaining.append(trade)
-            continue
-        entry = float(trade["entry"])
-        direction = int(trade["direction"])
-        high = float(latest["high"])
-        low = float(latest["low"])
-        filled = (direction == 1 and low <= entry) or (direction == -1 and high >= entry)
-        edit_chat = trade.get("edit_chat_id") or primary
-        if filled:
-            trade["status"] = "ACTIVE"
-            trade["tp1_hit"] = False
-            trade["last_checked_index"] = len(ltf) - 1
-            desk.edit_telegram(
-                trade.get("message_id"),
-                build_signal_message({**trade, "entry_model": trade.get("entry_model", "PLAIN")}, False),
-                edit_chat,
-            )
-            print(f"  limit FILLED -> ACTIVE {trade['stream']} {pair}")
-            remaining.append(trade)
-        else:
-            try:
-                age = (utc_now() - _as_utc(trade["candle_time"]).to_pydatetime().replace(tzinfo=timezone.utc)).days
-            except Exception:
-                age = 0
-            if age >= 3:
-                desk.edit_telegram(trade.get("message_id"), limit_cancelled_message(trade), edit_chat)
-                print(f"  limit CANCELLED {trade['stream']} {pair}")
-            else:
-                remaining.append(trade)
-    state["pending"] = remaining
-
-
 def check_pending(state, pair, ltf):
-    """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first."""
+    """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first. TP1 edit kept."""
     if not state["pending"] or ltf is None:
         return
     remaining = []
-    primary = str(desk.CHAT_ID) if desk.CHAT_ID else None
     latest = len(ltf) - 1
 
     for trade in state["pending"]:
@@ -612,15 +591,42 @@ def check_pending(state, pair, ltf):
             remaining.append(trade)
             continue
         status = trade.get("status")
+        # Weekend LIMIT: only go ACTIVE when price trades through entry (after weekend)
         if status == "ENTRY_PENDING":
-            remaining.append(trade)
-            continue
+            if is_weekend_utc():
+                remaining.append(trade)
+                continue
+            try:
+                entry = float(trade["entry"])
+                direction = int(trade["direction"])
+                high = float(ltf["high"].iloc[-1])
+                low = float(ltf["low"].iloc[-1])
+                filled = (direction == 1 and low <= entry) or (direction == -1 and high >= entry)
+            except Exception:
+                filled = False
+            if filled:
+                trade["status"] = "ACTIVE"
+                status = "ACTIVE"
+                text = build_signal_message(
+                    {**trade, "entry_model": trade.get("entry_model", "PLAIN")}, False
+                )
+                _edit_all_messages(trade, text)
+                print(f"  LIMIT filled -> ACTIVE {trade.get('stream')} {pair}")
+            else:
+                remaining.append(trade)
+                continue
         if status not in (None, "ACTIVE", "TP1_HIT"):
             continue
         try:
             entry_time = pd.Timestamp(trade["candle_time"])
-            matches = np.where(ltf["datetime"].values >= entry_time.to_datetime64())[0]
-        except Exception:
+            if entry_time.tzinfo is not None:
+                entry_time = entry_time.tz_convert("UTC").tz_localize(None)
+            dts = pd.to_datetime(ltf["datetime"])
+            if getattr(dts.dt, "tz", None) is not None:
+                dts = dts.dt.tz_convert("UTC").dt.tz_localize(None)
+            matches = np.where(dts.values >= np.datetime64(entry_time))[0]
+        except Exception as e:
+            print(f"  pending match error {pair}: {e}")
             remaining.append(trade)
             continue
         if len(matches) == 0:
@@ -628,7 +634,10 @@ def check_pending(state, pair, ltf):
             continue
 
         signal_index = int(matches[0])
+        # Start from bar after entry; never skip ahead of signal_index
         last_checked = int(trade.get("last_checked_index", signal_index))
+        if last_checked < signal_index:
+            last_checked = signal_index
         start = max(signal_index + 1, last_checked + 1)
         direction = int(trade["direction"])
         stop = float(trade["stop"])
@@ -636,7 +645,6 @@ def check_pending(state, pair, ltf):
         tp2 = float(trade["tp2"])
         tp1_hit = bool(trade.get("tp1_hit", False))
         closed = False
-        edit_chat = trade.get("edit_chat_id") or primary
 
         for j in range(start, latest + 1):
             high = float(ltf["high"].iloc[j])
@@ -665,7 +673,14 @@ def check_pending(state, pair, ltf):
                 trade["tp1_hit"] = True
                 tp1_hit = True
                 trade["status"] = "TP1_HIT"
-                desk.edit_telegram(trade.get("message_id"), tp1_update_message(trade), edit_chat)
+                text = tp1_update_message(trade)
+                ok = _edit_all_messages(trade, text)
+                if not ok:
+                    # Fallback: new message so you still see TP1
+                    desk.broadcast(text)
+                    print(f"  TP1 edit failed — broadcast fallback {trade.get('stream')} {pair}")
+                else:
+                    print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
 
         if not closed:
             remaining.append(trade)
@@ -823,8 +838,8 @@ def _pair_allowed(stream_label, pair):
 def main():
     print("=" * 70)
     print("TENSION TRADING DESK — CRT PLAIN")
-    print("First-factorial streams: PLAIN TS MSS CISD FVG + MODEL1 cells")
-    print("Reports: WAT-gated once | Weekend: LIMIT / ENTRY PENDING")
+    print("First-factorial streams | dual times | TP1/WIN/LOSS edit")
+    print("Weekend: no new signals | open trades still managed")
     print(f"Streams loaded: {len(STREAMS)}")
     print("=" * 70)
 
@@ -841,7 +856,7 @@ def main():
 
     weekend = is_weekend_utc()
     if weekend:
-        print("Weekend UTC — market ACTIVE off | LIMIT / ENTRY PENDING only")
+        print("Weekend UTC — new setups as LIMIT / ENTRY PENDING (times still dual UTC+WAT)")
 
     cache = {}
     scan_pairs = [p for p in CORE_PAIRS if p in PAIRS]
@@ -874,12 +889,17 @@ def main():
         for tf in frames:
             frames[tf] = desk.add_atr(frames[tf])
 
+        ltf_seen = set()
+        for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
+            if ltf_name in ltf_seen:
+                continue
+            ltf_seen.add(ltf_name)
+            check_pending(state, pair, frames[ltf_name])
+
         for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
             if not _pair_allowed(stream_label, pair):
                 continue
             ltf = frames[ltf_name]
-            check_pending_limits(state, pair, ltf)
-            check_pending(state, pair, ltf)
 
             sig = analyze(
                 stream_label, htf_name, ltf_name, entry_model,
@@ -904,26 +924,44 @@ def main():
                 print(f"  {stream_label}: active/pending open")
                 continue
 
-            if weekend:
-                message_id = desk.broadcast(build_signal_message(sig, weekend_limit=True))
-                status = "ENTRY_PENDING"
-                print(f"  {stream_label}: LIMIT PENDING {sig['side']} @ {sig['entry']:.5f}")
-            else:
-                message_id = desk.broadcast(build_signal_message(sig, weekend_limit=False))
-                status = "ACTIVE"
-                print(
-                    f"  {stream_label}: ACTIVE {sig['side']} | "
-                    f"{sig['session']} | model={entry_model} | {sig['risk_pips']:.1f} pips"
-                )
+            signal_sent = utc_now().isoformat()
+            sig["signal_sent"] = signal_sent
+            status = "ENTRY_PENDING" if weekend else "ACTIVE"
+            msg_ids = desk.broadcast_message_ids(
+                build_signal_message(sig, weekend_limit=weekend)
+            )
+            primary = str(desk.CHAT_ID) if desk.CHAT_ID else (next(iter(msg_ids), None))
+            message_id = msg_ids.get(primary) if primary else None
+            if not message_id and msg_ids:
+                message_id = next(iter(msg_ids.values()))
+
+            print(
+                f"  {stream_label}: {status} {sig['side']} | "
+                f"{sig['session']} | model={entry_model} | {sig['risk_pips']:.1f} pips | "
+                f"msgs={len(msg_ids)}"
+            )
 
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-            if message_id:
+            if msg_ids:
+                try:
+                    et = pd.Timestamp(sig["candle_time"])
+                    if et.tzinfo is not None:
+                        et = et.tz_convert("UTC").tz_localize(None)
+                    dts = pd.to_datetime(ltf["datetime"])
+                    if getattr(dts.dt, "tz", None) is not None:
+                        dts = dts.dt.tz_convert("UTC").dt.tz_localize(None)
+                    m = np.where(dts.values >= np.datetime64(et))[0]
+                    entry_idx = int(m[0]) if len(m) else max(0, len(ltf) - 2)
+                except Exception:
+                    entry_idx = max(0, len(ltf) - 2)
+
                 state["pending"].append(
                     {
                         "stream": stream_label,
                         "pair": pair,
                         "message_id": message_id,
-                        "edit_chat_id": str(desk.CHAT_ID) if desk.CHAT_ID else None,
+                        "message_ids": msg_ids,
+                        "edit_chat_id": primary,
                         "direction": sig["direction"],
                         "side": sig["side"],
                         "entry": sig["entry"],
@@ -937,6 +975,7 @@ def main():
                         "crl": sig["crl"],
                         "mid": sig["mid"],
                         "candle_time": sig["candle_time"],
+                        "signal_sent": signal_sent,
                         "session": sig["session"],
                         "c1_tf": sig["c1_tf"],
                         "ltf": sig["ltf"],
@@ -944,7 +983,7 @@ def main():
                         "candle_key": key,
                         "status": status,
                         "tp1_hit": False,
-                        "last_checked_index": len(ltf) - 1,
+                        "last_checked_index": entry_idx,
                     }
                 )
 
