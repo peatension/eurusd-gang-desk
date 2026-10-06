@@ -1,0 +1,46 @@
+{
+  "version": 6,
+  "last_alert_keys": {
+    "3C 1H\u21925m MSS:USD/CAD": "3C 1H\u21925m MSS|USD/CAD|2026-10-07 07:00:00|-1|MSS"
+  },
+  "pending": [
+    {
+      "stream": "3C 1H\u21925m MSS",
+      "pair": "USD/CAD",
+      "message_id": 280,
+      "message_ids": {
+        "-1004423692487": 280,
+        "6937879685": 448,
+        "7080941387": 449
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 1.42154,
+      "stop": 1.42175,
+      "tp1": 1.42109,
+      "tp2": 1.42064,
+      "rr1": 2.142857142856992,
+      "rr2": 4.285714285713984,
+      "risk_pips": 2.100000000000435,
+      "crh": 1.42154,
+      "crl": 1.42064,
+      "mid": 1.42109,
+      "candle_time": "2026-10-07 08:00:00",
+      "signal_sent": "2026-10-06T21:11:46.615680+00:00",
+      "session": "London",
+      "c1_tf": "1h",
+      "ltf": "5min",
+      "entry_model": "MSS",
+      "candle_key": "3C 1H\u21925m MSS|USD/CAD|2026-10-07 07:00:00|-1|MSS",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 497
+    }
+  ],
+  "weekly_report_id": null,
+  "monthly_report_id": null,
+  "yearly_report_id": null,
+  "strategy_start": "2026-10-06",
+  "last_update_id": 367135278
+}
