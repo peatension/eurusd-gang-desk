@@ -579,7 +579,7 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
 # PENDING
 # ============================================================
 
-def check_pending(state, pair, ltf):
+def check_pending(state, pair, ltf, ltf_name=None):
     """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first. TP1 edit kept."""
     if not state["pending"] or ltf is None:
         return
@@ -588,6 +588,10 @@ def check_pending(state, pair, ltf):
 
     for trade in state["pending"]:
         if trade.get("pair") != pair:
+            remaining.append(trade)
+            continue
+        # Only manage this trade on its own entry TF dataframe
+        if ltf_name and trade.get("ltf") and str(trade.get("ltf")) != str(ltf_name):
             remaining.append(trade)
             continue
         status = trade.get("status")
@@ -634,11 +638,18 @@ def check_pending(state, pair, ltf):
             continue
 
         signal_index = int(matches[0])
-        # Start from bar after entry; never skip ahead of signal_index
-        last_checked = int(trade.get("last_checked_index", signal_index))
-        if last_checked < signal_index:
-            last_checked = signal_index
-        start = max(signal_index + 1, last_checked + 1)
+        # Time-based cursor (rolling API windows break integer indices)
+        last_checked_time = trade.get("last_checked_time")
+        if not last_checked_time:
+            last_checked_time = trade.get("candle_time")
+        try:
+            lct = pd.Timestamp(last_checked_time)
+            if lct.tzinfo is not None:
+                lct = lct.tz_convert("UTC").tz_localize(None)
+            lct64 = np.datetime64(lct)
+        except Exception:
+            lct64 = None
+
         direction = int(trade["direction"])
         stop = float(trade["stop"])
         tp1 = float(trade["tp1"])
@@ -646,10 +657,20 @@ def check_pending(state, pair, ltf):
         tp1_hit = bool(trade.get("tp1_hit", False))
         closed = False
 
-        for j in range(start, latest + 1):
+        for j in range(signal_index + 1, latest + 1):
+            bar_dt = dts.iloc[j] if hasattr(dts, "iloc") else dts[j]
+            try:
+                bt = pd.Timestamp(bar_dt)
+                if bt.tzinfo is not None:
+                    bt = bt.tz_convert("UTC").tz_localize(None)
+                if lct64 is not None and np.datetime64(bt) <= lct64:
+                    continue
+            except Exception:
+                pass
             high = float(ltf["high"].iloc[j])
             low = float(ltf["low"].iloc[j])
             candle_time = str(ltf["datetime"].iloc[j])
+            trade["last_checked_time"] = candle_time
             trade["last_checked_index"] = j
             if direction == 1:
                 hit_sl, hit_tp2, hit_tp1 = low <= stop, high >= tp2, high >= tp1
@@ -894,7 +915,7 @@ def main():
             if ltf_name in ltf_seen:
                 continue
             ltf_seen.add(ltf_name)
-            check_pending(state, pair, frames[ltf_name])
+            check_pending(state, pair, frames[ltf_name], ltf_name)
 
         for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
             if not _pair_allowed(stream_label, pair):
