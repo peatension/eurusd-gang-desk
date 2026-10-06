@@ -42,5 +42,28 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "TS"
+  },
+  {
+    "engine": "3C_CRT",
+    "stream": "3C 1H\u21925m MSS",
+    "pair": "USD/CAD",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 4.285714285713984,
+    "exit_time": "2026-10-07 08:05:00",
+    "entry": 1.42154,
+    "stop": 1.42175,
+    "tp1": 1.42109,
+    "tp2": 1.42064,
+    "rr1": 2.142857142856992,
+    "rr2": 4.285714285713984,
+    "candle_time": "2026-10-07 08:00:00",
+    "signal_sent": "2026-10-06T21:11:46.615680+00:00",
+    "session": "London",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MSS"
   }
 ]
