@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "last_alert_keys": {
     "3C 1H\u21925m MSS:USD/CAD": "3C 1H\u21925m MSS|USD/CAD|2026-10-07 07:00:00|-1|MSS",
     "3C 4H\u219215m MSS:GBP/USD": "3C 4H\u219215m MSS|GBP/USD|2026-10-07 23:00:00|1|MSS",
@@ -503,5 +503,5 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
-  "last_update_id": 367135280
+  "last_update_id": 367135281
 }
