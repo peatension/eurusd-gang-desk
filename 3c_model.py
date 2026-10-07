@@ -207,6 +207,7 @@ def send_telegram_to(chat_id, text):
     return None
 
 
+
 def broadcast(text):
     """Send to all subscribers. Returns message_id from CHAT_ID for edits."""
     subs = load_subscribers()
@@ -394,13 +395,6 @@ def format_times(dt_like):
         return str(dt_like)
 
 
-def format_dual_times(candle_time, signal_sent=None):
-    """Candle = setup bar from feed. Signal sent = wall clock when bot posted."""
-    sent = signal_sent or datetime.now(timezone.utc).isoformat()
-    return (
-        f"🕯 Setup candle: <b>{format_times(candle_time)}</b>\n"
-        f"📤 Signal sent: <b>{format_times(sent)}</b>"
-    )
 
 
 # ============================================================
@@ -578,7 +572,7 @@ def wat_now():
 
 
 def format_signal_time(dt_like):
-    """Naive feed times = UTC. Show WAT + UTC. No double-shift."""
+    """Naive feed times = UTC. Show WAT + UTC with emojis. Correct date per TZ."""
     try:
         ts = pd.Timestamp(dt_like)
         if ts.tzinfo is None:
@@ -593,18 +587,29 @@ def format_signal_time(dt_like):
         def ampm(x):
             return x.strftime("%I:%M %p").lstrip("0")
 
-        return f"{ampm(wat)} WAT · {ampm(ts)} UTC · {wat.strftime('%d %b %Y')}"
+        return (
+            f"🇳🇬 {ampm(wat)} WAT · 🌐 {ampm(ts)} UTC · "
+            f"{wat.strftime('%d %b %Y')}"
+        )
     except Exception:
         return str(dt_like)
 
 
-def format_dual_times(candle_time, signal_sent=None):
-    """Setup candle from feed + signal sent = bot wall clock at post time."""
-    sent = signal_sent or utc_now().isoformat()
+
+
+def format_dual_times(setup_time, signal_time=None, signal_sent=None):
+    """Chart times only — not Telegram delivery time.
+
+    setup_time  = C2 (sweep) on HTF
+    signal_time = LTF entry candle (when model confirmed / ignited)
+    """
+    setup = setup_time or signal_time
+    signal = signal_time or setup_time
     return (
-        f"🕯 Setup candle: <b>{format_signal_time(candle_time)}</b>\n"
-        f"📤 Signal sent: <b>{format_signal_time(sent)}</b>"
+        f"🕯 Setup candle (C2): <b>{format_signal_time(setup)}</b>\n"
+        f"📡 Signal time: <b>{format_signal_time(signal)}</b>"
     )
+
 
 
 def forex_session(dt_like):
@@ -629,6 +634,35 @@ def is_weekend_utc(now=None):
         now = now.replace(tzinfo=timezone.utc)
     return now.weekday() >= 5
 
+
+
+def entry_is_fresh(candle_time, ltf_name, now=None):
+    """Reject stale entries so Telegram is not hours late vs the chart."""
+    now = now or utc_now()
+    try:
+        ct = pd.Timestamp(candle_time)
+        if ct.tzinfo is None:
+            ct = ct.tz_localize("UTC")
+        else:
+            ct = ct.tz_convert("UTC")
+        now_ts = pd.Timestamp(now)
+        if now_ts.tzinfo is None:
+            now_ts = now_ts.tz_localize("UTC")
+        else:
+            now_ts = now_ts.tz_convert("UTC")
+        age_min = (now_ts - ct).total_seconds() / 60.0
+    except Exception:
+        return True, 0.0
+    # max age by entry TF (2–3 bars)
+    limits = {
+        "1min": 15,
+        "5min": 45,
+        "15min": 90,
+        "30min": 150,
+        "1h": 240,
+    }
+    max_age = limits.get(str(ltf_name).lower(), 90)
+    return age_min <= max_age, age_min
 
 def drop_forming_bar(df):
     """API includes the live unfinished candle — never use it for entry."""
@@ -685,16 +719,15 @@ def _ltf_after(ltf, setup, n=24):
 
 
 def ltf_entry_plain(ltf, setup):
-    """First LTF close back inside C1 after valid C2."""
+    """First LTF close back inside C1 after valid C2 (first match, not last)."""
     w = _ltf_after(ltf, setup, 16)
-    if w is None:
+    if w is None or w.empty:
         return None
     crh, crl = setup["crh"], setup["crl"]
-    hit = None
     for _, row in w.iterrows():
         if crl < float(row["close"]) < crh:
-            hit = row
-    return hit
+            return row
+    return None
 
 
 def ltf_entry_ts(ltf, setup, pip):
@@ -850,6 +883,7 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "crl": setup["crl"],
         "mid": setup["mid"],
         "candle_time": candle_time,
+        "c2_time": str(setup.get("c2_time") or candle_time),
         "session": forex_session(candle_time),
         "candle_key": f"{stream_label}|{pair}|{setup['c2_time']}|{direction}|{entry_model}",
         "c1_tf": htf_name,
@@ -863,21 +897,41 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
 # ============================================================
 
 def _core_levels(trade):
+    """Safe for old pending rows that may lack crh/crl/mid."""
+    entry = float(trade.get("entry") or 0)
+    stop = float(trade.get("stop") or 0)
+    tp1 = float(trade.get("tp1") or 0)
+    tp2 = float(trade.get("tp2") or 0)
+    crh = trade.get("crh")
+    crl = trade.get("crl")
+    mid = trade.get("mid")
+    if crh is None or crl is None or mid is None:
+        # recover from levels we always store
+        direction = int(trade.get("direction") or (1 if entry <= tp1 else -1))
+        if direction == 1:
+            crl = crl if crl is not None else entry
+            mid = mid if mid is not None else tp1
+            crh = crh if crh is not None else tp2
+        else:
+            crh = crh if crh is not None else entry
+            mid = mid if mid is not None else tp1
+            crl = crl if crl is not None else tp2
     return (
-        f"C1 High <b>{float(trade['crh']):.5f}</b>\n"
-        f"C1 Mid  <b>{float(trade['mid']):.5f}</b>\n"
-        f"C1 Low  <b>{float(trade['crl']):.5f}</b>\n\n"
-        f"Entry <b>{float(trade['entry']):.5f}</b>\n"
-        f"SL    <b>{float(trade['stop']):.5f}</b>"
+        f"C1 High <b>{float(crh):.5f}</b>\n"
+        f"C1 Mid  <b>{float(mid):.5f}</b>\n"
+        f"C1 Low  <b>{float(crl):.5f}</b>\n\n"
+        f"Entry <b>{entry:.5f}</b>\n"
+        f"SL    <b>{stop:.5f}</b>"
         f" ({float(trade.get('risk_pips', 0)):.1f} pips)\n"
-        f"TP1   <b>{float(trade['tp1']):.5f}</b>"
+        f"TP1   <b>{tp1:.5f}</b>"
         f" (mid · {float(trade.get('rr1', 0)):.2f}R)\n"
-        f"TP2   <b>{float(trade['tp2']):.5f}</b>"
+        f"TP2   <b>{tp2:.5f}</b>"
         f" (opposite · {float(trade.get('rr2', 0)):.2f}R)\n"
     )
 
 
-def build_signal_message(sig, weekend_limit=False):
+
+def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_min=0.0):
     emoji = "🟢" if sig["direction"] == 1 else "🔴"
     model = sig.get("entry_model", "PLAIN")
     if weekend_limit:
@@ -886,6 +940,13 @@ def build_signal_message(sig, weekend_limit=False):
             f"📌 Status: <b>ENTRY PENDING</b>\n"
             f"Order: <b>{limit_side}</b> @ {float(sig['entry']):.5f}\n"
             f"Weekend — activates when price trades through entry\n"
+        )
+    elif already_ignited:
+        status = (
+            f"⚠️ Status: <b>ALREADY IGNITED</b>\n"
+            f"Entry candle is ~{float(age_min):.0f} min old — move may already be underway.\n"
+            f"<b>Enter only if</b> price/structure still makes sense on your chart.\n"
+            f"💡 Suggestion only: BE after TP1 (not auto)\n"
         )
     else:
         status = (
@@ -903,7 +964,7 @@ def build_signal_message(sig, weekend_limit=False):
         f"Session: <b>{sig.get('session', '—')}</b>\n"
         f"Sweep: same TF as C1, close back inside\n\n"
         f"{_core_levels(sig)}\n"
-        f"{format_dual_times(sig.get('candle_time'), sig.get('signal_sent'))}\n\n"
+        f"{format_dual_times(sig.get('c2_time'), sig.get('candle_time'))}\n\n"
         f"{status}\n"
         f"<a href=\"{tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
         f"Built on Data.\nDriven by Discipline."
@@ -921,7 +982,7 @@ def tp1_update_message(trade):
         f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
         f"Session: <b>{trade.get('session', '—')}</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>TP1 HIT — ACTIVE</b>\n"
         f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n"
         f"💡 No automatic BE\n\n"
@@ -943,7 +1004,7 @@ def tp2_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>+{rr2:.2f}R</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>CLOSED — WIN</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -962,7 +1023,7 @@ def sl_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>-1.00R</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>CLOSED — LOSS</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -1139,14 +1200,16 @@ def check_pending(state, pair, ltf, ltf_name=None):
                 trade["tp1_hit"] = True
                 tp1_hit = True
                 trade["status"] = "TP1_HIT"
-                text = tp1_update_message(trade)
-                ok = _edit_all_messages(trade, text)
-                if not ok:
-                    # Fallback: new message so you still see TP1
-                    broadcast(text)
-                    print(f"  TP1 edit failed — broadcast fallback {trade.get('stream')} {pair}")
-                else:
-                    print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
+                try:
+                    text = tp1_update_message(trade)
+                    ok = _edit_all_messages(trade, text)
+                    if not ok:
+                        broadcast(text)
+                        print(f"  TP1 edit failed — broadcast fallback {trade.get('stream')} {pair}")
+                    else:
+                        print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
+                except Exception as e:
+                    print(f"  TP1 update error {trade.get('stream')} {pair}: {e}")
 
         if not closed:
             remaining.append(trade)
@@ -1390,11 +1453,24 @@ def main():
                 print(f"  {stream_label}: active/pending open")
                 continue
 
+            ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
+            already_ignited = not ok_fresh
+            if already_ignited:
+                print(
+                    f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
+                    f"candle={sig['candle_time']} — still sending with label"
+                )
+
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
-            status = "ENTRY_PENDING" if weekend else "ACTIVE"
+            status = "ENTRY_PENDING" if weekend else ("LATE" if already_ignited else "ACTIVE")
             msg_ids = broadcast_message_ids(
-                build_signal_message(sig, weekend_limit=weekend)
+                build_signal_message(
+                    sig,
+                    weekend_limit=weekend,
+                    already_ignited=already_ignited and not weekend,
+                    age_min=age_min,
+                )
             )
             primary = str(CHAT_ID) if CHAT_ID else (next(iter(msg_ids), None))
             message_id = msg_ids.get(primary) if primary else None
@@ -1441,6 +1517,7 @@ def main():
                         "crl": sig["crl"],
                         "mid": sig["mid"],
                         "candle_time": sig["candle_time"],
+                        "c2_time": sig.get("c2_time") or sig["candle_time"],
                         "signal_sent": signal_sent,
                         "session": sig["session"],
                         "c1_tf": sig["c1_tf"],
