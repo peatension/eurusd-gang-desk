@@ -27,7 +27,7 @@ import importlib
 desk = importlib.import_module("3c_model")
 
 STATE_FILE = "last_alert_state_crt_plain.json"
-STATE_VERSION = 6
+STATE_VERSION = 7
 MIN_RR = 1.5
 OUTCOMES_ENGINE = "CRT_PLAIN"
 REPORT_WINDOW_MIN = 12
@@ -37,36 +37,20 @@ PAIRS = desk.PAIRS
 # Core pairs from first factorial
 CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
 
-# stream_label -> (htf, ltf, entry_model)
-# Built from first factorial 3/3 coverage
-STREAMS = {}
-
-def _add_streams(model, stream_defs):
-    for label, htf, ltf in stream_defs:
-        STREAMS[f"{label} {model}" if model != "PLAIN" else label] = (htf, ltf, model)
-
-_BASE = [
-    ("CRT 1H→15m", "1h", "15min"),
-    ("CRT 1H→5m", "1h", "5min"),
-    ("CRT 30MIN→5m", "30min", "5min"),
-    ("CRT 4H→30m", "4h", "30min"),
-    ("CRT 4H→15m", "4h", "15min"),
-]
-
-# Live test: PLAIN + TS + MODEL1 + MSS only (CISD/FVG off)
-for _m in ("PLAIN", "TS", "MSS"):
-    _add_streams(_m, _BASE)
-
-# MODEL1 on strong cells only
-STREAMS["CRT 1H→15m MODEL1"] = ("1h", "15min", "MODEL1")
-STREAMS["CRT 1H→5m MODEL1"] = ("1h", "5min", "MODEL1")
-STREAMS["CRT 30MIN→5m MODEL1"] = ("30min", "5min", "MODEL1")
-STREAMS["CRT 4H→15m MODEL1"] = ("4h", "15min", "MODEL1")
-
-# Optional pair restrict (None = all CORE_PAIRS that exist in desk.PAIRS)
-STREAM_PAIRS = {
-    "CRT 30MIN→5m MODEL1": ["EUR/USD", "AUD/USD", "EUR/JPY"],
+# Locked live streams (noise cut):
+#   TFs: 1H→15m, 4H→30m only
+#   MSS: both TFs (stood strong across factorial / WF)
+#   PLAIN: 4H→30m only (stronger base on 4H anchors than on 1H→15m)
+#   MODEL1 / TS / CISD / FVG / 1H→5m / 30MIN / 4H→15m: OFF
+STREAMS = {
+    "CRT 1H→15m":     ("1h", "15min", "PLAIN"),
+    "CRT 1H→15m MSS": ("1h", "15min", "MSS"),
+    "CRT 4H→30m":     ("4h", "30min", "PLAIN"),
+    "CRT 4H→30m MSS": ("4h", "30min", "MSS"),
 }
+
+# None = all CORE_PAIRS
+STREAM_PAIRS = {}
 
 
 # ============================================================
@@ -156,14 +140,18 @@ def format_signal_time(dt_like):
         return str(dt_like)
 
 
-def format_dual_times(candle_time, signal_sent=None):
-    """Setup candle from feed + signal sent = bot wall clock at post time."""
-    sent = signal_sent or utc_now().isoformat()
-    return (
-        f"🕯 Setup candle: <b>{format_signal_time(candle_time)}</b>\n"
-        f"📤 Signal sent: <b>{format_signal_time(sent)}</b>"
-    )
+def format_dual_times(setup_time, signal_time=None, signal_sent=None):
+    """Chart times only — not Telegram delivery time.
 
+    setup_time  = C2 (sweep) on HTF
+    signal_time = LTF entry candle (when model confirmed / ignited)
+    """
+    setup = setup_time or signal_time
+    signal = signal_time or setup_time
+    return (
+        f"🕯 Setup candle (C2): <b>{format_signal_time(setup)}</b>\n"
+        f"📡 Signal time: <b>{format_signal_time(signal)}</b>"
+    )
 
 
 def forex_session(dt_like):
@@ -237,11 +225,13 @@ def in_wat_send_window(hour, minute, width_min=REPORT_WINDOW_MIN):
 # ============================================================
 
 def find_setup(htf, pip):
-    """Latest closed C2: sweep C1 + close back inside. C2 must be closed."""
+    """Latest closed C2: sweep C1 + close back inside. C2 must be closed.
+    Expects drop_forming_bar already applied (last row = last closed candle).
+    """
     if htf is None or len(htf) < 5:
         return None
-    c2 = htf.iloc[-2]
-    c1 = htf.iloc[-3]
+    c2 = htf.iloc[-1]
+    c1 = htf.iloc[-2]
     crh = float(c1["high"])
     crl = float(c1["low"])
     mid = (crh + crl) / 2.0
@@ -437,12 +427,64 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "crl": setup["crl"],
         "mid": setup["mid"],
         "candle_time": candle_time,
+        "c2_time": str(setup.get("c2_time") or candle_time),
         "session": forex_session(candle_time),
         "candle_key": f"{stream_label}|{pair}|{setup['c2_time']}|{direction}|{entry_model}",
         "c1_tf": htf_name,
         "ltf": ltf_name,
         "entry_model": entry_model,
     }
+
+
+
+def render_setup_chart(ltf, sig, out_path="/tmp/crt_setup_chart.png"):
+    """Actual LTF candlesticks + C1 levels. Best-effort; never fails the signal."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Rectangle
+    except Exception as e:
+        print("chart skip (matplotlib):", e)
+        return None
+    try:
+        df = ltf.tail(48).reset_index(drop=True)
+        if df is None or len(df) < 5:
+            return None
+        fig, ax = plt.subplots(figsize=(10, 4.5), dpi=120)
+        width = 0.6
+        for i, row in df.iterrows():
+            o, h, l, c = float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"])
+            color = "#26a69a" if c >= o else "#ef5350"
+            ax.plot([i, i], [l, h], color=color, linewidth=1)
+            bottom = min(o, c)
+            height = abs(c - o) or (h - l) * 0.02 or 1e-6
+            ax.add_patch(Rectangle((i - width / 2, bottom), width, height, facecolor=color, edgecolor=color))
+        # levels
+        for key, col, style in (
+            ("crh", "#42a5f5", "--"),
+            ("mid", "#ab47bc", ":"),
+            ("crl", "#42a5f5", "--"),
+            ("entry", "#ffee58", "-"),
+            ("stop", "#ef5350", "-"),
+            ("tp1", "#66bb6a", "-"),
+            ("tp2", "#26a69a", "-"),
+        ):
+            if sig.get(key) is not None:
+                ax.axhline(float(sig[key]), color=col, linestyle=style, linewidth=1.0, alpha=0.9, label=key.upper())
+        ax.set_title(f"{sig.get('stream')} · {sig.get('side')} {sig.get('pair')} · LTF {sig.get('ltf')}", fontsize=10)
+        ax.set_xlim(-1, len(df))
+        ax.legend(loc="upper left", fontsize=7, ncol=4)
+        ax.grid(True, alpha=0.25)
+        ax.set_xlabel("bars (oldest → newest)")
+        fig.tight_layout()
+        fig.savefig(out_path, facecolor="#1e1e1e", edgecolor="none")
+        plt.close(fig)
+        # dark-ish axes
+        return out_path
+    except Exception as e:
+        print("chart render error:", e)
+        return None
 
 
 # ============================================================
@@ -517,7 +559,7 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
         f"Session: <b>{sig.get('session', '—')}</b>\n"
         f"Sweep: same TF as C1, close back inside\n\n"
         f"{_core_levels(sig)}\n"
-        f"{format_dual_times(sig.get('candle_time'), sig.get('signal_sent'))}\n\n"
+        f"{format_dual_times(sig.get('c2_time'), sig.get('candle_time'))}\n\n"
         f"{status}\n"
         f"<a href=\"{desk.tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
         f"Built on Data.\nDriven by Discipline."
@@ -535,7 +577,7 @@ def tp1_update_message(trade):
         f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
         f"Session: <b>{trade.get('session', '—')}</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>TP1 HIT — ACTIVE</b>\n"
         f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n"
         f"💡 No automatic BE\n\n"
@@ -557,7 +599,7 @@ def tp2_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>+{rr2:.2f}R</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>CLOSED — WIN</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -576,7 +618,7 @@ def sl_final_message(trade, exit_time):
         f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
         f"Result: <b>-1.00R</b>\n\n"
         f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('candle_time'), trade.get('signal_sent'))}\n\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
         f"📌 Status: <b>CLOSED — LOSS</b>\n\n"
         f"Built on Data.\nDriven by Discipline."
     )
@@ -964,7 +1006,7 @@ def main():
             key = (pair, tf)
             if key not in cache:
                 cache[key] = desk.fetch(pair, tf, 400 if tf != "5min" else 500)
-            frames[tf] = cache[key]
+            frames[tf] = drop_forming_bar(cache[key]) if cache[key] is not None else None
             if frames[tf] is None:
                 ok = False
         if not ok:
@@ -1009,6 +1051,17 @@ def main():
                 print(f"  {stream_label}: active/pending open")
                 continue
 
+            # hard reject future-dated candles (feed/TZ bug)
+            try:
+                _ct = pd.Timestamp(sig["candle_time"])
+                if _ct.tzinfo is not None:
+                    _ct = _ct.tz_convert("UTC").tz_localize(None)
+                if _ct > pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(minutes=3):
+                    print(f"  {stream_label}: FUTURE candle skipped {_ct} > now")
+                    continue
+            except Exception as e:
+                print(f"  {stream_label}: candle time check error {e}")
+
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
             if already_ignited:
@@ -1028,6 +1081,15 @@ def main():
                     age_min=age_min,
                 )
             )
+            try:
+                chart = render_setup_chart(ltf, sig)
+                if chart:
+                    desk.broadcast_photo(
+                        chart,
+                        caption=f"{sig.get('stream')} · {sig.get('side')} {sig.get('pair')}",
+                    )
+            except Exception as e:
+                print("chart send error:", e)
             primary = str(desk.CHAT_ID) if desk.CHAT_ID else (next(iter(msg_ids), None))
             message_id = msg_ids.get(primary) if primary else None
             if not message_id and msg_ids:
@@ -1073,6 +1135,7 @@ def main():
                         "crl": sig["crl"],
                         "mid": sig["mid"],
                         "candle_time": sig["candle_time"],
+                        "c2_time": sig.get("c2_time") or sig["candle_time"],
                         "signal_sent": signal_sent,
                         "session": sig["session"],
                         "c1_tf": sig["c1_tf"],
