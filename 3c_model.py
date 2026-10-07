@@ -409,16 +409,24 @@ def fetch(symbol, interval, outputsize=500, retries=4):
         "outputsize": outputsize,
         "apikey": TWELVE_DATA_KEY,
         "format": "JSON",
+        "timezone": "UTC",
     }
     for _ in range(retries):
         try:
             data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
                 df = pd.DataFrame(data["values"])
-                df["datetime"] = pd.to_datetime(df["datetime"])
+                df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
+                # store naive UTC for strategy math
+                df["datetime"] = df["datetime"].dt.tz_convert("UTC").dt.tz_localize(None)
                 for col in ("open", "high", "low", "close"):
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                 df = df.dropna().sort_values("datetime").reset_index(drop=True)
+                # never keep bars that open in the future (bad feed / TZ mistakes)
+                now_utc = pd.Timestamp.utcnow().tz_localize(None)
+                df = df[df["datetime"] <= now_utc + pd.Timedelta(minutes=2)].reset_index(drop=True)
+                if len(df) < 3:
+                    return None
                 time.sleep(8)
                 return df
             if data.get("code") == 429 or "credits" in str(data).lower():
@@ -456,7 +464,7 @@ def add_atr(df):
 # ---- CRT STRATEGY (3C) ----
 
 STATE_FILE = "last_alert_state_crt_set2.json"
-STATE_VERSION = 6
+STATE_VERSION = 7
 MIN_RR = 1.5
 OUTCOMES_ENGINE = "3C_CRT"
 REPORT_WINDOW_MIN = 12
@@ -466,46 +474,18 @@ REPORT_WINDOW_MIN = 12
 # Core pairs from first factorial
 CORE_PAIRS = ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"]
 
-# stream_label -> (htf, ltf, entry_model)  Telegram shows these labels (3C …)
-STREAMS = {}
-
-def _add_streams(model, stream_defs):
-    for label, htf, ltf in stream_defs:
-        STREAMS[f"{label} {model}" if model != "PLAIN" else label] = (htf, ltf, model)
-
-_BASE = [
-    ("3C 1H→15m", "1h", "15min"),
-    ("3C 1H→5m", "1h", "5min"),
-    ("3C 30MIN→5m", "30min", "5min"),
-    ("3C 4H→30m", "4h", "30min"),
-    ("3C 4H→15m", "4h", "15min"),
-]
-
-# MSS everywhere
-_add_streams("MSS", _BASE)
-
-# PLAIN only where dominated
-STREAMS["3C 4H→15m"] = ("4h", "15min", "PLAIN")
-STREAMS["3C 4H→30m"] = ("4h", "30min", "PLAIN")
-STREAMS["3C 1H→5m"] = ("1h", "5min", "PLAIN")
-STREAMS["3C 1H→15m"] = ("1h", "15min", "PLAIN")
-
-# MODEL1 only where dominated
-STREAMS["3C 4H→15m MODEL1"] = ("4h", "15min", "MODEL1")
-STREAMS["3C 4H→30m MODEL1"] = ("4h", "30min", "MODEL1")
-STREAMS["3C 1H→5m MODEL1"] = ("1h", "5min", "MODEL1")
-STREAMS["3C 1H→15m MODEL1"] = ("1h", "15min", "MODEL1")
-
-STREAM_PAIRS = {
-    "3C 1H→5m": ["GBP/USD", "USD/JPY", "GBP/JPY"],
-    "3C 1H→15m": ["USD/JPY", "GBP/JPY"],
-    "3C 4H→15m": ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"],
-    "3C 4H→30m": ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"],
-    "3C 4H→15m MODEL1": ["GBP/JPY"],
-    "3C 4H→30m MODEL1": ["USD/JPY", "GBP/JPY"],
-    "3C 1H→5m MODEL1": ["GBP/USD", "USD/JPY", "GBP/JPY"],
-    "3C 1H→15m MODEL1": ["GBP/JPY", "USD/JPY"],
+# Locked live streams (noise cut) — same structure as CRT plain
+#   TFs: 1H→15m, 4H→30m only
+#   MSS: both TFs
+#   PLAIN: 4H→30m only
+STREAMS = {
+    "3C 1H→15m":     ("1h", "15min", "PLAIN"),
+    "3C 1H→15m MSS": ("1h", "15min", "MSS"),
+    "3C 4H→30m":     ("4h", "30min", "PLAIN"),
+    "3C 4H→30m MSS": ("4h", "30min", "MSS"),
 }
+
+STREAM_PAIRS = {}
 
 
 # ============================================================
@@ -683,11 +663,13 @@ def in_wat_send_window(hour, minute, width_min=REPORT_WINDOW_MIN):
 # ============================================================
 
 def find_setup(htf, pip):
-    """Latest closed C2: sweep C1 + close back inside. C2 must be closed."""
+    """Latest closed C2: sweep C1 + close back inside. C2 must be closed.
+    Expects drop_forming_bar already applied (last row = last closed candle).
+    """
     if htf is None or len(htf) < 5:
         return None
-    c2 = htf.iloc[-2]
-    c1 = htf.iloc[-3]
+    c2 = htf.iloc[-1]
+    c1 = htf.iloc[-2]
     crh = float(c1["high"])
     crl = float(c1["low"])
     mid = (crh + crl) / 2.0
@@ -1408,7 +1390,7 @@ def main():
             key = (pair, tf)
             if key not in cache:
                 cache[key] = fetch(pair, tf, 400 if tf != "5min" else 500)
-            frames[tf] = cache[key]
+            frames[tf] = drop_forming_bar(cache[key]) if cache[key] is not None else None
             if frames[tf] is None:
                 ok = False
         if not ok:
@@ -1452,6 +1434,17 @@ def main():
             if dup:
                 print(f"  {stream_label}: active/pending open")
                 continue
+
+            # hard reject future-dated candles (feed/TZ bug)
+            try:
+                _ct = pd.Timestamp(sig["candle_time"])
+                if _ct.tzinfo is not None:
+                    _ct = _ct.tz_convert("UTC").tz_localize(None)
+                if _ct > pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(minutes=3):
+                    print(f"  {stream_label}: FUTURE candle skipped {_ct} > now")
+                    continue
+            except Exception as e:
+                print(f"  {stream_label}: candle time check error {e}")
 
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
