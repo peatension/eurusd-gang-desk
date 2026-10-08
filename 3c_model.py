@@ -474,18 +474,24 @@ REPORT_WINDOW_MIN = 12
 # Core pairs from first factorial
 CORE_PAIRS = ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"]
 
-# Locked live streams (noise cut) — same structure as CRT plain
-#   TFs: 1H→15m, 4H→30m only
-#   MSS: both TFs
-#   PLAIN: 4H→30m only
+# WR > 50% on W1+W2+W3 only (3C filter colab). 30MIN out. MODEL1/1H-PLAIN out.
 STREAMS = {
-    "3C 1H→15m":     ("1h", "15min", "PLAIN"),
-    "3C 1H→15m MSS": ("1h", "15min", "MSS"),
-    "3C 4H→30m":     ("4h", "30min", "PLAIN"),
-    "3C 4H→30m MSS": ("4h", "30min", "MSS"),
+    "3C 1H→15m MSS":   ("1h", "15min", "MSS"),
+    "3C 1H→15m CISD":  ("1h", "15min", "CISD"),
+    "3C 1H→5m MSS":    ("1h", "5min", "MSS"),
+    "3C 4H→30m":       ("4h", "30min", "PLAIN"),
+    "3C 4H→30m MSS":   ("4h", "30min", "MSS"),
+    "3C 4H→30m CISD":  ("4h", "30min", "CISD"),
+    "3C 4H→15m MSS":   ("4h", "15min", "MSS"),
+    "3C 4H→15m CISD":  ("4h", "15min", "CISD"),
 }
 
-STREAM_PAIRS = {}
+STREAM_PAIRS = {
+    "3C 1H→15m CISD": ["GBP/USD", "USD/JPY", "USD/CAD"],  # GBP/JPY W3 fail
+    "3C 1H→5m MSS":   ["GBP/USD", "USD/JPY", "USD/CAD"],  # GBP/JPY W3 fail
+    "3C 4H→30m":      ["USD/CAD", "GBP/JPY"],              # GBP/USD + USD/JPY fail
+    "3C 4H→30m MSS":  ["USD/JPY", "USD/CAD", "GBP/JPY"],   # GBP/USD W3 fail
+}
 
 
 # ============================================================
