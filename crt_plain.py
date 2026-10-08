@@ -43,14 +43,22 @@ CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
 #   PLAIN: 4H→30m only (stronger base on 4H anchors than on 1H→15m)
 #   MODEL1 / TS / CISD / FVG / 1H→5m / 30MIN / 4H→15m: OFF
 STREAMS = {
-    "CRT 1H→15m":     ("1h", "15min", "PLAIN"),
-    "CRT 1H→15m MSS": ("1h", "15min", "MSS"),
-    "CRT 4H→30m":     ("4h", "30min", "PLAIN"),
-    "CRT 4H→30m MSS": ("4h", "30min", "MSS"),
+    # WR > 50% on W1+W2+W3 only. 30MIN out. Failed PLAIN/TF cells removed.
+    "CRT 1H→15m MSS":    ("1h", "15min", "MSS"),
+    "CRT 1H→15m CISD":   ("1h", "15min", "CISD"),
+    "CRT 1H→5m MODEL1":  ("1h", "5min", "MODEL1"),
+    "CRT 4H→30m":        ("4h", "30min", "PLAIN"),
+    "CRT 4H→30m MSS":    ("4h", "30min", "MSS"),
+    "CRT 4H→15m MSS":    ("4h", "15min", "MSS"),
+    "CRT 4H→15m CISD":   ("4h", "15min", "CISD"),
 }
 
-# None = all CORE_PAIRS
-STREAM_PAIRS = {}
+STREAM_PAIRS = {
+    "CRT 1H→15m CISD":  ["EUR/USD"],
+    "CRT 1H→5m MODEL1": ["EUR/USD"],
+    "CRT 4H→30m":       ["EUR/USD", "AUD/USD"],  # CHF/JPY PLAIN failed WR
+    "CRT 4H→15m MSS":   ["AUD/USD", "USD/CHF", "EUR/JPY"],  # EUR/USD out by choice
+}
 
 
 # ============================================================
