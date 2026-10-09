@@ -1721,5 +1721,28 @@
     "c1_tf": "4h",
     "ltf": "30min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "3C_CRT",
+    "stream": "3C 4H\u219230m MSS",
+    "pair": "USD/JPY",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 4.097741033341403,
+    "exit_time": "2026-10-09 06:00:00",
+    "entry": 157.81601,
+    "stop": 157.74015357142855,
+    "tp1": 157.97143,
+    "tp2": 158.12685,
+    "rr1": 2.0488705166707013,
+    "rr2": 4.097741033341403,
+    "candle_time": "2026-10-09 05:30:00",
+    "signal_sent": "2026-10-09T06:15:21.508921+00:00",
+    "session": "Asia",
+    "tp1_hit": false,
+    "c1_tf": "4h",
+    "ltf": "30min",
+    "entry_model": "MSS"
   }
 ]
