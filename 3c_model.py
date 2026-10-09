@@ -42,6 +42,7 @@ PAIRS = {
     "USD/JPY": {"pip": 0.01, "tv": "OANDA:USDJPY"},
     "USD/CAD": {"pip": 0.0001, "tv": "OANDA:USDCAD"},
     "GBP/JPY": {"pip": 0.01, "tv": "OANDA:GBPJPY"},
+    "XAU/USD": {"pip": 0.01, "tv": "OANDA:XAUUSD"},
 }
 
 STREAMS = {}  # filled by CRT strategy below
