@@ -1836,5 +1836,28 @@
     "c1_tf": "4h",
     "ltf": "30min",
     "entry_model": "MSS"
+  },
+  {
+    "engine": "3C_CRT",
+    "stream": "3C 1H\u219215m CISD",
+    "pair": "GBP/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 7.187499999992714,
+    "exit_time": "2026-10-09 18:00:00",
+    "entry": 1.32241,
+    "stop": 1.32225,
+    "tp1": 1.322985,
+    "tp2": 1.32356,
+    "rr1": 3.593749999996357,
+    "rr2": 7.187499999992714,
+    "candle_time": "2026-10-09 17:00:00",
+    "signal_sent": "2026-10-09T17:53:43.738030+00:00",
+    "session": "New York",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "CISD"
   }
 ]
