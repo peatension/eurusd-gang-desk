@@ -35,15 +35,11 @@ REPORT_WINDOW_MIN = 12
 PAIRS = desk.PAIRS
 
 # Core pairs from first factorial
-CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
+CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD"]
 
-# Locked live streams (noise cut):
-#   TFs: 1H→15m, 4H→30m only
-#   MSS: both TFs (stood strong across factorial / WF)
-#   PLAIN: 4H→30m only (stronger base on 4H anchors than on 1H→15m)
-#   MODEL1 / TS / CISD / FVG / 1H→5m / 30MIN / 4H→15m: OFF
+# FX: WR>50% all-3W. XAU: WR>=59% all-3W (research). 30MIN = gold only.
 STREAMS = {
-    # WR > 50% on W1+W2+W3 only. 30MIN out. Failed PLAIN/TF cells removed.
+    # --- FX ---
     "CRT 1H→15m MSS":    ("1h", "15min", "MSS"),
     "CRT 1H→15m CISD":   ("1h", "15min", "CISD"),
     "CRT 1H→5m MODEL1":  ("1h", "5min", "MODEL1"),
@@ -51,13 +47,28 @@ STREAMS = {
     "CRT 4H→30m MSS":    ("4h", "30min", "MSS"),
     "CRT 4H→15m MSS":    ("4h", "15min", "MSS"),
     "CRT 4H→15m CISD":   ("4h", "15min", "CISD"),
+    # --- XAU only (WR>=59%) ---
+    "CRT 1H→15m FVG":    ("1h", "15min", "FVG"),
+    "CRT 1H→5m CISD":    ("1h", "5min", "CISD"),
+    "CRT 4H→15m FVG":    ("4h", "15min", "FVG"),
+    "CRT 30MIN→5m CISD": ("30min", "5min", "CISD"),
 }
 
+FX4 = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
 STREAM_PAIRS = {
-    "CRT 1H→15m CISD":  ["EUR/USD"],
-    "CRT 1H→5m MODEL1": ["EUR/USD"],
-    "CRT 4H→30m":       ["EUR/USD", "AUD/USD"],  # CHF/JPY PLAIN failed WR
-    "CRT 4H→15m MSS":   ["AUD/USD", "USD/CHF", "EUR/JPY"],  # EUR/USD out by choice
+    # FX streams: never run XAU
+    "CRT 1H→15m MSS":    FX4 + ["XAU/USD"],  # gold also PASS MSS 1H→15m
+    "CRT 1H→15m CISD":   ["EUR/USD"],
+    "CRT 1H→5m MODEL1":  ["EUR/USD"],
+    "CRT 4H→30m":        ["EUR/USD", "AUD/USD"],
+    "CRT 4H→30m MSS":    FX4,
+    "CRT 4H→15m MSS":    ["AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD"],
+    "CRT 4H→15m CISD":   FX4,
+    # Gold-only
+    "CRT 1H→15m FVG":    ["XAU/USD"],
+    "CRT 1H→5m CISD":    ["XAU/USD"],
+    "CRT 4H→15m FVG":    ["XAU/USD"],
+    "CRT 30MIN→5m CISD": ["XAU/USD"],
 }
 
 
