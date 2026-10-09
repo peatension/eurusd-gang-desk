@@ -1,6 +1,29 @@
 {
   "version": 5,
-  "last_alert_keys": {},
-  "pending": [],
+  "last_alert_keys": {
+    "GBP/USD": "SMC|GBP/USD|2026-10-10 00:30:00|-1|OB"
+  },
+  "pending": [
+    {
+      "stream": "SMC Primary",
+      "pair": "GBP/USD",
+      "message_id": 830,
+      "edit_chat_id": null,
+      "direction": -1,
+      "side": "SELL",
+      "entry": 1.32288,
+      "stop": 1.32365,
+      "tp1": 1.3217250000000003,
+      "tp2": 1.3213400000000002,
+      "rr1": 1.5,
+      "rr2": 2.0,
+      "risk_pips": 7.699999999999374,
+      "candle_time": "2026-10-10 00:30:00",
+      "candle_key": "SMC|GBP/USD|2026-10-10 00:30:00|-1|OB",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 499
+    }
+  ],
   "last_update_id": 367135286
 }
