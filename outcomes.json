@@ -1859,5 +1859,28 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "3C_CRT",
+    "stream": "3C 1H\u21925m MSS",
+    "pair": "USD/CAD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-10-09 18:45:00",
+    "entry": 1.42703,
+    "stop": 1.42682,
+    "tp1": 1.42744,
+    "tp2": 1.42785,
+    "rr1": 1.9523809523806503,
+    "rr2": 3.9047619047613007,
+    "candle_time": "2026-10-09 18:30:00",
+    "signal_sent": "2026-10-09T18:52:25.923282+00:00",
+    "session": "New York",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MSS"
   }
 ]
