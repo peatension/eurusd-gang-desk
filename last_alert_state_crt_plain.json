@@ -47,7 +47,7 @@
     "CRT 4H\u219230m MSS:USD/CHF": "CRT 4H\u219230m MSS|USD/CHF|2026-10-09 12:00:00|-1|MSS",
     "CRT 4H\u219215m CISD:USD/CHF": "CRT 4H\u219215m CISD|USD/CHF|2026-10-09 12:00:00|-1|CISD",
     "CRT 4H\u219215m MSS:EUR/JPY": "CRT 4H\u219215m MSS|EUR/JPY|2026-10-09 16:00:00|1|MSS",
-    "CRT 4H\u219215m CISD:EUR/JPY": "CRT 4H\u219215m CISD|EUR/JPY|2026-10-09 16:00:00|1|CISD",
+    "CRT 4H\u219215m CISD:EUR/JPY": "CRT 4H\u219215m CISD|EUR/JPY|2026-10-10 04:00:00|-1|CISD",
     "CRT 1H\u21925m CISD:XAU/USD": "CRT 1H\u21925m CISD|XAU/USD|2026-10-10 01:00:00|-1|CISD"
   },
   "pending": [
@@ -220,6 +220,40 @@
       "status": "ENTRY_PENDING",
       "tp1_hit": false,
       "last_checked_index": 492
+    },
+    {
+      "stream": "CRT 4H\u219215m CISD",
+      "pair": "EUR/JPY",
+      "message_id": 511,
+      "message_ids": {
+        "-1004423692487": 511,
+        "6937879685": 893,
+        "7080941387": 894
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 177.4065,
+      "stop": 177.42472999999998,
+      "tp1": 177.34857499999998,
+      "tp2": 177.29065,
+      "rr1": 3.177454744928598,
+      "rr2": 6.354909489855636,
+      "risk_pips": 1.8229999999988422,
+      "crh": 177.4065,
+      "crl": 177.29065,
+      "mid": 177.34857499999998,
+      "candle_time": "2026-10-10 04:45:00",
+      "c2_time": "2026-10-10 04:00:00",
+      "signal_sent": "2026-10-10T08:08:52.730766+00:00",
+      "session": "Asia",
+      "c1_tf": "4h",
+      "ltf": "15min",
+      "entry_model": "CISD",
+      "candle_key": "CRT 4H\u219215m CISD|EUR/JPY|2026-10-10 04:00:00|-1|CISD",
+      "status": "ENTRY_PENDING",
+      "tp1_hit": false,
+      "last_checked_index": 386
     }
   ],
   "weekly_report_id": null,

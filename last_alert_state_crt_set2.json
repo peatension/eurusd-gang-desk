@@ -12,7 +12,7 @@
     "3C 1H\u21925m MSS:GBP/JPY": "3C 1H\u21925m MSS|GBP/JPY|2026-10-08 05:00:00|-1|MSS",
     "3C 30MIN\u21925m MSS:GBP/JPY": "3C 30MIN\u21925m MSS|GBP/JPY|2026-10-08 05:30:00|1|MSS",
     "3C 4H\u219215m:GBP/JPY": "3C 4H\u219215m|GBP/JPY|2026-10-08 03:00:00|1|PLAIN",
-    "3C 4H\u219230m:GBP/JPY": "3C 4H\u219230m|GBP/JPY|2026-10-09 08:00:00|-1|PLAIN",
+    "3C 4H\u219230m:GBP/JPY": "3C 4H\u219230m|GBP/JPY|2026-10-10 04:00:00|-1|PLAIN",
     "3C 1H\u21925m:GBP/JPY": "3C 1H\u21925m|GBP/JPY|2026-10-08 05:00:00|-1|PLAIN",
     "3C 1H\u219215m:GBP/JPY": "3C 1H\u219215m|GBP/JPY|2026-10-08 05:00:00|-1|PLAIN",
     "3C 4H\u219215m MODEL1:GBP/JPY": "3C 4H\u219215m MODEL1|GBP/JPY|2026-10-08 03:00:00|1|MODEL1",
@@ -30,8 +30,8 @@
     "3C 4H\u219230m CISD:USD/JPY": "3C 4H\u219230m CISD|USD/JPY|2026-10-09 08:00:00|-1|CISD",
     "3C 4H\u219215m CISD:USD/JPY": "3C 4H\u219215m CISD|USD/JPY|2026-10-09 16:00:00|1|CISD",
     "3C 4H\u219230m MSS:GBP/JPY": "3C 4H\u219230m MSS|GBP/JPY|2026-10-09 08:00:00|-1|MSS",
-    "3C 4H\u219230m CISD:GBP/JPY": "3C 4H\u219230m CISD|GBP/JPY|2026-10-09 08:00:00|-1|CISD",
-    "3C 4H\u219215m CISD:GBP/JPY": "3C 4H\u219215m CISD|GBP/JPY|2026-10-09 08:00:00|-1|CISD",
+    "3C 4H\u219230m CISD:GBP/JPY": "3C 4H\u219230m CISD|GBP/JPY|2026-10-10 04:00:00|-1|CISD",
+    "3C 4H\u219215m CISD:GBP/JPY": "3C 4H\u219215m CISD|GBP/JPY|2026-10-10 04:00:00|-1|CISD",
     "3C 1H\u219215m CISD:GBP/USD": "3C 1H\u219215m CISD|GBP/USD|2026-10-09 16:00:00|1|CISD",
     "3C 1H\u219215m CISD:USD/JPY": "3C 1H\u219215m CISD|USD/JPY|2026-10-09 21:00:00|-1|CISD",
     "3C 4H\u219230m CISD:GBP/USD": "3C 4H\u219230m CISD|GBP/USD|2026-10-09 20:00:00|1|CISD",
@@ -71,7 +71,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 01:30:00"
+      "last_checked_time": "2026-10-10 07:30:00"
     },
     {
       "stream": "3C 4H\u219230m MSS",
@@ -106,7 +106,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 01:30:00"
+      "last_checked_time": "2026-10-10 07:30:00"
     },
     {
       "stream": "3C 4H\u219215m MSS",
@@ -141,7 +141,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 01:45:00"
+      "last_checked_time": "2026-10-10 07:45:00"
     },
     {
       "stream": "3C 1H\u219215m CISD",
@@ -176,7 +176,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 01:45:00"
+      "last_checked_time": "2026-10-10 07:45:00"
     },
     {
       "stream": "3C 4H\u219230m CISD",
@@ -279,11 +279,113 @@
       "status": "ENTRY_PENDING",
       "tp1_hit": false,
       "last_checked_index": 390
+    },
+    {
+      "stream": "3C 4H\u219230m",
+      "pair": "GBP/JPY",
+      "message_id": 512,
+      "message_ids": {
+        "-1004423692487": 512,
+        "6937879685": 895,
+        "7080941387": 896
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 209.52446,
+      "stop": 209.55319910714286,
+      "tp1": 209.44735,
+      "tp2": 209.37024,
+      "rr1": 2.6831035361227973,
+      "rr2": 5.366207072245595,
+      "risk_pips": 2.8739107142854436,
+      "crh": 209.52446,
+      "crl": 209.37024,
+      "mid": 209.44735,
+      "candle_time": "2026-10-10 04:30:00",
+      "c2_time": "2026-10-10 04:00:00",
+      "signal_sent": "2026-10-10T08:12:15.624885+00:00",
+      "session": "Asia",
+      "c1_tf": "4h",
+      "ltf": "30min",
+      "entry_model": "PLAIN",
+      "candle_key": "3C 4H\u219230m|GBP/JPY|2026-10-10 04:00:00|-1|PLAIN",
+      "status": "ENTRY_PENDING",
+      "tp1_hit": false,
+      "last_checked_index": 392
+    },
+    {
+      "stream": "3C 4H\u219230m CISD",
+      "pair": "GBP/JPY",
+      "message_id": 513,
+      "message_ids": {
+        "-1004423692487": 513,
+        "6937879685": 897,
+        "7080941387": 898
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 209.52446,
+      "stop": 209.55275,
+      "tp1": 209.44735,
+      "tp2": 209.37024,
+      "rr1": 2.725698126546805,
+      "rr2": 5.45139625309361,
+      "risk_pips": 2.828999999999837,
+      "crh": 209.52446,
+      "crl": 209.37024,
+      "mid": 209.44735,
+      "candle_time": "2026-10-10 05:30:00",
+      "c2_time": "2026-10-10 04:00:00",
+      "signal_sent": "2026-10-10T08:12:16.986901+00:00",
+      "session": "Asia",
+      "c1_tf": "4h",
+      "ltf": "30min",
+      "entry_model": "CISD",
+      "candle_key": "3C 4H\u219230m CISD|GBP/JPY|2026-10-10 04:00:00|-1|CISD",
+      "status": "ENTRY_PENDING",
+      "tp1_hit": false,
+      "last_checked_index": 394
+    },
+    {
+      "stream": "3C 4H\u219215m CISD",
+      "pair": "GBP/JPY",
+      "message_id": 514,
+      "message_ids": {
+        "-1004423692487": 514,
+        "6937879685": 899,
+        "7080941387": 900
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 209.52446,
+      "stop": 209.55121,
+      "tp1": 209.44735,
+      "tp2": 209.37024,
+      "rr1": 2.8826168224308653,
+      "rr2": 5.7652336448617305,
+      "risk_pips": 2.6749999999992724,
+      "crh": 209.52446,
+      "crl": 209.37024,
+      "mid": 209.44735,
+      "candle_time": "2026-10-10 04:45:00",
+      "c2_time": "2026-10-10 04:00:00",
+      "signal_sent": "2026-10-10T08:12:18.337973+00:00",
+      "session": "Asia",
+      "c1_tf": "4h",
+      "ltf": "15min",
+      "entry_model": "CISD",
+      "candle_key": "3C 4H\u219215m CISD|GBP/JPY|2026-10-10 04:00:00|-1|CISD",
+      "status": "ENTRY_PENDING",
+      "tp1_hit": false,
+      "last_checked_index": 386
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
-  "last_update_id": 367135286
+  "last_update_id": 367135287
 }
