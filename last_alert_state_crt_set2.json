@@ -71,7 +71,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 07:30:00"
+      "last_checked_time": "2026-10-10 10:30:00"
     },
     {
       "stream": "3C 4H\u219230m MSS",
@@ -106,7 +106,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 07:30:00"
+      "last_checked_time": "2026-10-10 10:30:00"
     },
     {
       "stream": "3C 4H\u219215m MSS",
@@ -141,7 +141,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 07:45:00"
+      "last_checked_time": "2026-10-10 11:00:00"
     },
     {
       "stream": "3C 1H\u219215m CISD",
@@ -176,7 +176,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-10 07:45:00"
+      "last_checked_time": "2026-10-10 11:00:00"
     },
     {
       "stream": "3C 4H\u219230m CISD",
