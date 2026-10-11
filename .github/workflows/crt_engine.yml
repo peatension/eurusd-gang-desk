@@ -1,9 +1,17 @@
 name: CRT Engine
 
+# GitHub schedule is best-effort (often late on free runners).
+# Use this file + optional external cron (workflow_dispatch) for real ~5m cadence.
 on:
   schedule:
+    # Every 5 minutes UTC — GH may delay; external ping covers gaps
     - cron: "*/5 * * * *"
   workflow_dispatch:
+
+# Never stack stale scans: new run cancels the previous one still running
+concurrency:
+  group: crt-desk
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -11,7 +19,7 @@ permissions:
 jobs:
   run-crt:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -21,6 +29,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -44,6 +53,8 @@ jobs:
             last_alert_state_crt.json \
             last_alert_state_crt_plain.json \
             last_alert_state_crt_set2.json \
+            last_alert_state_3c.json \
+            last_alert_state_smc.json \
             subscribers.json \
             outcomes.json \
             2>/dev/null || true
