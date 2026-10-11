@@ -622,6 +622,21 @@ def is_weekend_utc(now=None):
     return now.weekday() >= 5
 
 
+def is_weekday_bar(dt_like):
+    """Mon–Fri only — weekend jobs must not fire verdicts on Sat/Sun bars."""
+    try:
+        ts = pd.Timestamp(dt_like)
+        if ts.tzinfo is not None:
+            ts = ts.tz_convert("UTC").tz_localize(None)
+        return int(ts.weekday()) < 5
+    except Exception:
+        return True
+
+
+# W41 live: Asia n=15 net=-10.02R — block new Asia session signals
+BLOCK_ASIA_SESSION = True
+
+
 
 def entry_is_fresh(candle_time, ltf_name, now=None):
     """Reject stale entries so Telegram is not hours late vs the chart."""
@@ -1161,10 +1176,15 @@ def check_pending(state, pair, ltf, ltf_name=None):
                 if lct64 is not None and np.datetime64(bt) <= lct64:
                     continue
             except Exception:
-                pass
+                bt = None
+            candle_time = str(ltf["datetime"].iloc[j])
+            # Option A: skip TP/SL/verdict on Sat/Sun bars; still advance cursor
+            if bt is not None and not is_weekday_bar(bt):
+                trade["last_checked_time"] = candle_time
+                trade["last_checked_index"] = j
+                continue
             high = float(ltf["high"].iloc[j])
             low = float(ltf["low"].iloc[j])
-            candle_time = str(ltf["datetime"].iloc[j])
             trade["last_checked_time"] = candle_time
             trade["last_checked_index"] = j
             if direction == 1:
@@ -1428,6 +1448,9 @@ def main():
                 continue
 
             key = sig["candle_key"]
+            if BLOCK_ASIA_SESSION and sig.get("session") == "Asia":
+                print(f"  {stream_label}: Asia session blocked")
+                continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
                 print(f"  {stream_label}: already alerted")
                 continue
