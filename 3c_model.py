@@ -795,6 +795,57 @@ BLOCK_ASIA_SESSION = True
 # --- Signal hygiene (anti-noise) ---
 ENTRY_DEDUP_PIPS = 5  # same entry zone across models/streams
 
+ENTRY_PENDING_MAX_HOURS = 36  # drop weekend limits that never filled
+
+
+def _pending_expired(trade, now=None):
+    """True if ENTRY_PENDING is too old to keep blocking the pair."""
+    if trade.get("status") != "ENTRY_PENDING":
+        return False
+    now = now or utc_now()
+    for key in ("signal_sent", "candle_time", "c2_time"):
+        raw = trade.get(key)
+        if not raw:
+            continue
+        try:
+            ts = pd.Timestamp(raw)
+            if ts.tzinfo is not None:
+                ts = ts.tz_convert("UTC").tz_localize(None)
+            n = pd.Timestamp(now)
+            if n.tzinfo is not None:
+                n = n.tz_convert("UTC").tz_localize(None)
+            age_h = (n - ts).total_seconds() / 3600.0
+            if age_h >= ENTRY_PENDING_MAX_HOURS:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _entry_touched_since(ltf, trade):
+    """True if any bar since signal traded through entry (not only the last bar)."""
+    try:
+        entry = float(trade["entry"])
+        direction = int(trade["direction"])
+        anchor = trade.get("signal_sent") or trade.get("candle_time")
+        ts = pd.Timestamp(anchor)
+        if ts.tzinfo is not None:
+            ts = ts.tz_convert("UTC").tz_localize(None)
+        dts = pd.to_datetime(ltf["datetime"])
+        if getattr(dts.dt, "tz", None) is not None:
+            dts = dts.dt.tz_convert("UTC").dt.tz_localize(None)
+        window = ltf[dts.values >= np.datetime64(ts)]
+        if window.empty:
+            window = ltf.tail(50)
+        highs = window["high"].astype(float)
+        lows = window["low"].astype(float)
+        if direction == 1:
+            return bool((lows <= entry).any())
+        return bool((highs >= entry).any())
+    except Exception:
+        return False
+
+
 # Prop-firm SL buffer (Exness / NairaTrader style) — display only; risk R still uses structure SL
 PROP_SPREAD_BUFFER_PIPS = {
     "default": 3.0,
@@ -1333,6 +1384,18 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
 # PENDING
 # ============================================================
 
+
+def purge_expired_pending(state):
+    """Drop stale ENTRY_PENDING so they stop blocking new signals."""
+    pend = state.get("pending") or []
+    kept = []
+    for t in pend:
+        if _pending_expired(t):
+            print(f"  purge expired ENTRY_PENDING {t.get('stream')} {t.get('pair')}")
+            continue
+        kept.append(t)
+    state["pending"] = kept
+
 def check_pending(state, pair, ltf, ltf_name=None):
     """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first. TP1 edit kept."""
     if not state["pending"] or ltf is None:
@@ -1349,19 +1412,15 @@ def check_pending(state, pair, ltf, ltf_name=None):
             remaining.append(trade)
             continue
         status = trade.get("status")
-        # Weekend LIMIT: only go ACTIVE when price trades through entry (after weekend)
+        # Weekend LIMIT: activate when price traded through entry; expire stale limits
         if status == "ENTRY_PENDING":
+            if _pending_expired(trade):
+                print(f"  ENTRY_PENDING expired {trade.get('stream')} {pair} — dropped")
+                continue  # do not keep in remaining → unblocks pair
             if is_weekend_utc():
                 remaining.append(trade)
                 continue
-            try:
-                entry = float(trade["entry"])
-                direction = int(trade["direction"])
-                high = float(ltf["high"].iloc[-1])
-                low = float(ltf["low"].iloc[-1])
-                filled = (direction == 1 and low <= entry) or (direction == -1 and high >= entry)
-            except Exception:
-                filled = False
+            filled = _entry_touched_since(ltf, trade)
             if filled:
                 trade["status"] = "ACTIVE"
                 status = "ACTIVE"
