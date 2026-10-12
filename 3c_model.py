@@ -795,6 +795,30 @@ BLOCK_ASIA_SESSION = True
 # --- Signal hygiene (anti-noise) ---
 ENTRY_DEDUP_PIPS = 5  # same entry zone across models/streams
 
+# Prop-firm SL buffer (Exness / NairaTrader style) — display only; risk R still uses structure SL
+PROP_SPREAD_BUFFER_PIPS = {
+    "default": 3.0,
+    "XAU/USD": 30.0,
+    "EUR/JPY": 4.0,
+    "USD/JPY": 4.0,
+    "GBP/JPY": 5.0,
+}
+
+
+def prop_spread_buffer_pips(pair):
+    return float(PROP_SPREAD_BUFFER_PIPS.get(pair, PROP_SPREAD_BUFFER_PIPS["default"]))
+
+
+def prop_stop_price(direction, stop, pair, pip):
+    """Widen structure SL by buffer for live prop entry. BUY: lower SL; SELL: higher SL."""
+    buf = prop_spread_buffer_pips(pair) * float(pip)
+    d = int(direction)
+    st = float(stop)
+    if d == 1:
+        return st - buf
+    return st + buf
+
+
 
 def stream_family(stream_label):
     """Group streams by HTF anchor so 1H→15m and 1H→5m compete."""
@@ -1094,6 +1118,9 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "risk_pips": float(risk / pip),
         "tp1_pips": float(abs(tp1 - entry) / pip),
         "tp2_pips": float(abs(tp2 - entry) / pip),
+        "prop_stop": float(prop_stop_price(direction, stop, pair, pip)),
+        "prop_risk_pips": float(abs(entry - prop_stop_price(direction, stop, pair, pip)) / pip),
+        "prop_buffer_pips": float(prop_spread_buffer_pips(pair)),
         "crh": setup["crh"],
         "crl": setup["crl"],
         "mid": setup["mid"],
@@ -1136,8 +1163,11 @@ def _core_levels(trade):
         f"C1 Mid  <b>{float(mid):.5f}</b>\n"
         f"C1 Low  <b>{float(crl):.5f}</b>\n\n"
         f"Entry <b>{entry:.5f}</b>\n"
-        f"SL    <b>{stop:.5f}</b>"
+        f"SL (structure)     <b>{stop:.5f}</b>"
         f" ({float(trade.get('risk_pips', 0)):.1f} pips)\n"
+        f"SL (Profirm Spread) <b>{float(trade.get('prop_stop', stop)):.5f}</b>"
+        f" ({float(trade.get('prop_risk_pips', trade.get('risk_pips', 0))):.1f} pips"
+        f" · buf {float(trade.get('prop_buffer_pips', 0)):.0f})\n"
         f"TP1   <b>{tp1:.5f}</b>"
         f" ({float(trade.get('tp1_pips', 0)):.1f} pips · {float(trade.get('rr1', 0)):.2f}R)\n"
         f"TP2   <b>{tp2:.5f}</b>"
@@ -1761,6 +1791,9 @@ def main():
                         "risk_pips": sig["risk_pips"],
                         "tp1_pips": sig.get("tp1_pips", 0),
                         "tp2_pips": sig.get("tp2_pips", 0),
+                        "prop_stop": sig.get("prop_stop", sig["stop"]),
+                        "prop_risk_pips": sig.get("prop_risk_pips", sig["risk_pips"]),
+                        "prop_buffer_pips": sig.get("prop_buffer_pips", 0),
                         "crh": sig["crh"],
                         "crl": sig["crl"],
                         "mid": sig["mid"],
