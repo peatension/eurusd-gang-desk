@@ -557,7 +557,7 @@ def format_times(dt_like):
 # DATA
 # ============================================================
 
-def fetch(symbol, interval, outputsize=500, retries=4):
+def fetch(symbol, interval, outputsize=500, retries=3):
     url = "https://api.twelvedata.com/time_series"
     params = {
         "symbol": symbol,
@@ -567,7 +567,7 @@ def fetch(symbol, interval, outputsize=500, retries=4):
         "format": "JSON",
         "timezone": "UTC",
     }
-    for _ in range(retries):
+    for attempt in range(retries):
         try:
             data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
@@ -583,17 +583,24 @@ def fetch(symbol, interval, outputsize=500, retries=4):
                 df = df[df["datetime"] <= now_utc + pd.Timedelta(minutes=2)].reset_index(drop=True)
                 if len(df) < 3:
                     return None
+                # Free tier ~8 credits/min → 8s gap keeps us under the minute cap
                 time.sleep(8)
                 return df
-            if data.get("code") == 429 or "credits" in str(data).lower():
-                print(f"Rate limit {symbol} {interval}, waiting...")
-                time.sleep(65)
+            msg = str(data).lower()
+            # Daily credit wall: do NOT sleep 65s × retries (that caused 15m timeouts)
+            if "run out of api credits for the day" in msg or "api credits for the day" in msg:
+                print(f"DAILY CREDITS EMPTY {symbol} {interval} — fail fast")
+                return None
+            if data.get("code") == 429 or "credits" in msg or "limit" in msg:
+                wait = 20 + attempt * 15  # short backoff, not 65s
+                print(f"Rate limit {symbol} {interval}, wait {wait}s...")
+                time.sleep(wait)
                 continue
             print(f"API error {symbol} {interval}:", data)
             return None
         except Exception as e:
             print(f"Fetch error {symbol} {interval}:", e)
-            time.sleep(10)
+            time.sleep(8)
     return None
 
 
