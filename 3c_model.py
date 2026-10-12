@@ -23,6 +23,161 @@ BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 SHEET_URL = os.getenv("SHEET_URL", "")
 
+# --- Finnhub economic calendar (label only — never blocks signal) ---
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_KEY") or ""
+NEWS_WINDOW_HOURS = 2
+_NEWS_CACHE = {"day": None, "events": []}
+
+_PAIR_CCY = {
+    "EUR/USD": ("EUR", "USD"),
+    "AUD/USD": ("AUD", "USD"),
+    "USD/CHF": ("USD", "CHF"),
+    "EUR/JPY": ("EUR", "JPY"),
+    "GBP/USD": ("GBP", "USD"),
+    "USD/JPY": ("USD", "JPY"),
+    "USD/CAD": ("USD", "CAD"),
+    "GBP/JPY": ("GBP", "JPY"),
+    "XAU/USD": ("USD",),
+}
+
+_NEWS_KEYWORDS = (
+    "non-farm", "nonfarm", "nfp", "cpi", "fomc", "interest rate", "rate decision",
+    "gdp", "unemployment", "jobless", "pce", "retail sales", "ppi", "payroll",
+    "employment", "inflation", "ecb", "boe", "boj", "rba", "snb", "fed ",
+)
+
+
+def _finnhub_calendar(day_str):
+    """Fetch economic calendar for one UTC day. Cached per process."""
+    global _NEWS_CACHE
+    if _NEWS_CACHE.get("day") == day_str and _NEWS_CACHE.get("events") is not None:
+        return _NEWS_CACHE["events"]
+    if not FINNHUB_API_KEY:
+        return []
+    try:
+        r = requests.get(
+            "https://finnhub.io/api/v1/calendar/economic",
+            params={"from": day_str, "to": day_str, "token": FINNHUB_API_KEY},
+            timeout=15,
+        )
+        data = r.json() if r.ok else {}
+        events = data.get("economicCalendar") or data.get("economic_calendar") or []
+        if not isinstance(events, list):
+            events = []
+        _NEWS_CACHE = {"day": day_str, "events": events}
+        return events
+    except Exception as e:
+        print("finnhub calendar error:", e)
+        return []
+
+
+def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
+    """
+    Return a short label if high-impact news is near signal time for this pair.
+    Never blocks — empty string if none / no key / error.
+    """
+    if not FINNHUB_API_KEY:
+        return ""
+    try:
+        when_ts = pd.Timestamp(when) if when is not None else pd.Timestamp.utcnow()
+        if when_ts.tzinfo is not None:
+            when_ts = when_ts.tz_convert("UTC").tz_localize(None)
+        else:
+            when_ts = pd.Timestamp(when_ts)
+    except Exception:
+        when_ts = pd.Timestamp.utcnow().tz_localize(None)
+
+    day = when_ts.strftime("%Y-%m-%d")
+    events = list(_finnhub_calendar(day))
+    # also pull adjacent day if near midnight
+    try:
+        if when_ts.hour >= 22:
+            events += _finnhub_calendar((when_ts + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
+        if when_ts.hour <= 2:
+            events += _finnhub_calendar((when_ts - pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
+    except Exception:
+        pass
+
+    ccys = set(_PAIR_CCY.get(pair, ()))
+    if not ccys:
+        base = pair.replace("-", "/").split("/")
+        ccys = set(base)
+
+    hits = []
+    for ev in events:
+        try:
+            impact = str(ev.get("impact") or ev.get("importance") or "").lower()
+            country = str(ev.get("country") or ev.get("currency") or "").upper()
+            event = str(ev.get("event") or ev.get("name") or "")
+            tstr = ev.get("time") or ev.get("date") or ""
+            # Finnhub country often is ISO country code; map common FX
+            country_ccy = {
+                "US": "USD", "USA": "USD", "UNITED STATES": "USD",
+                "EU": "EUR", "EMU": "EUR", "EUR": "EUR",
+                "GB": "GBP", "UK": "GBP", "GBP": "GBP",
+                "JP": "JPY", "JPY": "JPY",
+                "AU": "AUD", "AUD": "AUD",
+                "CA": "CAD", "CAD": "CAD",
+                "CH": "CHF", "CHF": "CHF",
+            }.get(country, country if len(country) == 3 else "")
+
+            if impact not in ("high", "3", "major"):
+                # still allow keyword hit for medium if classic NFP/CPI name
+                el = event.lower()
+                if not any(k in el for k in _NEWS_KEYWORDS):
+                    continue
+            else:
+                el = event.lower()
+
+            if country_ccy and country_ccy not in ccys and not any(c in country for c in ccys):
+                # high impact USD still tags all USD pairs
+                if "USD" not in ccys or country_ccy not in ("USD", ""):
+                    if not any(k in el for k in ("nfp", "non-farm", "fomc", "cpi")):
+                        continue
+
+            # time proximity
+            try:
+                et = pd.Timestamp(str(tstr).replace("T", " ").replace("Z", "")[:19])
+                delta_h = abs((et - when_ts).total_seconds()) / 3600.0
+            except Exception:
+                delta_h = 0.0  # unknown time → still mention if high impact same day
+
+            if delta_h > float(window_hours) and impact in ("high", "3", "major"):
+                # same-day high impact outside window: softer tag
+                if delta_h > 6:
+                    continue
+
+            short = event.strip()
+            for a, b in (
+                ("Non-Farm Payrolls", "NFP"),
+                ("Nonfarm Payroll", "NFP"),
+                ("Consumer Price Index", "CPI"),
+                ("Interest Rate Decision", "Rate Decision"),
+                ("Federal Funds Rate", "FOMC"),
+            ):
+                if a.lower() in short.lower():
+                    short = b
+                    break
+            if len(short) > 28:
+                short = short[:26] + "…"
+            if delta_h <= window_hours:
+                hits.append(f"{short} ({delta_h:.0f}h)")
+            else:
+                hits.append(short)
+        except Exception:
+            continue
+
+    if not hits:
+        return ""
+    # unique preserve order
+    seen, out = set(), []
+    for h in hits:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return " · ".join(out[:3])
+
+
 STATE_FILE = "last_alert_state_crt.json"
 SUBSCRIBERS_FILE = "subscribers.json"
 OUTCOMES_FILE = "outcomes.json"
@@ -1013,6 +1168,8 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
             f"📌 Status: <b>ACTIVE</b>\n"
             f"💡 Suggestion only: BE after TP1 (not auto)\n"
         )
+    news = news_label_for_signal(sig.get("pair"), sig.get("candle_time") or sig.get("c2_time"))
+    news_line = f"News: <b>{news}</b>\n" if news else ""
     return (
         f"<b>TENSION TRADING DESK</b>\n"
         f"════════════════════\n"
@@ -1022,7 +1179,8 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
         f"C1 TF: <b>{sig['c1_tf'].upper()}</b> · Entry TF: <b>{sig['ltf']}</b>\n"
         f"Entry model: <b>{model}</b>\n"
         f"Session: <b>{sig.get('session', '—')}</b>\n"
-        f"Sweep: same TF as C1, close back inside\n\n"
+        f"Sweep: same TF as C1, close back inside\n"
+        f"{news_line}\n"
         f"{_core_levels(sig)}\n"
         f"{format_dual_times(sig.get('c2_time'), sig.get('candle_time'))}\n\n"
         f"{status}\n"
