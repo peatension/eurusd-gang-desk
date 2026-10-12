@@ -638,6 +638,11 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
             f"📌 Status: <b>ACTIVE</b>\n"
             f"💡 Suggestion only: BE after TP1 (not auto)\n"
         )
+    try:
+        news = desk.news_label_for_signal(sig.get("pair"), sig.get("candle_time") or sig.get("c2_time"))
+    except Exception:
+        news = ""
+    news_line = f"News: <b>{news}</b>\n" if news else ""
     return (
         f"<b>TENSION TRADING DESK</b>\n"
         f"════════════════════\n"
@@ -647,7 +652,9 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
         f"C1 TF: <b>{sig['c1_tf'].upper()}</b> · Entry TF: <b>{sig['ltf']}</b>\n"
         f"Entry model: <b>{model}</b>\n"
         f"Session: <b>{sig.get('session', '—')}</b>\n"
-        f"Sweep: same TF as C1, close back inside\n\n"
+        f"Sweep: same TF as C1, close back inside\n"
+        f"{news_line}"
+        f"\n"
         f"{_core_levels(sig)}\n"
         f"{format_dual_times(sig.get('c2_time'), sig.get('candle_time'))}\n\n"
         f"{status}\n"
