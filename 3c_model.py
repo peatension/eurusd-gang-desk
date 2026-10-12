@@ -637,6 +637,60 @@ def is_weekday_bar(dt_like):
 BLOCK_ASIA_SESSION = True
 
 
+# --- Signal hygiene (anti-noise) ---
+ENTRY_DEDUP_PIPS = 5  # same entry zone across models/streams
+
+
+def stream_family(stream_label):
+    """Group streams by HTF anchor so 1H→15m and 1H→5m compete."""
+    s = (stream_label or "").upper().replace(" ", "")
+    if "30MIN" in s or "30M" in s:
+        return "30MIN"
+    if "4H" in s:
+        return "4H"
+    if "1H" in s:
+        return "1H"
+    if s.startswith("D") or "→D" in s or "1DAY" in s:
+        return "D"
+    return "OTHER"
+
+
+def entries_same_zone(e1, e2, pip, tol_pips=ENTRY_DEDUP_PIPS):
+    try:
+        return abs(float(e1) - float(e2)) <= float(tol_pips) * float(pip)
+    except Exception:
+        return False
+
+
+def signal_blocked(state, sig, pip):
+    """Block same-level multi-model spam and bias flips while a trade is open."""
+    pair = sig.get("pair")
+    direction = int(sig.get("direction") or 0)
+    entry = float(sig.get("entry") or 0)
+    fam = stream_family(sig.get("stream"))
+    open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
+    for t in state.get("pending") or []:
+        if t.get("pair") != pair:
+            continue
+        if t.get("status") not in open_st:
+            continue
+        t_entry = float(t.get("entry") or 0)
+        t_dir = int(t.get("direction") or 0)
+        t_stream = str(t.get("stream") or "")
+        # identical / near-identical entry → one signal only
+        if entries_same_zone(entry, t_entry, pip):
+            return f"same entry zone as open {t_stream}"
+        # opposite direction on same pair while something is live → no flip noise
+        if t_dir and direction and t_dir != direction:
+            return f"bias conflict with open {t_stream}"
+        # same HTF family + same direction + close levels → one fire
+        if stream_family(t_stream) == fam and t_dir == direction:
+            if entries_same_zone(entry, t_entry, pip, tol_pips=12):
+                return f"same family {fam} open {t_stream}"
+    return None
+
+
+
 
 def entry_is_fresh(candle_time, ltf_name, now=None):
     """Reject stale entries so Telegram is not hours late vs the chart."""
@@ -883,6 +937,8 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "rr1": float(rr1),
         "rr2": float(rr2),
         "risk_pips": float(risk / pip),
+        "tp1_pips": float(abs(tp1 - entry) / pip),
+        "tp2_pips": float(abs(tp2 - entry) / pip),
         "crh": setup["crh"],
         "crl": setup["crl"],
         "mid": setup["mid"],
@@ -928,9 +984,9 @@ def _core_levels(trade):
         f"SL    <b>{stop:.5f}</b>"
         f" ({float(trade.get('risk_pips', 0)):.1f} pips)\n"
         f"TP1   <b>{tp1:.5f}</b>"
-        f" (mid · {float(trade.get('rr1', 0)):.2f}R)\n"
+        f" ({float(trade.get('tp1_pips', 0)):.1f} pips · {float(trade.get('rr1', 0)):.2f}R)\n"
         f"TP2   <b>{tp2:.5f}</b>"
-        f" (opposite · {float(trade.get('rr2', 0)):.2f}R)\n"
+        f" ({float(trade.get('tp2_pips', 0)):.1f} pips · {float(trade.get('rr2', 0)):.2f}R)\n"
     )
 
 
@@ -1394,7 +1450,7 @@ def main():
 
     weekend = is_weekend_utc()
     if weekend:
-        print("Weekend UTC — new setups as LIMIT / ENTRY PENDING (times still dual UTC+WAT)")
+        print("Weekend UTC — open trades managed only; NO new signals")
 
     cache = {}
     scan_pairs = [p for p in CORE_PAIRS if p in PAIRS]
@@ -1434,6 +1490,10 @@ def main():
             ltf_seen.add(ltf_name)
             check_pending(state, pair, frames[ltf_name], ltf_name)
 
+        # Weekend: manage pending only — do not invent new Telegram signals
+        if weekend:
+            continue
+
         for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
             if not _pair_allowed(stream_label, pair):
                 continue
@@ -1458,11 +1518,16 @@ def main():
             dup = any(
                 t.get("pair") == pair
                 and t.get("stream") == stream_label
-                and t.get("status") in (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING")
+                and t.get("status") in (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
                 for t in state["pending"]
             )
             if dup:
                 print(f"  {stream_label}: active/pending open")
+                continue
+
+            block_reason = signal_blocked(state, sig, pip)
+            if block_reason:
+                print(f"  {stream_label}: blocked — {block_reason}")
                 continue
 
             # hard reject future-dated candles (feed/TZ bug)
@@ -1536,6 +1601,8 @@ def main():
                         "rr1": sig["rr1"],
                         "rr2": sig["rr2"],
                         "risk_pips": sig["risk_pips"],
+                        "tp1_pips": sig.get("tp1_pips", 0),
+                        "tp2_pips": sig.get("tp2_pips", 0),
                         "crh": sig["crh"],
                         "crl": sig["crl"],
                         "mid": sig["mid"],
