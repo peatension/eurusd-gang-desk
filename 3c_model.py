@@ -420,17 +420,47 @@ def broadcast_message_ids(text):
     return ids
 
 
-def process_commands(state):
-    """Safe getUpdates with offset stored in state.
+TELEGRAM_OFFSET_FILE = "telegram_offset.json"
+CMD_MAX_AGE_SEC = 90  # ignore /start /pairs etc older than this (stops 50x replay)
 
-    Offset is saved after every update so overlapping GH/cron runs
-    do not both answer the same /start.
+
+def _load_tg_offset():
+    try:
+        if os.path.exists(TELEGRAM_OFFSET_FILE):
+            with open(TELEGRAM_OFFSET_FILE, "r") as f:
+                return int(json.load(f).get("last_update_id") or 0)
+    except Exception:
+        pass
+    return 0
+
+
+def _save_tg_offset(uid):
+    try:
+        with open(TELEGRAM_OFFSET_FILE, "w") as f:
+            json.dump({"last_update_id": int(uid)}, f)
+    except Exception as e:
+        print("telegram_offset save error:", e)
+
+
+def process_commands(state):
+    """getUpdates with hard anti-spam:
+
+    1) Offset stored in telegram_offset.json (always committed)
+    2) ACK entire batch on Telegram before replying
+    3) ONLY reply if message is < 90 seconds old (old cmds = silent ACK)
+    4) Throttle same cmd per chat for 3 minutes
+
+    Overlapping GH schedule + cron still bad — use cron only (yml has no schedule).
     """
     if not BOT_TOKEN:
         return
 
+    import time as _time
+
     subscribers = load_subscribers()
-    offset = int(state.get("last_update_id", 0)) + 1
+    file_off = _load_tg_offset()
+    state_off = int(state.get("last_update_id") or 0)
+    offset = max(file_off, state_off) + 1
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
     try:
         data = requests.get(
@@ -443,15 +473,42 @@ def process_commands(state):
     if not data.get("ok"):
         return
 
-    for result in data.get("result", []):
-        uid = int(result.get("update_id", 0))
-        # Advance offset FIRST so a concurrent runner is less likely to replay
-        state["last_update_id"] = max(int(state.get("last_update_id", 0)), uid)
-        try:
-            save_state(state)
-        except Exception as e:
-            print("offset save error:", e)
+    results = data.get("result") or []
+    if not results:
+        return
 
+    max_uid = max(int(r.get("update_id", 0)) for r in results)
+    state["last_update_id"] = max(state_off, max_uid)
+    _save_tg_offset(max_uid)
+    # ACK on Telegram so the queue is drained even if we reply to nothing
+    try:
+        requests.get(
+            url, params={"offset": max_uid + 1, "timeout": 0}, timeout=15
+        )
+    except Exception as e:
+        print("getUpdates ACK error:", e)
+    try:
+        save_state(state)
+    except Exception as e:
+        print("offset state save error:", e)
+
+    guard = state.setdefault("cmd_guard", {})
+    now = _time.time()
+
+    def _allow_reply(chat_id, cmd, uid, window_sec=180):
+        gkey = f"{cmd}:{chat_id}"
+        prev = guard.get(gkey) or {}
+        if int(prev.get("uid") or 0) == int(uid):
+            return False
+        if now - float(prev.get("ts") or 0) < window_sec:
+            return False
+        guard[gkey] = {"uid": int(uid), "ts": now}
+        return True
+
+    replied = 0
+    skipped_old = 0
+    for result in results:
+        uid = int(result.get("update_id", 0))
         message = result.get("message") or {}
         chat = message.get("chat") or {}
         chat_id = str(chat.get("id", ""))
@@ -459,12 +516,25 @@ def process_commands(state):
         if not chat_id or not text:
             continue
 
-        low = text.lower().split("@")[0].strip()  # /start@BotName → /start
+        # HARD GATE: never answer stale commands (this was the 50+ spam)
+        msg_ts = message.get("date")
+        try:
+            age = now - float(msg_ts)
+        except Exception:
+            age = 0
+        if msg_ts is not None and age > CMD_MAX_AGE_SEC:
+            skipped_old += 1
+            continue
+
+        low = text.lower().split("@")[0].strip()
 
         if low.startswith("/start"):
             if chat_id not in subscribers:
                 subscribers.append(chat_id)
                 save_subscribers(subscribers)
+            if not _allow_reply(chat_id, "start", uid):
+                print(f"  /start suppressed chat={chat_id}")
+                continue
             send_telegram_to(
                 chat_id,
                 "🟢 <b>Subscribed — Tension Trading Desk</b>\n\n"
@@ -473,17 +543,23 @@ def process_commands(state):
                 "• <b>3C</b> — GBP/USD USD/JPY USD/CAD GBP/JPY\n\n"
                 "Commands: /help /status /pairs /ping /stop",
             )
+            replied += 1
 
         elif low.startswith("/stop"):
             if chat_id in subscribers:
                 subscribers = [x for x in subscribers if x != chat_id]
                 save_subscribers(subscribers)
+            if not _allow_reply(chat_id, "stop", uid):
+                continue
             send_telegram_to(
                 chat_id,
                 "🔴 <b>Unsubscribed.</b>\nYou will no longer receive desk signals.",
             )
+            replied += 1
 
         elif low.startswith("/help"):
+            if not _allow_reply(chat_id, "help", uid):
+                continue
             send_telegram_to(
                 chat_id,
                 "📖 <b>How to read signals</b>\n\n"
@@ -496,8 +572,11 @@ def process_commands(state):
                 "Same setup is sent <b>once</b>; message is edited for TP1 / WIN / LOSS.\n"
                 "BE after TP1 is a <b>suggestion only</b> (not auto).",
             )
+            replied += 1
 
         elif low.startswith("/status"):
+            if not _allow_reply(chat_id, "status", uid):
+                continue
             send_telegram_to(
                 chat_id,
                 "⚡ <b>Desk Status</b>\n\n"
@@ -505,18 +584,30 @@ def process_commands(state):
                 "Engines: <b>CRT Plain</b> + <b>3C</b>\n"
                 f"Pairs mapped: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
             )
+            replied += 1
 
         elif low.startswith("/pairs"):
+            if not _allow_reply(chat_id, "pairs", uid):
+                continue
             lines = "\n".join([f"• <code>{p}</code>" for p in PAIRS.keys()])
             send_telegram_to(
                 chat_id,
                 f"📊 <b>Scanned pairs</b>\n\n{lines}\n\n"
                 "CRT Plain + 3C streams share this bot.",
             )
+            replied += 1
 
         elif low.startswith("/ping"):
+            if not _allow_reply(chat_id, "ping", uid):
+                continue
             send_telegram_to(chat_id, "pong 🏓 — desk operational.")
+            replied += 1
 
+    print(f"commands: replied={replied} skipped_old={skipped_old} ack_uid={max_uid}")
+    try:
+        save_state(state)
+    except Exception as e:
+        print("cmd_guard save error:", e)
     save_subscribers(subscribers)
 
 
