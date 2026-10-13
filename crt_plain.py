@@ -207,12 +207,14 @@ def is_weekday_bar(dt_like):
         return True
 
 
-# W41 live week: Asia n=15 net=-10.02R — block new Asia session signals
+# W41 live week: Asia n=15 net=-10.02R — block new Asia only
+# Off-hours kept (user request) — still allowed for new signals
 BLOCK_ASIA_SESSION = True
+BLOCK_OFF_HOURS = False
 
 
 # --- Signal hygiene (anti-noise) ---
-ENTRY_DEDUP_PIPS = 5  # same entry zone across models/streams
+ENTRY_DEDUP_PIPS = 5  # same entry zone across models/streams (FX); gold uses same count
 
 ENTRY_PENDING_MAX_HOURS = 36  # drop weekend limits that never filled
 
@@ -906,6 +908,10 @@ def check_pending(state, pair, ltf, ltf_name=None):
             else:
                 remaining.append(trade)
                 continue
+        # LATE = already-ignited label only — still manage TP1/SL as ACTIVE
+        if status == "LATE":
+            trade["status"] = "ACTIVE"
+            status = "ACTIVE"
         if status not in (None, "ACTIVE", "TP1_HIT"):
             continue
         try:
@@ -1232,17 +1238,29 @@ def main():
                 continue
 
             key = sig["candle_key"]
-            if BLOCK_ASIA_SESSION and sig.get("session") == "Asia":
+            sess = sig.get("session")
+            if BLOCK_ASIA_SESSION and sess == "Asia":
                 print(f"  {stream_label}: Asia session blocked")
+                continue
+            if BLOCK_OFF_HOURS and sess == "Off-hours":
+                print(f"  {stream_label}: Off-hours blocked")
                 continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
                 print(f"  {stream_label}: already alerted")
                 continue
+            # same C2/setup already alerted on any stream key
+            if key in (state.get("last_alert_keys") or {}).values():
+                print(f"  {stream_label}: already alerted (candle_key)")
+                continue
 
+            open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
             dup = any(
                 t.get("pair") == pair
-                and t.get("stream") == stream_label
-                and t.get("status") in (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
+                and t.get("status") in open_st
+                and (
+                    t.get("stream") == stream_label
+                    or t.get("candle_key") == key
+                )
                 for t in state["pending"]
             )
             if dup:
@@ -1268,14 +1286,16 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
             if already_ignited:
+                # Label only on first send — still track as ACTIVE so TP1/WIN/LOSS edit works
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"candle={sig['candle_time']} — still sending with label"
+                    f"candle={sig['candle_time']} — send once + track"
                 )
 
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
-            status = "ENTRY_PENDING" if weekend else ("LATE" if already_ignited else "ACTIVE")
+            # Never use LATE as status — it was dropped from pending and TP1 never updated
+            status = "ENTRY_PENDING" if weekend else "ACTIVE"
             msg_ids = desk.broadcast_message_ids(
                 build_signal_message(
                     sig,
