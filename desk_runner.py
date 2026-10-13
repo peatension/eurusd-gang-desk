@@ -1,26 +1,21 @@
 """
-Same Telegram bot. Two CRT engines (8 pairs).
+Same Telegram bot. Live entrypoint.
 
-  crt_plain.py  → CRT …  EUR/USD AUD/USD USD/CHF EUR/JPY
-  3c_model.py   → 3C …   GBP/USD USD/JPY USD/CAD GBP/JPY
-                  (also shared fetch/Telegram for crt_plain)
+Default = LIVE SLIM (4 pairs, credit-safe):
+  EUR/USD + XAU/USD (CRT) | USD/JPY + USD/CAD (3C)
+
+Full engines stay on disk (crt_plain.py / 3c_model.py) — not spoiled.
+To resume full 8–9 pair desk later, swap main() body back to:
+    crt_plain.main(); desk.main()
 
 Run: python desk_runner.py
 """
 
-import importlib
-
-desk = importlib.import_module("3c_model")
-import crt_plain
+import live_slim
 
 
 def main():
-    state = desk.load_state()
-    desk.process_commands(state)
-    desk.save_state(state)
-
-    crt_plain.main()   # set 1 — CRT …
-    desk.main()        # set 2 — 3C …
+    live_slim.main()
 
 
 if __name__ == "__main__":
