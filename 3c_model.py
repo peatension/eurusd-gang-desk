@@ -421,7 +421,11 @@ def broadcast_message_ids(text):
 
 
 def process_commands(state):
-    """Safe getUpdates with offset stored in state."""
+    """Safe getUpdates with offset stored in state.
+
+    Offset is saved after every update so overlapping GH/cron runs
+    do not both answer the same /start.
+    """
     if not BOT_TOKEN:
         return
 
@@ -441,7 +445,12 @@ def process_commands(state):
 
     for result in data.get("result", []):
         uid = int(result.get("update_id", 0))
+        # Advance offset FIRST so a concurrent runner is less likely to replay
         state["last_update_id"] = max(int(state.get("last_update_id", 0)), uid)
+        try:
+            save_state(state)
+        except Exception as e:
+            print("offset save error:", e)
 
         message = result.get("message") or {}
         chat = message.get("chat") or {}
@@ -450,7 +459,7 @@ def process_commands(state):
         if not chat_id or not text:
             continue
 
-        low = text.lower()
+        low = text.lower().split("@")[0].strip()  # /start@BotName → /start
 
         if low.startswith("/start"):
             if chat_id not in subscribers:
@@ -458,10 +467,10 @@ def process_commands(state):
                 save_subscribers(subscribers)
             send_telegram_to(
                 chat_id,
-                "🟢 <b>Subscribed — Tension Trading Desk 3C Model</b>\n\n"
-                "You will receive dual-stream 3C Model alerts:\n"
-                "• <b>3C CRT</b>\n"
-                "• <b>3C CRT</b>\n\n"
+                "🟢 <b>Subscribed — Tension Trading Desk</b>\n\n"
+                "You will receive alerts from both engines:\n"
+                "• <b>CRT Plain</b> — EUR/USD AUD/USD USD/CHF EUR/JPY XAU/USD\n"
+                "• <b>3C</b> — GBP/USD USD/JPY USD/CAD GBP/JPY\n\n"
                 "Commands: /help /status /pairs /ping /stop",
             )
 
@@ -471,43 +480,42 @@ def process_commands(state):
                 save_subscribers(subscribers)
             send_telegram_to(
                 chat_id,
-                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive 3C Model signals.",
+                "🔴 <b>Unsubscribed.</b>\nYou will no longer receive desk signals.",
             )
 
         elif low.startswith("/help"):
             send_telegram_to(
                 chat_id,
-                "📖 <b>How to read 3C Model signals</b>\n\n"
-                "• <b>C1</b> — Range candle (H1 or M30)\n"
-                "• <b>Entry</b> — After M5 Turtle Soup (sweep + reject)\n"
-                "• <b>SL</b> — Beyond sweep extreme + buffer\n"
-                "• <b>TP1</b> — C1 midpoint (measured R shown)\n"
-                "• <b>TP2</b> — Opposite C1 boundary\n"
-                "• <b>RR</b> — Measured from geometry (not fixed)\n\n"
-                "H1 and M30 can both fire — they are alternatives.\n"
+                "📖 <b>How to read signals</b>\n\n"
+                "• <b>C1</b> — HTF range candle\n"
+                "• <b>C2</b> — Sweep + close back inside (same TF)\n"
+                "• <b>Entry</b> — LTF model (MSS / CISD / PLAIN / MODEL1 / FVG)\n"
+                "• <b>SL</b> — Beyond sweep extreme (+ prop buffer shown)\n"
+                "• <b>TP1</b> — C1 midpoint\n"
+                "• <b>TP2</b> — Opposite C1 boundary\n\n"
+                "Same setup is sent <b>once</b>; message is edited for TP1 / WIN / LOSS.\n"
                 "BE after TP1 is a <b>suggestion only</b> (not auto).",
             )
 
         elif low.startswith("/status"):
             send_telegram_to(
                 chat_id,
-                "⚡ <b>3C Model Status</b>\n\n"
+                "⚡ <b>Desk Status</b>\n\n"
                 "State: <b>ONLINE</b>\n"
-                "Streams: <b>3C CRT</b> + <b>3C CRT</b>\n"
-                "Entry: M5 TS | Modules: TS ON\n"
-                f"Pairs: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
+                "Engines: <b>CRT Plain</b> + <b>3C</b>\n"
+                f"Pairs mapped: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
             )
 
         elif low.startswith("/pairs"):
             lines = "\n".join([f"• <code>{p}</code>" for p in PAIRS.keys()])
             send_telegram_to(
                 chat_id,
-                f"📊 <b>3C Model scanned pairs</b>\n\n{lines}\n\n"
-                "Streams: 3C CRT · 3C CRT",
+                f"📊 <b>Scanned pairs</b>\n\n{lines}\n\n"
+                "CRT Plain + 3C streams share this bot.",
             )
 
         elif low.startswith("/ping"):
-            send_telegram_to(chat_id, "pong 🏓 — 3C Model operational.")
+            send_telegram_to(chat_id, "pong 🏓 — desk operational.")
 
     save_subscribers(subscribers)
 
