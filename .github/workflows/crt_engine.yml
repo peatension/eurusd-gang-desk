@@ -1,15 +1,10 @@
 name: CRT Engine
 
-# GitHub schedule is best-effort (often late on free runners).
-# Free Twelve tier: full CRT+3C scan needs \~6–8 min (8s gap × \~40 fetches).
-# */5 cancels in-progress runs before they finish → use */10 on GH schedule.
-# External cron-job.org: workflow_dispatch every 8–10 min (not 5) until Grow plan.
+# ONLY external cron-job.org → workflow_dispatch every 10 min.
+# No GitHub schedule (overlapping runners caused /start spam).
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
-# Cancel only truly stacked runs; 10m cadence lets a healthy scan finish
 concurrency:
   group: crt-desk
   cancel-in-progress: true
@@ -59,6 +54,7 @@ jobs:
             last_alert_state_smc.json \
             subscribers.json \
             outcomes.json \
+            telegram_offset.json \
             2>/dev/null || true
 
           if git diff --cached --quiet; then
