@@ -19,6 +19,21 @@ from datetime import datetime, timedelta, timezone
 # ============================================================
 
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
+# Optional multi-key: TWELVE_DATA_KEYS=key1,key2,key3 (or semicolon). Rotates on daily empty / 429.
+def _twelve_keys():
+    keys = []
+    multi = os.getenv("TWELVE_DATA_KEYS") or ""
+    for part in multi.replace(";", ",").split(","):
+        k = part.strip()
+        if k and k not in keys:
+            keys.append(k)
+    single = (os.getenv("TWELVE_DATA_KEY") or "").strip()
+    if single and single not in keys:
+        keys.insert(0, single)
+    return keys
+
+TWELVE_DATA_KEYS = _twelve_keys()
+_td_key_i = 0
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 SHEET_URL = os.getenv("SHEET_URL", "")
@@ -198,6 +213,8 @@ PAIRS = {
     "USD/CAD": {"pip": 0.0001, "tv": "OANDA:USDCAD"},
     "GBP/JPY": {"pip": 0.01, "tv": "OANDA:GBPJPY"},
     "XAU/USD": {"pip": 0.01, "tv": "OANDA:XAUUSD"},
+    "AUD/JPY": {"pip": 0.01, "tv": "OANDA:AUDJPY"},
+    "AUD/CAD": {"pip": 0.0001, "tv": "OANDA:AUDCAD"},
 }
 
 STREAMS = {}  # filled by CRT strategy below
@@ -541,6 +558,7 @@ def process_commands(state):
                 "You will receive alerts from both engines:\n"
                 "• <b>CRT Plain</b> — EUR/USD AUD/USD USD/CHF EUR/JPY XAU/USD\n"
                 "• <b>3C</b> — GBP/USD USD/JPY USD/CAD GBP/JPY\n\n"
+                "<i>Live slim desk (if active): EUR/USD XAU/USD USD/JPY USD/CAD only</i>\n\n"
                 "Commands: /help /status /pairs /ping /stop",
             )
             replied += 1
@@ -657,43 +675,58 @@ def format_times(dt_like):
 # ============================================================
 
 def fetch(symbol, interval, outputsize=500, retries=3):
+    """Fetch OHLCV. Rotates TWELVE_DATA_KEYS on daily empty / hard limit."""
+    global _td_key_i
+    if not TWELVE_DATA_KEYS:
+        print("Missing TWELVE_DATA_KEY or TWELVE_DATA_KEYS")
+        return None
     url = "https://api.twelvedata.com/time_series"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "outputsize": outputsize,
-        "apikey": TWELVE_DATA_KEY,
-        "format": "JSON",
-        "timezone": "UTC",
-    }
-    for attempt in range(retries):
+    n_keys = len(TWELVE_DATA_KEYS)
+    attempts = max(retries, n_keys)
+    for attempt in range(attempts):
+        apikey = TWELVE_DATA_KEYS[_td_key_i % n_keys]
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "outputsize": outputsize,
+            "apikey": apikey,
+            "format": "JSON",
+            "timezone": "UTC",
+        }
         try:
             data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
                 df = pd.DataFrame(data["values"])
                 df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
-                # store naive UTC for strategy math
                 df["datetime"] = df["datetime"].dt.tz_convert("UTC").dt.tz_localize(None)
                 for col in ("open", "high", "low", "close"):
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                 df = df.dropna().sort_values("datetime").reset_index(drop=True)
-                # never keep bars that open in the future (bad feed / TZ mistakes)
                 now_utc = pd.Timestamp.utcnow().tz_localize(None)
                 df = df[df["datetime"] <= now_utc + pd.Timedelta(minutes=2)].reset_index(drop=True)
                 if len(df) < 3:
                     return None
-                # Free tier ~8 credits/min → 8s gap keeps us under the minute cap
                 time.sleep(8)
                 return df
             msg = str(data).lower()
-            # Daily credit wall: do NOT sleep 65s × retries (that caused 15m timeouts)
             if "run out of api credits for the day" in msg or "api credits for the day" in msg:
-                print(f"DAILY CREDITS EMPTY {symbol} {interval} — fail fast")
-                return None
+                prev = _td_key_i % n_keys
+                _td_key_i = (prev + 1) % n_keys
+                print(
+                    f"DAILY CREDITS EMPTY {symbol} {interval} "
+                    f"(key {prev + 1}/{n_keys}) → rotate to key {_td_key_i + 1}/{n_keys}"
+                )
+                if _td_key_i == 0 and attempt + 1 >= n_keys:
+                    print("All Twelve Data keys empty for the day — fail fast")
+                    return None
+                continue
             if data.get("code") == 429 or "credits" in msg or "limit" in msg:
-                wait = 20 + attempt * 15  # short backoff, not 65s
+                wait = 20 + attempt * 15
                 print(f"Rate limit {symbol} {interval}, wait {wait}s...")
                 time.sleep(wait)
+                # soft rotate after repeated 429
+                if attempt >= 1 and n_keys > 1:
+                    _td_key_i = (_td_key_i + 1) % n_keys
                 continue
             print(f"API error {symbol} {interval}:", data)
             return None
@@ -733,10 +766,11 @@ REPORT_WINDOW_MIN = 12
 
 # PAIRS defined above
 
-# Core pairs from first factorial
+# Full engine (kept intact). Live credit budget uses live_slim.py override.
 CORE_PAIRS = ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"]
 
 # WR > 50% on W1+W2+W3 only (3C filter colab). 30MIN out. MODEL1/1H-PLAIN out.
+# Daily / Weekly / Monthly HTF: MSS + CISD only (same as CRT).
 STREAMS = {
     "3C 1H→15m MSS":   ("1h", "15min", "MSS"),
     "3C 1H→15m CISD":  ("1h", "15min", "CISD"),
@@ -746,13 +780,31 @@ STREAMS = {
     "3C 4H→30m CISD":  ("4h", "30min", "CISD"),
     "3C 4H→15m MSS":   ("4h", "15min", "MSS"),
     "3C 4H→15m CISD":  ("4h", "15min", "CISD"),
+    # --- Daily / Weekly / Monthly (MSS + CISD only) ---
+    "3C D→4H MSS":     ("1day", "4h", "MSS"),
+    "3C D→4H CISD":    ("1day", "4h", "CISD"),
+    "3C D→1H MSS":     ("1day", "1h", "MSS"),
+    "3C D→1H CISD":    ("1day", "1h", "CISD"),
+    "3C W→D MSS":      ("1week", "1day", "MSS"),
+    "3C W→D CISD":     ("1week", "1day", "CISD"),
+    "3C MN→W MSS":     ("1month", "1week", "MSS"),
+    "3C MN→D CISD":    ("1month", "1day", "CISD"),
 }
 
+C3_ALL = ["GBP/USD", "USD/JPY", "USD/CAD", "GBP/JPY"]
 STREAM_PAIRS = {
     "3C 1H→15m CISD": ["GBP/USD", "USD/JPY", "USD/CAD"],  # GBP/JPY W3 fail
     "3C 1H→5m MSS":   ["GBP/USD", "USD/JPY", "USD/CAD"],  # GBP/JPY W3 fail
     "3C 4H→30m":      ["USD/CAD", "GBP/JPY"],              # GBP/USD + USD/JPY fail
     "3C 4H→30m MSS":  ["USD/JPY", "USD/CAD", "GBP/JPY"],   # GBP/USD W3 fail
+    "3C D→4H MSS":    C3_ALL,
+    "3C D→4H CISD":   C3_ALL,
+    "3C D→1H MSS":    C3_ALL,
+    "3C D→1H CISD":   C3_ALL,
+    "3C W→D MSS":     C3_ALL,
+    "3C W→D CISD":    C3_ALL,
+    "3C MN→W MSS":    C3_ALL,
+    "3C MN→D CISD":   C3_ALL,
 }
 
 
@@ -982,13 +1034,17 @@ def prop_stop_price(direction, stop, pair, pip):
 def stream_family(stream_label):
     """Group streams by HTF anchor so 1H→15m and 1H→5m compete."""
     s = (stream_label or "").upper().replace(" ", "")
+    if "MN→" in s or "1MONTH" in s or " MN" in (stream_label or "").upper():
+        return "MN"
+    if "W→" in s or "1WEEK" in s or s.startswith("3CW"):
+        return "W"
     if "30MIN" in s or "30M" in s:
         return "30MIN"
-    if "4H" in s:
+    if "4H" in s and "D→" not in s:
         return "4H"
-    if "1H" in s:
+    if "1H" in s and "D→" not in s:
         return "1H"
-    if s.startswith("D") or "→D" in s or "1DAY" in s:
+    if "D→" in s or "1DAY" in s:
         return "D"
     return "OTHER"
 
@@ -1286,7 +1342,16 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "candle_time": candle_time,
         "c2_time": str(setup.get("c2_time") or candle_time),
         "session": forex_session(candle_time),
-        "candle_key": f"{stream_label}|{pair}|{setup['c2_time']}|{direction}|{entry_model}",
+        # normalized c2 string so keys match across runs
+        "candle_key": (
+            f"{stream_label}|{pair}|"
+            f"{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|"
+            f"{direction}|{entry_model}"
+        ),
+        # setup-level id: same C2+direction = one alert forever (all streams/models)
+        "setup_uid": (
+            f"{pair}|{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|{direction}"
+        ),
         "c1_tf": htf_name,
         "ltf": ltf_name,
         "entry_model": entry_model,
@@ -1796,8 +1861,8 @@ def main():
     print(f"Streams loaded: {len(STREAMS)}")
     print("=" * 70)
 
-    if not TWELVE_DATA_KEY:
-        print("Missing TWELVE_DATA_KEY")
+    if not TWELVE_DATA_KEYS and not TWELVE_DATA_KEY:
+        print("Missing TWELVE_DATA_KEY / TWELVE_DATA_KEYS")
         return
 
     state = load_state()
@@ -1805,6 +1870,7 @@ def main():
         state["strategy_start"] = utc_now().date().isoformat()
         print("strategy_start set:", state["strategy_start"])
 
+    purge_expired_pending(state)
     maybe_send_reports(state)
 
     weekend = is_weekend_utc()
@@ -1815,24 +1881,58 @@ def main():
     scan_pairs = [p for p in CORE_PAIRS if p in PAIRS]
     if not scan_pairs:
         scan_pairs = list(PAIRS.keys())
+    pending_pairs = []
+    for t in state.get("pending") or []:
+        p = t.get("pair")
+        if p and p not in scan_pairs and p not in pending_pairs:
+            pending_pairs.append(p)
+    if pending_pairs:
+        print("Managing pending-only pairs (SL/TP edit):", ", ".join(pending_pairs))
+
+    def _fetch_tf(pair, tf):
+        key = (pair, tf)
+        if key not in cache:
+            size = 200 if tf in ("1day", "1week", "1month") else (500 if tf == "5min" else 400)
+            cache[key] = fetch(pair, tf, size)
+        fr = drop_forming_bar(cache[key]) if cache[key] is not None else None
+        if fr is not None:
+            fr = add_atr(fr)
+        return fr
+
+    # Pass A: resolve open trades even if pair left slim CORE
+    for pair in list(scan_pairs) + pending_pairs:
+        if pair not in PAIRS:
+            continue
+        print(f"\n--- {pair} {'(manage-only)' if pair in pending_pairs else ''} ---")
+        needed_ltf = set()
+        for t in state.get("pending") or []:
+            if t.get("pair") == pair and t.get("ltf"):
+                needed_ltf.add(str(t["ltf"]))
+        if pair in scan_pairs:
+            for _h, ltf_name, _m in STREAMS.values():
+                needed_ltf.add(ltf_name)
+        if not needed_ltf:
+            needed_ltf.add("15min")
+        for tf in needed_ltf:
+            fr = _fetch_tf(pair, tf)
+            if fr is not None:
+                check_pending(state, pair, fr, tf)
 
     for pair in scan_pairs:
         cfg = PAIRS[pair]
         pip = cfg["pip"]
-        print(f"\n--- {pair} ---")
+        print(f"\n--- scan {pair} ---")
 
         needed = set()
-        for htf_name, ltf_name, _ in STREAMS.values():
-            needed.add(htf_name)
-            needed.add(ltf_name)
+        for stream_label, (htf_name, ltf_name, _) in STREAMS.items():
+            if _pair_allowed(stream_label, pair):
+                needed.add(htf_name)
+                needed.add(ltf_name)
 
         frames = {}
         ok = True
         for tf in needed:
-            key = (pair, tf)
-            if key not in cache:
-                cache[key] = fetch(pair, tf, 400 if tf != "5min" else 500)
-            frames[tf] = drop_forming_bar(cache[key]) if cache[key] is not None else None
+            frames[tf] = _fetch_tf(pair, tf)
             if frames[tf] is None:
                 ok = False
         if not ok:
@@ -1874,6 +1974,11 @@ def main():
             if BLOCK_OFF_HOURS and sess == "Off-hours":
                 print(f"  {stream_label}: Off-hours blocked")
                 continue
+            suid = sig.get("setup_uid") or f"{pair}|{sig.get('c2_time')}|{sig.get('direction')}"
+            # HARD dedup: same pair + C2 + direction already alerted (any stream/model)
+            if state["last_alert_keys"].get(f"setup:{suid}"):
+                print(f"  {stream_label}: already alerted (setup_uid)")
+                continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
                 print(f"  {stream_label}: already alerted")
                 continue
@@ -1888,6 +1993,11 @@ def main():
                 and (
                     t.get("stream") == stream_label
                     or t.get("candle_key") == key
+                    or t.get("setup_uid") == suid
+                    or (
+                        str(t.get("c2_time") or "")[:19] == str(sig.get("c2_time") or "")[:19]
+                        and int(t.get("direction") or 0) == int(sig.get("direction") or 0)
+                    )
                 )
                 for t in state["pending"]
             )
@@ -1913,6 +2023,15 @@ def main():
 
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
+            # Do not spam Telegram with ancient ignited setups every run
+            if already_ignited and age_min > 180:
+                print(
+                    f"  {stream_label}: skip ancient ignited age={age_min:.0f}m "
+                    f"(mark setup only)"
+                )
+                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                continue
             if already_ignited:
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
@@ -1942,6 +2061,7 @@ def main():
                 f"msgs={len(msg_ids)}"
             )
 
+            state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             if msg_ids:
                 try:
@@ -1988,6 +2108,7 @@ def main():
                         "ltf": sig["ltf"],
                         "entry_model": sig["entry_model"],
                         "candle_key": key,
+                        "setup_uid": suid,
                         "status": status,
                         "tp1_hit": False,
                         "last_checked_index": entry_idx,
