@@ -1,4 +1,3 @@
-name: CRT Engine
 
 # ONLY external cron-job.org → workflow_dispatch every 10 min.
 # No GitHub schedule (overlapping runners caused /start spam).
@@ -35,6 +34,7 @@ jobs:
       - name: Run CRT + 3C
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
+          TWELVE_DATA_KEYS: ${{ secrets.TWELVE_DATA_KEYS }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SHEET_URL: ${{ secrets.SHEET_URL }}
