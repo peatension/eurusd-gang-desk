@@ -34,12 +34,13 @@ REPORT_WINDOW_MIN = 12
 
 PAIRS = desk.PAIRS
 
-# Core pairs from first factorial
-CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD"]
+# Full engine (kept intact). Live credit budget uses live_slim.py override.
+CORE_PAIRS = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD", "AUD/JPY"]
 
-# FX: WR>50% all-3W. XAU: WR>=59% all-3W (research). 30MIN = gold only.
+# Entry models on HTF anchors: MSS + CISD preferred (PLAIN weak live).
+# Daily / Weekly / Monthly HTF added (MSS+CISD only).
 STREAMS = {
-    # --- FX ---
+    # --- Intraday FX ---
     "CRT 1H→15m MSS":    ("1h", "15min", "MSS"),
     "CRT 1H→15m CISD":   ("1h", "15min", "CISD"),
     "CRT 1H→5m MODEL1":  ("1h", "5min", "MODEL1"),
@@ -47,28 +48,45 @@ STREAMS = {
     "CRT 4H→30m MSS":    ("4h", "30min", "MSS"),
     "CRT 4H→15m MSS":    ("4h", "15min", "MSS"),
     "CRT 4H→15m CISD":   ("4h", "15min", "CISD"),
-    # --- XAU only (WR>=59%) ---
+    # --- XAU ---
     "CRT 1H→15m FVG":    ("1h", "15min", "FVG"),
     "CRT 1H→5m CISD":    ("1h", "5min", "CISD"),
     "CRT 4H→15m FVG":    ("4h", "15min", "FVG"),
     "CRT 30MIN→5m CISD": ("30min", "5min", "CISD"),
+    # --- Daily / Weekly / Monthly HTF (MSS + CISD only) ---
+    "CRT D→4H MSS":      ("1day", "4h", "MSS"),
+    "CRT D→4H CISD":     ("1day", "4h", "CISD"),
+    "CRT D→1H MSS":      ("1day", "1h", "MSS"),
+    "CRT D→1H CISD":     ("1day", "1h", "CISD"),
+    "CRT W→D MSS":       ("1week", "1day", "MSS"),
+    "CRT W→D CISD":      ("1week", "1day", "CISD"),
+    "CRT MN→W MSS":      ("1month", "1week", "MSS"),
+    "CRT MN→D CISD":     ("1month", "1day", "CISD"),
 }
 
 FX4 = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
+FX6 = FX4 + ["AUD/JPY", "XAU/USD"]
 STREAM_PAIRS = {
-    # FX streams: never run XAU
-    "CRT 1H→15m MSS":    FX4 + ["XAU/USD"],  # gold also PASS MSS 1H→15m
-    "CRT 1H→15m CISD":   ["EUR/USD"],
+    "CRT 1H→15m MSS":    FX4 + ["XAU/USD", "AUD/JPY"],
+    "CRT 1H→15m CISD":   ["EUR/USD", "AUD/JPY"],
     "CRT 1H→5m MODEL1":  ["EUR/USD"],
     "CRT 4H→30m":        ["EUR/USD", "AUD/USD"],
-    "CRT 4H→30m MSS":    FX4,
-    "CRT 4H→15m MSS":    ["AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD"],
-    "CRT 4H→15m CISD":   FX4,
-    # Gold-only
+    "CRT 4H→30m MSS":    FX4 + ["AUD/JPY"],
+    "CRT 4H→15m MSS":    ["AUD/USD", "USD/CHF", "EUR/JPY", "XAU/USD", "AUD/JPY"],
+    "CRT 4H→15m CISD":   FX4 + ["AUD/JPY"],
     "CRT 1H→15m FVG":    ["XAU/USD"],
     "CRT 1H→5m CISD":    ["XAU/USD"],
     "CRT 4H→15m FVG":    ["XAU/USD"],
     "CRT 30MIN→5m CISD": ["XAU/USD"],
+    # Higher TF — solid pairs book
+    "CRT D→4H MSS":      FX6,
+    "CRT D→4H CISD":     FX6,
+    "CRT D→1H MSS":      FX6,
+    "CRT D→1H CISD":     FX6,
+    "CRT W→D MSS":       FX6,
+    "CRT W→D CISD":      FX6,
+    "CRT MN→W MSS":      FX6,
+    "CRT MN→D CISD":     FX6,
 }
 
 
@@ -295,13 +313,17 @@ def prop_stop_price(direction, stop, pair, pip):
 def stream_family(stream_label):
     """Group streams by HTF anchor so 1H→15m and 1H→5m compete."""
     s = (stream_label or "").upper().replace(" ", "")
+    if "MN→" in s or "1MONTH" in s or s.startswith("CRT MN"):
+        return "MN"
+    if "W→" in s or "1WEEK" in s or "CRT W" in s:
+        return "W"
     if "30MIN" in s or "30M" in s:
         return "30MIN"
-    if "4H" in s:
+    if "4H" in s and "D→" not in s:
         return "4H"
-    if "1H" in s:
+    if "1H" in s and "D→" not in s:
         return "1H"
-    if s.startswith("D") or "→D" in s or "1DAY" in s:
+    if "D→" in s or s.startswith("CRTD") or "1DAY" in s:
         return "D"
     return "OTHER"
 
@@ -367,6 +389,9 @@ def entry_is_fresh(candle_time, ltf_name, now=None):
         "15min": 90,
         "30min": 150,
         "1h": 240,
+        "4h": 600,
+        "1day": 2000,
+        "1week": 12000,
     }
     max_age = limits.get(str(ltf_name).lower(), 90)
     return age_min <= max_age, age_min
@@ -599,7 +624,14 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
         "candle_time": candle_time,
         "c2_time": str(setup.get("c2_time") or candle_time),
         "session": forex_session(candle_time),
-        "candle_key": f"{stream_label}|{pair}|{setup['c2_time']}|{direction}|{entry_model}",
+        "candle_key": (
+            f"{stream_label}|{pair}|"
+            f"{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|"
+            f"{direction}|{entry_model}"
+        ),
+        "setup_uid": (
+            f"{pair}|{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|{direction}"
+        ),
         "c1_tf": htf_name,
         "ltf": ltf_name,
         "entry_model": entry_model,
@@ -1167,8 +1199,8 @@ def main():
     print(f"Streams loaded: {len(STREAMS)}")
     print("=" * 70)
 
-    if not desk.TWELVE_DATA_KEY:
-        print("Missing TWELVE_DATA_KEY")
+    if not (getattr(desk, "TWELVE_DATA_KEYS", None) or desk.TWELVE_DATA_KEY):
+        print("Missing TWELVE_DATA_KEY / TWELVE_DATA_KEYS")
         return
 
     state = load_state()
@@ -1176,6 +1208,7 @@ def main():
         state["strategy_start"] = utc_now().date().isoformat()
         print("strategy_start set:", state["strategy_start"])
 
+    purge_expired_pending(state)
     maybe_send_reports(state)
 
     weekend = is_weekend_utc()
@@ -1186,39 +1219,72 @@ def main():
     scan_pairs = [p for p in CORE_PAIRS if p in PAIRS]
     if not scan_pairs:
         scan_pairs = list(PAIRS.keys())
+    # CRITICAL: always manage open trades even if pair was removed from slim CORE
+    pending_pairs = []
+    for t in state.get("pending") or []:
+        p = t.get("pair")
+        if p and p not in scan_pairs and p not in pending_pairs:
+            pending_pairs.append(p)
+    if pending_pairs:
+        print("Managing pending-only pairs (SL/TP edit):", ", ".join(pending_pairs))
 
+    def _fetch_tf(pair, tf):
+        key = (pair, tf)
+        if key not in cache:
+            # smaller history for slow HTF
+            size = 200 if tf in ("1day", "1week", "1month") else (500 if tf == "5min" else 400)
+            cache[key] = desk.fetch(pair, tf, size)
+        fr = drop_forming_bar(cache[key]) if cache[key] is not None else None
+        if fr is not None:
+            fr = desk.add_atr(fr)
+        return fr
+
+    # --- Pass A: resolve SL/TP for ANY open pending (including pairs left out of slim) ---
+    manage_list = list(scan_pairs) + pending_pairs
+    for pair in manage_list:
+        if pair not in PAIRS:
+            continue
+        print(f"\n--- {pair} {'(manage-only)' if pair in pending_pairs else ''} ---")
+        # Collect LTFs needed for this pair's open trades + streams
+        needed_ltf = set()
+        for t in state.get("pending") or []:
+            if t.get("pair") == pair and t.get("ltf"):
+                needed_ltf.add(str(t["ltf"]))
+        if pair in scan_pairs:
+            for _h, ltf_name, _m in STREAMS.values():
+                needed_ltf.add(ltf_name)
+        if not needed_ltf:
+            needed_ltf.add("15min")
+        frames_ltf = {}
+        for tf in needed_ltf:
+            frames_ltf[tf] = _fetch_tf(pair, tf)
+        for tf, fr in frames_ltf.items():
+            if fr is not None:
+                check_pending(state, pair, fr, tf)
+
+    # --- Pass B: new signals only on CORE / slim scan pairs ---
     for pair in scan_pairs:
+        if pair not in PAIRS:
+            continue
         cfg = PAIRS[pair]
         pip = cfg["pip"]
-        print(f"\n--- {pair} ---")
+        print(f"\n--- scan {pair} ---")
 
         needed = set()
-        for htf_name, ltf_name, _ in STREAMS.values():
-            needed.add(htf_name)
-            needed.add(ltf_name)
+        for stream_label, (htf_name, ltf_name, _) in STREAMS.items():
+            if _pair_allowed(stream_label, pair):
+                needed.add(htf_name)
+                needed.add(ltf_name)
 
         frames = {}
         ok = True
         for tf in needed:
-            key = (pair, tf)
-            if key not in cache:
-                cache[key] = desk.fetch(pair, tf, 400 if tf != "5min" else 500)
-            frames[tf] = drop_forming_bar(cache[key]) if cache[key] is not None else None
+            frames[tf] = _fetch_tf(pair, tf)
             if frames[tf] is None:
                 ok = False
         if not ok:
             print("  data failed")
             continue
-
-        for tf in frames:
-            frames[tf] = desk.add_atr(frames[tf])
-
-        ltf_seen = set()
-        for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
-            if ltf_name in ltf_seen:
-                continue
-            ltf_seen.add(ltf_name)
-            check_pending(state, pair, frames[ltf_name], ltf_name)
 
         # Weekend: manage pending only — do not invent new Telegram signals
         if weekend:
@@ -1245,6 +1311,11 @@ def main():
             if BLOCK_OFF_HOURS and sess == "Off-hours":
                 print(f"  {stream_label}: Off-hours blocked")
                 continue
+            suid = sig.get("setup_uid") or f"{pair}|{sig.get('c2_time')}|{sig.get('direction')}"
+            # HARD dedup: same pair + C2 + direction (any stream/model) — one Telegram only
+            if state["last_alert_keys"].get(f"setup:{suid}"):
+                print(f"  {stream_label}: already alerted (setup_uid)")
+                continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
                 print(f"  {stream_label}: already alerted")
                 continue
@@ -1260,6 +1331,11 @@ def main():
                 and (
                     t.get("stream") == stream_label
                     or t.get("candle_key") == key
+                    or t.get("setup_uid") == suid
+                    or (
+                        str(t.get("c2_time") or "")[:19] == str(sig.get("c2_time") or "")[:19]
+                        and int(t.get("direction") or 0) == int(sig.get("direction") or 0)
+                    )
                 )
                 for t in state["pending"]
             )
@@ -1285,6 +1361,14 @@ def main():
 
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
+            if already_ignited and age_min > 180:
+                print(
+                    f"  {stream_label}: skip ancient ignited age={age_min:.0f}m "
+                    f"(mark setup only)"
+                )
+                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                continue
             if already_ignited:
                 # Label only on first send — still track as ACTIVE so TP1/WIN/LOSS edit works
                 print(
@@ -1324,6 +1408,7 @@ def main():
                 f"msgs={len(msg_ids)}"
             )
 
+            state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             if msg_ids:
                 try:
@@ -1370,6 +1455,7 @@ def main():
                         "ltf": sig["ltf"],
                         "entry_model": sig["entry_model"],
                         "candle_key": key,
+                        "setup_uid": suid,
                         "status": status,
                         "tp1_hit": False,
                         "last_checked_index": entry_idx,
