@@ -2053,12 +2053,16 @@ def main():
             ):
                 print(f"  {stream_label}: open pending same setup — skip")
                 state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                save_state(state)
                 continue
 
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
                 state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                save_state(state)
                 continue
 
             # hard reject future-dated candles (feed/TZ bug)
@@ -2075,37 +2079,26 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
 
-            # Stale: claim setup silently — NEVER rebroadcast ignited alerts
+            # CLAIM + PERSIST before any Telegram send (stops re-fire across cron runs)
+            state["last_alert_keys"][f"setup:{suid}"] = key
+            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            save_state(state)
+
             if already_ignited:
-                state["last_alert_keys"][f"setup:{suid}"] = key
-                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                if age_min > 45:
-                    print(
-                        f"  {stream_label}: skip ignited age={age_min:.0f}m "
-                        f"(claimed, no Telegram)"
-                    )
-                    continue
-                # age <= 45m: only send if nothing open AND first claim this run
-                # still skip rebroadcast — user already got ACTIVE earlier or move is live
                 print(
-                    f"  {stream_label}: skip near-ignited age={age_min:.0f}m "
-                    f"(claimed, no re-fire)"
+                    f"  {stream_label}: skip ignited age={age_min:.0f}m "
+                    f"(claimed on disk, no Telegram)"
                 )
                 continue
 
-            # CLAIM before send (crash/race safe for sequential runs)
-            state["last_alert_keys"][f"setup:{suid}"] = key
-            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
-            # Never use LATE as status — it was dropped from pending and TP1 never updated
             status = "ENTRY_PENDING" if weekend else "ACTIVE"
             msg_ids = broadcast_message_ids(
                 build_signal_message(
                     sig,
                     weekend_limit=weekend,
-                    already_ignited=already_ignited and not weekend,
+                    already_ignited=False,
                     age_min=age_min,
                 )
             )
@@ -2174,6 +2167,7 @@ def main():
                         "last_checked_index": entry_idx,
                     }
                 )
+                save_state(state)
 
     save_state(state)
     print("\n3C CRT SCAN COMPLETE | pending:", len(state["pending"]))
