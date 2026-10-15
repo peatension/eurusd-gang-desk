@@ -1390,12 +1390,16 @@ def main():
             ):
                 print(f"  {stream_label}: open pending same setup — skip")
                 state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                save_state(state)  # persist skip so next cron does not re-fire
                 continue
 
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
                 state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                save_state(state)
                 continue
 
             # hard reject future-dated candles (feed/TZ bug)
@@ -1412,27 +1416,20 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
 
-            # Stale: claim setup silently — NEVER rebroadcast ignited alerts
-            if already_ignited:
-                state["last_alert_keys"][f"setup:{suid}"] = key
-                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                if age_min > 45:
-                    print(
-                        f"  {stream_label}: skip ignited age={age_min:.0f}m "
-                        f"(claimed, no Telegram)"
-                    )
-                    continue
-                # age <= 45m: only send if nothing open AND first claim this run
-                # still skip rebroadcast — user already got ACTIVE earlier or move is live
-                print(
-                    f"  {stream_label}: skip near-ignited age={age_min:.0f}m "
-                    f"(claimed, no re-fire)"
-                )
-                continue
-
-            # CLAIM before send (crash/race safe for sequential runs)
+            # CLAIM + PERSIST before any Telegram send.
+            # Previous bug: claim only lived in memory until end of scan →
+            # next cron (or overlap) reloaded empty keys and re-fired same setup.
             state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            save_state(state)
+
+            # Stale: already claimed on disk — NEVER rebroadcast
+            if already_ignited:
+                print(
+                    f"  {stream_label}: skip ignited age={age_min:.0f}m "
+                    f"(claimed on disk, no Telegram)"
+                )
+                continue
 
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
@@ -1442,7 +1439,7 @@ def main():
                 build_signal_message(
                     sig,
                     weekend_limit=weekend,
-                    already_ignited=already_ignited and not weekend,
+                    already_ignited=False,
                     age_min=age_min,
                 )
             )
@@ -1520,6 +1517,8 @@ def main():
                         "last_checked_index": entry_idx,
                     }
                 )
+                # Persist pending immediately so TP1/SL + dedup survive mid-scan crash
+                save_state(state)
 
     save_state(state)
     print("\nCRT PLAIN SCAN COMPLETE | pending:", len(state["pending"]))
