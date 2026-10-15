@@ -335,6 +335,62 @@ def entries_same_zone(e1, e2, pip, tol_pips=ENTRY_DEDUP_PIPS):
         return False
 
 
+
+def _floor_c2(c2_time):
+    """Normalize C2 timestamp to minute precision UTC string."""
+    try:
+        ct = pd.Timestamp(c2_time)
+        if ct.tzinfo is not None:
+            ct = ct.tz_convert("UTC").tz_localize(None)
+        return ct.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        s = str(c2_time or "").replace("T", " ").replace("Z", "")
+        return s[:16]
+
+
+def make_setup_uid(pair, direction, c2_time, crh=None, crl=None):
+    """
+    Stable id for one C1/C2 setup across streams/models/runs.
+    Same pair + direction + C2 minute + C1 range → one alert only.
+    """
+    c2 = _floor_c2(c2_time)
+    try:
+        crh_s = f"{float(crh):.5f}" if crh is not None else "?"
+        crl_s = f"{float(crl):.5f}" if crl is not None else "?"
+    except Exception:
+        crh_s, crl_s = "?", "?"
+    return f"{pair}|{int(direction)}|{c2}|{crh_s}|{crl_s}"
+
+
+def pending_owns_setup(state, pair, direction, suid, crh, crl, entry, pip):
+    """True if an open pending trade is the same setup (any stream)."""
+    open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
+    for t in state.get("pending") or []:
+        if t.get("pair") != pair:
+            continue
+        if t.get("status") not in open_st:
+            continue
+        if t.get("setup_uid") and t.get("setup_uid") == suid:
+            return True
+        if int(t.get("direction") or 0) != int(direction):
+            continue
+        # same C1 range
+        try:
+            if crh is not None and t.get("crh") is not None:
+                if abs(float(t["crh"]) - float(crh)) <= 3 * float(pip) and abs(
+                    float(t.get("crl") or 0) - float(crl or 0)
+                ) <= 3 * float(pip):
+                    return True
+        except Exception:
+            pass
+        try:
+            if entries_same_zone(entry, t.get("entry"), pip, tol_pips=8):
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def signal_blocked(state, sig, pip):
     """Block same-level multi-model spam and bias flips while a trade is open."""
     pair = sig.get("pair")
@@ -629,8 +685,9 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
             f"{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|"
             f"{direction}|{entry_model}"
         ),
-        "setup_uid": (
-            f"{pair}|{str(setup.get('c2_time') or candle_time)[:19].replace('T', ' ')}|{direction}"
+        "setup_uid": make_setup_uid(
+            pair, direction, setup.get("c2_time") or candle_time,
+            setup.get("crh"), setup.get("crl"),
         ),
         "c1_tf": htf_name,
         "ltf": ltf_name,
@@ -1311,41 +1368,34 @@ def main():
             if BLOCK_OFF_HOURS and sess == "Off-hours":
                 print(f"  {stream_label}: Off-hours blocked")
                 continue
-            suid = sig.get("setup_uid") or f"{pair}|{sig.get('c2_time')}|{sig.get('direction')}"
-            # HARD dedup: same pair + C2 + direction (any stream/model) — one Telegram only
+            suid = sig.get("setup_uid") or make_setup_uid(
+                pair,
+                sig.get("direction"),
+                sig.get("c2_time") or sig.get("candle_time"),
+                sig.get("crh"),
+                sig.get("crl"),
+            )
+            sig["setup_uid"] = suid
+
+            # HARD lock: same C1/C2 already claimed this process or prior run
             if state["last_alert_keys"].get(f"setup:{suid}"):
                 print(f"  {stream_label}: already alerted (setup_uid)")
                 continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
                 print(f"  {stream_label}: already alerted")
                 continue
-            # same C2/setup already alerted on any stream key
-            if key in (state.get("last_alert_keys") or {}).values():
-                print(f"  {stream_label}: already alerted (candle_key)")
-                continue
-
-            open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
-            dup = any(
-                t.get("pair") == pair
-                and t.get("status") in open_st
-                and (
-                    t.get("stream") == stream_label
-                    or t.get("candle_key") == key
-                    or t.get("setup_uid") == suid
-                    or (
-                        str(t.get("c2_time") or "")[:19] == str(sig.get("c2_time") or "")[:19]
-                        and int(t.get("direction") or 0) == int(sig.get("direction") or 0)
-                    )
-                )
-                for t in state["pending"]
-            )
-            if dup:
-                print(f"  {stream_label}: active/pending open")
+            if pending_owns_setup(
+                state, pair, sig.get("direction"), suid,
+                sig.get("crh"), sig.get("crl"), sig.get("entry"), pip,
+            ):
+                print(f"  {stream_label}: open pending same setup — skip")
+                state["last_alert_keys"][f"setup:{suid}"] = key
                 continue
 
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
+                state["last_alert_keys"][f"setup:{suid}"] = key
                 continue
 
             # hard reject future-dated candles (feed/TZ bug)
@@ -1361,20 +1411,28 @@ def main():
 
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
-            if already_ignited and age_min > 180:
-                print(
-                    f"  {stream_label}: skip ancient ignited age={age_min:.0f}m "
-                    f"(mark setup only)"
-                )
+
+            # Stale: claim setup silently — NEVER rebroadcast ignited alerts
+            if already_ignited:
                 state["last_alert_keys"][f"setup:{suid}"] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                continue
-            if already_ignited:
-                # Label only on first send — still track as ACTIVE so TP1/WIN/LOSS edit works
+                if age_min > 45:
+                    print(
+                        f"  {stream_label}: skip ignited age={age_min:.0f}m "
+                        f"(claimed, no Telegram)"
+                    )
+                    continue
+                # age <= 45m: only send if nothing open AND first claim this run
+                # still skip rebroadcast — user already got ACTIVE earlier or move is live
                 print(
-                    f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"candle={sig['candle_time']} — send once + track"
+                    f"  {stream_label}: skip near-ignited age={age_min:.0f}m "
+                    f"(claimed, no re-fire)"
                 )
+                continue
+
+            # CLAIM before send (crash/race safe for sequential runs)
+            state["last_alert_keys"][f"setup:{suid}"] = key
+            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
 
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
@@ -1410,7 +1468,8 @@ def main():
 
             state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-            if msg_ids:
+            # Always track pending so TP1/SL edits work even if Telegram hiccups
+            if True:
                 try:
                     et = pd.Timestamp(sig["candle_time"])
                     if et.tzinfo is not None:
