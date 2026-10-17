@@ -4,13 +4,13 @@ LIVE SLIM DESK — API credit budget (does NOT change strategy rules)
   CRT : EUR/USD + AUD/JPY
   3C  : USD/JPY + USD/CHF
 
-Locked 2026-10-15 from AUD/JPY + USD/CHF HTF focus Colab:
-  - 30MIN HTF removed
-  - WR >= 70% on W1 AND W2 AND W3
-  - Avg Exp >= +0.9R
-  - Live models only (PLAIN / MODEL1 / CISD) — OCL/QML omitted
+USD/JPY restored 2026-10-17 onto the 4H streams that logged
+9/9 wins in outcomes.json (8–10 Oct cluster):
+  4H→15m MSS / PLAIN / CISD
+  4H→30m MSS / PLAIN / CISD
+plus existing thin 1H→15m MSS / CISD.
 
-EUR/USD + USD/JPY keep thin prior streams so they stay active.
+USD/CHF research lock kept (WR>=70% cells).
 Full crt_plain / 3c_model on disk intact.
 """
 
@@ -48,25 +48,34 @@ CRT_SLIM_STREAM_PAIRS = {
 
 C3_SLIM_PAIRS = ["USD/JPY", "USD/CHF"]
 
-# Research lock (USD/CHF) + thin prior (USD/JPY)
 C3_SLIM_STREAMS = {
-    # --- USD/CHF: WR>=70% all W | avg>=+0.9R ---
-    "3C D→1H PLAIN":     ("1day", "1h", "PLAIN"),     # +1.099R  WR 100/75/75
-    "3C 4H→1H PLAIN":    ("4h", "1h", "PLAIN"),       # +1.220R  WR 82/72/72
-    "3C 4H→15m PLAIN":   ("4h", "15min", "PLAIN"),    # +1.715R  WR 86/86/100
-    "3C 4H→15m MODEL1":  ("4h", "15min", "MODEL1"),   # +1.484R  WR 86/86/88
-    "3C 4H→15m CISD":    ("4h", "15min", "CISD"),     # +1.337R  WR 100/71/71
-    # --- USD/JPY thin prior ---
+    # --- USD/CHF research lock ---
+    "3C D→1H PLAIN":     ("1day", "1h", "PLAIN"),
+    "3C 4H→1H PLAIN":    ("4h", "1h", "PLAIN"),
+    "3C 4H→15m PLAIN":   ("4h", "15min", "PLAIN"),
+    "3C 4H→15m MODEL1":  ("4h", "15min", "MODEL1"),
+    "3C 4H→15m CISD":    ("4h", "15min", "CISD"),
+    # --- USD/JPY restored (live outcomes 9/9) + thin 1H ---
+    "3C 4H→15m MSS":     ("4h", "15min", "MSS"),
+    "3C 4H→30m":         ("4h", "30min", "PLAIN"),
+    "3C 4H→30m MSS":     ("4h", "30min", "MSS"),
+    "3C 4H→30m CISD":    ("4h", "30min", "CISD"),
     "3C 1H→15m MSS":     ("1h", "15min", "MSS"),
     "3C 1H→15m CISD":    ("1h", "15min", "CISD"),
 }
 
 C3_SLIM_STREAM_PAIRS = {
+    # USD/CHF lock
     "3C D→1H PLAIN":     ["USD/CHF"],
     "3C 4H→1H PLAIN":    ["USD/CHF"],
-    "3C 4H→15m PLAIN":   ["USD/CHF"],
+    "3C 4H→15m PLAIN":   ["USD/CHF", "USD/JPY"],  # PLAIN 4H→15m also won on JPY
     "3C 4H→15m MODEL1":  ["USD/CHF"],
-    "3C 4H→15m CISD":    ["USD/CHF"],
+    "3C 4H→15m CISD":    ["USD/CHF", "USD/JPY"],
+    # USD/JPY restored
+    "3C 4H→15m MSS":     ["USD/JPY"],
+    "3C 4H→30m":         ["USD/JPY"],
+    "3C 4H→30m MSS":     ["USD/JPY"],
+    "3C 4H→30m CISD":    ["USD/JPY"],
     "3C 1H→15m MSS":     ["USD/JPY"],
     "3C 1H→15m CISD":    ["USD/JPY"],
 }
@@ -85,7 +94,7 @@ def main():
     print("=" * 70)
     print("TENSION TRADING DESK — LIVE SLIM")
     print("CRT: EUR/USD + AUD/JPY | 3C: USD/JPY + USD/CHF")
-    print("Lock: WR>=70% all W | avg>=+0.9R | 30MIN HTF out | no OCL/QML")
+    print("USD/JPY: 4H→15m/30m MSS+CISD+PLAIN restored | CHF research lock")
     print("=" * 70)
     apply_slim()
     state = desk.load_state()
