@@ -1,17 +1,12 @@
 """
-LIVE SLIM DESK — API credit budget (does NOT change strategy rules)
+LIVE SLIM DESK — 8 pairs from CRT KL+POI research lock
 
-  CRT : EUR/USD + AUD/JPY
-  3C  : USD/JPY + USD/CHF
+  CRT (4): XAU/USD · EUR/USD · AUD/JPY · GBP/JPY
+  3C  (4): USD/JPY · EUR/JPY · USD/CAD · GBP/USD
 
-USD/JPY restored 2026-10-17 onto the 4H streams that logged
-9/9 wins in outcomes.json (8–10 Oct cluster):
-  4H→15m MSS / PLAIN / CISD
-  4H→30m MSS / PLAIN / CISD
-plus existing thin 1H→15m MSS / CISD.
-
-USD/CHF research lock kept (WR>=70% cells).
-Full crt_plain / 3c_model on disk intact.
+Entry: PLAIN base on core streams.
+Selective MSS/TS only where research showed edge.
+Full crt_plain / 3c_model on disk intact — this file only overrides pairs/streams.
 """
 
 from __future__ import annotations
@@ -21,63 +16,53 @@ import importlib
 
 desk = importlib.import_module("3c_model")
 
-CRT_SLIM_PAIRS = ["EUR/USD", "AUD/JPY"]
+# ---------- CRT set (research top 4) ----------
+CRT_SLIM_PAIRS = ["XAU/USD", "EUR/USD", "AUD/JPY", "GBP/JPY"]
 
-# Research lock (AUD/JPY) + thin prior (EUR/USD)
 CRT_SLIM_STREAMS = {
-    # --- AUD/JPY: WR>=70% all W | avg>=+0.9R ---
-    "CRT 1H→15m PLAIN":  ("1h", "15min", "PLAIN"),   # +1.087R  WR 85/90/70
-    "CRT 1H→15m MODEL1": ("1h", "15min", "MODEL1"),  # +0.998R  WR 87/87/73
-    "CRT 4H→1H PLAIN":   ("4h", "1h", "PLAIN"),      # +1.016R  WR 88/71/84
-    "CRT 4H→15m MODEL1": ("4h", "15min", "MODEL1"),  # +1.420R  WR 71/88/88
-    "CRT 4H→30m PLAIN":  ("4h", "30min", "PLAIN"),   # +1.189R  WR 71/86/80
-    # --- EUR/USD thin prior ---
-    "CRT 1H→15m CISD":   ("1h", "15min", "CISD"),
-    "CRT 1H→5m MODEL1":  ("1h", "5min", "MODEL1"),
+    # PLAIN base — all four pairs
+    "CRT 1H→15m PLAIN": ("1h", "15min", "PLAIN"),
+    "CRT 1H→5m PLAIN":  ("1h", "5min", "PLAIN"),
+    "CRT 4H→30m PLAIN": ("4h", "30min", "PLAIN"),
+    "CRT 4H→15m PLAIN": ("4h", "15min", "PLAIN"),
+    # Selective MSS on strong 4H cells
+    "CRT 4H→15m MSS":   ("4h", "15min", "MSS"),
+    "CRT 4H→30m MSS":   ("4h", "30min", "MSS"),
+    # Selective TS on 4H where it ranked
+    "CRT 4H→15m TS":    ("4h", "15min", "TS"),
 }
 
 CRT_SLIM_STREAM_PAIRS = {
-    "CRT 1H→15m PLAIN":  ["AUD/JPY"],
-    "CRT 1H→15m MODEL1": ["AUD/JPY"],
-    "CRT 4H→1H PLAIN":   ["AUD/JPY"],
-    "CRT 4H→15m MODEL1": ["AUD/JPY"],
-    "CRT 4H→30m PLAIN":  ["AUD/JPY"],
-    "CRT 1H→15m CISD":   ["EUR/USD"],
-    "CRT 1H→5m MODEL1":  ["EUR/USD"],
+    "CRT 1H→15m PLAIN": ["XAU/USD", "EUR/USD", "AUD/JPY", "GBP/JPY"],
+    "CRT 1H→5m PLAIN":  ["XAU/USD", "EUR/USD", "AUD/JPY", "GBP/JPY"],
+    "CRT 4H→30m PLAIN": ["XAU/USD", "EUR/USD", "AUD/JPY", "GBP/JPY"],
+    "CRT 4H→15m PLAIN": ["XAU/USD", "EUR/USD", "AUD/JPY", "GBP/JPY"],
+    "CRT 4H→15m MSS":   ["XAU/USD", "EUR/USD"],
+    "CRT 4H→30m MSS":   ["XAU/USD", "EUR/USD"],
+    "CRT 4H→15m TS":    ["XAU/USD", "EUR/USD", "GBP/JPY"],
 }
 
-C3_SLIM_PAIRS = ["USD/JPY", "USD/CHF"]
+# ---------- 3C set (next 4 from remaining) ----------
+C3_SLIM_PAIRS = ["USD/JPY", "EUR/JPY", "USD/CAD", "GBP/USD"]
 
 C3_SLIM_STREAMS = {
-    # --- USD/CHF research lock ---
-    "3C D→1H PLAIN":     ("1day", "1h", "PLAIN"),
-    "3C 4H→1H PLAIN":    ("4h", "1h", "PLAIN"),
-    "3C 4H→15m PLAIN":   ("4h", "15min", "PLAIN"),
-    "3C 4H→15m MODEL1":  ("4h", "15min", "MODEL1"),
-    "3C 4H→15m CISD":    ("4h", "15min", "CISD"),
-    # --- USD/JPY restored (live outcomes 9/9) + thin 1H ---
-    "3C 4H→15m MSS":     ("4h", "15min", "MSS"),
-    "3C 4H→30m":         ("4h", "30min", "PLAIN"),
-    "3C 4H→30m MSS":     ("4h", "30min", "MSS"),
-    "3C 4H→30m CISD":    ("4h", "30min", "CISD"),
-    "3C 1H→15m MSS":     ("1h", "15min", "MSS"),
-    "3C 1H→15m CISD":    ("1h", "15min", "CISD"),
+    "3C 1H→15m PLAIN": ("1h", "15min", "PLAIN"),
+    "3C 1H→5m PLAIN":  ("1h", "5min", "PLAIN"),
+    "3C 4H→30m PLAIN": ("4h", "30min", "PLAIN"),
+    "3C 4H→15m PLAIN": ("4h", "15min", "PLAIN"),
+    "3C 4H→15m MSS":   ("4h", "15min", "MSS"),
+    "3C 4H→30m MSS":   ("4h", "30min", "MSS"),
+    "3C 1H→15m MSS":   ("1h", "15min", "MSS"),
 }
 
 C3_SLIM_STREAM_PAIRS = {
-    # USD/CHF lock
-    "3C D→1H PLAIN":     ["USD/CHF"],
-    "3C 4H→1H PLAIN":    ["USD/CHF"],
-    "3C 4H→15m PLAIN":   ["USD/CHF", "USD/JPY"],  # PLAIN 4H→15m also won on JPY
-    "3C 4H→15m MODEL1":  ["USD/CHF"],
-    "3C 4H→15m CISD":    ["USD/CHF", "USD/JPY"],
-    # USD/JPY restored
-    "3C 4H→15m MSS":     ["USD/JPY"],
-    "3C 4H→30m":         ["USD/JPY"],
-    "3C 4H→30m MSS":     ["USD/JPY"],
-    "3C 4H→30m CISD":    ["USD/JPY"],
-    "3C 1H→15m MSS":     ["USD/JPY"],
-    "3C 1H→15m CISD":    ["USD/JPY"],
+    "3C 1H→15m PLAIN": ["USD/JPY", "EUR/JPY", "USD/CAD", "GBP/USD"],
+    "3C 1H→5m PLAIN":  ["USD/JPY", "EUR/JPY", "USD/CAD", "GBP/USD"],
+    "3C 4H→30m PLAIN": ["USD/JPY", "EUR/JPY", "USD/CAD", "GBP/USD"],
+    "3C 4H→15m PLAIN": ["USD/JPY", "EUR/JPY", "USD/CAD", "GBP/USD"],
+    "3C 4H→15m MSS":   ["USD/JPY", "EUR/JPY"],
+    "3C 4H→30m MSS":   ["USD/JPY", "EUR/JPY"],
+    "3C 1H→15m MSS":   ["USD/JPY"],
 }
 
 
@@ -92,9 +77,10 @@ def apply_slim():
 
 def main():
     print("=" * 70)
-    print("TENSION TRADING DESK — LIVE SLIM")
-    print("CRT: EUR/USD + AUD/JPY | 3C: USD/JPY + USD/CHF")
-    print("USD/JPY: 4H→15m/30m MSS+CISD+PLAIN restored | CHF research lock")
+    print("TENSION TRADING DESK — LIVE SLIM (8 pairs)")
+    print("CRT: XAU/USD EUR/USD AUD/JPY GBP/JPY")
+    print("3C : USD/JPY EUR/JPY USD/CAD GBP/USD")
+    print("PLAIN base + selective MSS/TS | PDF signal format")
     print("=" * 70)
     apply_slim()
     state = desk.load_state()
