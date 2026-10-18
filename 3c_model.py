@@ -86,10 +86,121 @@ def _finnhub_calendar(day_str):
         return []
 
 
-def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
+_COUNTRY_CCY = {
+    "US": "USD", "USA": "USD", "UNITED STATES": "USD",
+    "EU": "EUR", "EMU": "EUR", "EUR": "EUR",
+    "GB": "GBP", "UK": "GBP", "GBP": "GBP",
+    "JP": "JPY", "JPY": "JPY",
+    "AU": "AUD", "AUD": "AUD",
+    "CA": "CAD", "CAD": "CAD",
+    "CH": "CHF", "CHF": "CHF",
+    "NZ": "NZD", "NZD": "NZD",
+}
+
+# Events where higher actual vs estimate generally supports the currency
+_STRENGTH_IF_HIGHER = (
+    "cpi", "inflation", "pce", "ppi", "gdp", "retail", "nfp", "non-farm", "nonfarm",
+    "payroll", "employment", "ism", "pmi", "interest rate", "rate decision",
+    "federal funds", "fomc",
+)
+# Events where higher actual generally weakens the currency
+_WEAKNESS_IF_HIGHER = (
+    "unemployment", "jobless", "claims",
+)
+
+
+def _parse_num(x):
+    if x is None or x == "":
+        return None
+    try:
+        s = str(x).replace("%", "").replace(",", "").strip()
+        if s in ("", "None", "null"):
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+
+def _event_ccy_and_surprise(ev):
+    """Return (currency, surprise_score) or (None, 0).
+    surprise_score >0 = data favors that currency strength."""
+    country = str(ev.get("country") or ev.get("currency") or "").upper()
+    ccy = _COUNTRY_CCY.get(country, country if len(country) == 3 else "")
+    event = str(ev.get("event") or ev.get("name") or "").lower()
+    actual = _parse_num(ev.get("actual"))
+    estimate = _parse_num(ev.get("estimate") or ev.get("consensus"))
+    if actual is None or estimate is None or not ccy:
+        return ccy or None, 0.0
+    diff = actual - estimate
+    if abs(diff) < 1e-12:
+        return ccy, 0.0
+    if any(k in event for k in _WEAKNESS_IF_HIGHER):
+        # higher unemployment → weaker currency
+        return ccy, -1.0 if diff > 0 else 1.0
+    if any(k in event for k in _STRENGTH_IF_HIGHER):
+        return ccy, 1.0 if diff > 0 else -1.0
+    # default: treat beat as mild positive for that economy
+    return ccy, 0.5 if diff > 0 else -0.5
+
+
+def _pair_fa_bias(pair, events, when_ts, lookback_hours=36):
+    """Net FA bias for the pair from recent surprises.
+    Returns +1 bullish pair, -1 bearish pair, 0 neutral/unknown."""
+    parts = str(pair).replace("-", "/").split("/")
+    if len(parts) != 2:
+        # XAU/USD → quote USD only
+        if "XAU" in str(pair).upper():
+            base, quote = "XAU", "USD"
+        else:
+            return 0
+    else:
+        base, quote = parts[0].upper(), parts[1].upper()
+
+    score = 0.0
+    for ev in events:
+        try:
+            tstr = ev.get("time") or ev.get("date") or ""
+            try:
+                et = pd.Timestamp(str(tstr).replace("T", " ").replace("Z", "")[:19])
+                age_h = (when_ts - et).total_seconds() / 3600.0
+            except Exception:
+                age_h = 0.0
+            # only recent prints (past), not far future
+            if age_h < -2 or age_h > lookback_hours:
+                continue
+            impact = str(ev.get("impact") or ev.get("importance") or "").lower()
+            el = str(ev.get("event") or "").lower()
+            if impact not in ("high", "3", "major") and not any(k in el for k in _NEWS_KEYWORDS):
+                continue
+            ccy, sur = _event_ccy_and_surprise(ev)
+            if not ccy or abs(sur) < 1e-12:
+                continue
+            # pair bias: base up = bullish; quote up = bearish
+            if ccy == base:
+                score += sur
+            elif ccy == quote:
+                score -= sur
+            elif base == "XAU" and ccy == "USD":
+                # stronger USD → bearish gold
+                score -= sur
+        except Exception:
+            continue
+    if score > 0.5:
+        return 1
+    if score < -0.5:
+        return -1
+    return 0
+
+
+def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS, direction=None):
     """
-    Return a short label if high-impact news is near signal time for this pair.
-    Never blocks — empty string if none / no key / error.
+    LABEL ONLY — never blocks CRT/3C.
+
+    Returns a short string for the signal card:
+      - nearby high-impact event names
+      - double-standard line when CRT direction vs FA bias disagree/agree
+
+    direction: 1 buy / -1 sell / None
     """
     if not FINNHUB_API_KEY:
         return ""
@@ -104,12 +215,11 @@ def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
 
     day = when_ts.strftime("%Y-%m-%d")
     events = list(_finnhub_calendar(day))
-    # also pull adjacent day if near midnight
     try:
+        # bias needs a bit of history — pull yesterday too
+        events += _finnhub_calendar((when_ts - pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
         if when_ts.hour >= 22:
             events += _finnhub_calendar((when_ts + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
-        if when_ts.hour <= 2:
-            events += _finnhub_calendar((when_ts - pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
     except Exception:
         pass
 
@@ -125,19 +235,9 @@ def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
             country = str(ev.get("country") or ev.get("currency") or "").upper()
             event = str(ev.get("event") or ev.get("name") or "")
             tstr = ev.get("time") or ev.get("date") or ""
-            # Finnhub country often is ISO country code; map common FX
-            country_ccy = {
-                "US": "USD", "USA": "USD", "UNITED STATES": "USD",
-                "EU": "EUR", "EMU": "EUR", "EUR": "EUR",
-                "GB": "GBP", "UK": "GBP", "GBP": "GBP",
-                "JP": "JPY", "JPY": "JPY",
-                "AU": "AUD", "AUD": "AUD",
-                "CA": "CAD", "CAD": "CAD",
-                "CH": "CHF", "CHF": "CHF",
-            }.get(country, country if len(country) == 3 else "")
+            country_ccy = _COUNTRY_CCY.get(country, country if len(country) == 3 else "")
 
             if impact not in ("high", "3", "major"):
-                # still allow keyword hit for medium if classic NFP/CPI name
                 el = event.lower()
                 if not any(k in el for k in _NEWS_KEYWORDS):
                     continue
@@ -145,20 +245,17 @@ def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
                 el = event.lower()
 
             if country_ccy and country_ccy not in ccys and not any(c in country for c in ccys):
-                # high impact USD still tags all USD pairs
                 if "USD" not in ccys or country_ccy not in ("USD", ""):
                     if not any(k in el for k in ("nfp", "non-farm", "fomc", "cpi")):
                         continue
 
-            # time proximity
             try:
                 et = pd.Timestamp(str(tstr).replace("T", " ").replace("Z", "")[:19])
                 delta_h = abs((et - when_ts).total_seconds()) / 3600.0
             except Exception:
-                delta_h = 0.0  # unknown time → still mention if high impact same day
+                delta_h = 0.0
 
             if delta_h > float(window_hours) and impact in ("high", "3", "major"):
-                # same-day high impact outside window: softer tag
                 if delta_h > 6:
                     continue
 
@@ -182,15 +279,36 @@ def news_label_for_signal(pair, when=None, window_hours=NEWS_WINDOW_HOURS):
         except Exception:
             continue
 
-    if not hits:
-        return ""
-    # unique preserve order
-    seen, out = set(), []
+    seen, near = set(), []
     for h in hits:
         if h not in seen:
             seen.add(h)
-            out.append(h)
-    return " · ".join(out[:3])
+            near.append(h)
+    near_s = " · ".join(near[:3]) if near else ""
+
+    # --- Double standard (label only) ---
+    ds = ""
+    try:
+        d = int(direction) if direction is not None else 0
+    except Exception:
+        d = 0
+    if d in (1, -1):
+        fa = _pair_fa_bias(pair, events, when_ts)
+        crt_side = "bullish" if d == 1 else "bearish"
+        if fa == 0:
+            ds = f"Double standard: CRT {crt_side} · FA neutral / unclear"
+        elif fa == d:
+            fa_side = "bullish" if fa == 1 else "bearish"
+            ds = f"Double standard aligned — FA bias {fa_side}"
+        else:
+            fa_side = "bullish" if fa == 1 else "bearish"
+            ds = (
+                f"Double standard compromised — CRT {crt_side} · "
+                f"fundamental bias is {fa_side}"
+            )
+
+    parts = [p for p in (ds, near_s) if p]
+    return " | ".join(parts)
 
 
 STATE_FILE = "last_alert_state_crt.json"
@@ -1537,10 +1655,14 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
     else:
         status = "📌 Status: <b>ACTIVE</b> — Waiting for Entry"
     try:
-        news = news_label_for_signal(sig.get("pair"), sig.get("candle_time") or sig.get("c2_time"))
+        news = news_label_for_signal(
+            sig.get("pair"),
+            sig.get("candle_time") or sig.get("c2_time"),
+            direction=sig.get("direction"),
+        )
     except Exception:
         news = ""
-    news_line = f"News: <b>{news}</b>\n" if news else ""
+    news_line = f"FA: <b>{news}</b>\n" if news else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
