@@ -1,12 +1,12 @@
 """
 Same Telegram bot. Live entrypoint.
 
-Default = LIVE SLIM (4 pairs, credit-safe):
-  EUR/USD + XAU/USD (CRT) | USD/JPY + USD/CAD (3C)
+LIVE SLIM (8 pairs via live_slim.py):
+  CRT: XAU/USD · EUR/USD · AUD/JPY · GBP/JPY
+  3C : USD/JPY · EUR/JPY · USD/CAD · GBP/USD
 
-Full engines stay on disk (crt_plain.py / 3c_model.py) — not spoiled.
-To resume full 8–9 pair desk later, swap main() body back to:
-    crt_plain.main(); desk.main()
+Full engines stay on disk (crt_plain.py / 3c_model.py).
+live_slim only overrides CORE_PAIRS + STREAMS for credit budget.
 
 Run: python desk_runner.py
 """
