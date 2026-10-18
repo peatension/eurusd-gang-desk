@@ -858,9 +858,12 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
     except Exception:
         news = ""
     news_line = f"FA: <b>{news}</b>\n" if news else ""
+    tid = sig.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{sig.get('stream', 'CRT')}</b>\n"
         f"Model: <b>{model}</b> · Session: <b>{sig.get('session', '—')}</b>\n"
         f"C1 TF: <b>{str(sig.get('c1_tf', '')).upper()}</b> → Entry TF: <b>{sig.get('ltf', '')}</b>\n"
@@ -877,9 +880,12 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
 def tp1_update_message(trade):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     pips = float(trade.get("tp1_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', 'CRT')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -895,9 +901,12 @@ def tp2_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     rr = float(trade.get("rr2") or 0)
     pips = float(trade.get("tp2_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', 'CRT')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -912,9 +921,12 @@ def tp2_final_message(trade, exit_time):
 def sl_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     pips = float(trade.get("risk_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', 'CRT')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -955,6 +967,7 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
         desk.log_outcome(
             {
                 "engine": OUTCOMES_ENGINE,
+                "ticket_id": trade.get("ticket_id"),
                 "stream": trade.get("stream"),
                 "pair": trade.get("pair"),
                 "side": trade.get("side"),
@@ -1187,7 +1200,7 @@ def _metrics_block(trades):
     # recent ticket journal (last 8)
     rows = []
     for i, t in enumerate(trades[-8:], 1):
-        tid = f"#CRT-{i:03d}"
+        tid = t.get("ticket_id") or f"#CRT-{i:03d}"
         side = t.get("side") or ("BUY" if int(t.get("direction") or 1) == 1 else "SELL")
         st = str(t.get("status", "")).upper()
         outcome = "Win (TP2)" if st == "WIN" else ("Loss (SL)" if st == "LOSS" else st)
@@ -1479,6 +1492,8 @@ def main():
             # Claim already persisted above — will not re-fire next cron.
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
+            if not sig.get("ticket_id"):
+                sig["ticket_id"] = desk.next_ticket_id()
             status = "ENTRY_PENDING" if weekend else "ACTIVE"
             msg_ids = desk.broadcast_message_ids(
                 build_signal_message(
@@ -1534,6 +1549,7 @@ def main():
                     {
                         "stream": stream_label,
                         "pair": pair,
+                        "ticket_id": sig.get("ticket_id"),
                         "message_id": message_id,
                         "message_ids": msg_ids,
                         "edit_chat_id": primary,
@@ -1571,6 +1587,7 @@ def main():
                 # Persist pending immediately so TP1/SL + dedup survive mid-scan crash
                 save_state(state)
 
+    desk.mark_scan_health(state, ok=True)
     save_state(state)
     print("\nCRT PLAIN SCAN COMPLETE | pending:", len(state["pending"]))
 
