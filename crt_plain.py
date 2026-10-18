@@ -850,10 +850,14 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
     else:
         status = "📌 Status: <b>ACTIVE</b> — Waiting for Entry"
     try:
-        news = desk.news_label_for_signal(sig.get("pair"), sig.get("candle_time") or sig.get("c2_time"))
+        news = desk.news_label_for_signal(
+            sig.get("pair"),
+            sig.get("candle_time") or sig.get("c2_time"),
+            direction=sig.get("direction"),
+        )
     except Exception:
         news = ""
-    news_line = f"News: <b>{news}</b>\n" if news else ""
+    news_line = f"FA: <b>{news}</b>\n" if news else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
