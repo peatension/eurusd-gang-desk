@@ -400,6 +400,108 @@ def load_outcomes():
         return []
 
 
+TICKET_FILE = "ticket_seq.json"
+
+
+def next_ticket_id():
+    """Desk-wide unique trade reference, e.g. #TTD-0042. Shared by CRT + 3C."""
+    n = 1
+    try:
+        if os.path.exists(TICKET_FILE):
+            with open(TICKET_FILE, "r") as f:
+                n = int(json.load(f).get("seq") or 0) + 1
+    except Exception:
+        n = 1
+    try:
+        tmp = TICKET_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"seq": n}, f)
+        os.replace(tmp, TICKET_FILE)
+    except Exception as e:
+        print("ticket_seq save error:", e)
+    return f"#TTD-{n:04d}"
+
+
+def mark_scan_health(state, ok=True, note=""):
+    """Update last scan health fields on engine state (label/ops only)."""
+    now = utc_now().isoformat()
+    state["last_scan_utc"] = now
+    state["last_scan_ok"] = bool(ok)
+    if ok:
+        state["scan_fail_streak"] = 0
+    else:
+        state["scan_fail_streak"] = int(state.get("scan_fail_streak") or 0) + 1
+        if note:
+            state["last_scan_error"] = str(note)[:200]
+    return state
+
+
+def stats_from_outcomes(days=7):
+    """Rolling WR / net R from outcomes.json for the last N days."""
+    rows = load_outcomes()
+    if not rows:
+        return None
+    try:
+        cutoff = pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=int(days))
+    except Exception:
+        cutoff = None
+    closed = []
+    for r in rows:
+        st = str(r.get("status") or "").upper()
+        if st not in ("WIN", "LOSS"):
+            continue
+        ts = r.get("exit_time") or r.get("signal_sent") or r.get("candle_time")
+        if cutoff is not None and ts:
+            try:
+                t = pd.Timestamp(str(ts).replace("Z", "").replace("T", " ")[:19])
+                if t < cutoff:
+                    continue
+            except Exception:
+                pass
+        closed.append(r)
+    n = len(closed)
+    if n == 0:
+        return {"n": 0, "nw": 0, "nl": 0, "wr": 0.0, "net": 0.0, "exp": 0.0}
+    nw = sum(1 for r in closed if str(r.get("status")).upper() == "WIN")
+    nl = n - nw
+    rs = []
+    for r in closed:
+        try:
+            rs.append(float(r.get("result_r")))
+        except Exception:
+            rs.append(1.0 if str(r.get("status")).upper() == "WIN" else -1.0)
+    net = sum(rs)
+    return {
+        "n": n, "nw": nw, "nl": nl,
+        "wr": 100.0 * nw / n,
+        "net": net,
+        "exp": net / n,
+    }
+
+
+def build_stats_message():
+    s7 = stats_from_outcomes(7)
+    s30 = stats_from_outcomes(30)
+    def fmt(label, s):
+        if not s or s["n"] == 0:
+            return f"<b>{label}</b>\nNo closed trades in window.\n"
+        return (
+            f"<b>{label}</b>\n"
+            f"Trades: <b>{s['n']}</b> · W/L: <b>{s['nw']}/{s['nl']}</b>\n"
+            f"WR: <b>{s['wr']:.1f}%</b> · Net: <b>{s['net']:+.2f}R</b> · Exp: <b>{s['exp']:+.2f}R</b>\n"
+        )
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"════════════════════\n"
+        f"<b>Performance</b>\n"
+        f"────────────────────\n\n"
+        f"{fmt('Last 7 days', s7)}\n"
+        f"{fmt('Last 30 days', s30)}\n"
+        f"Source: outcomes.json (live closed trades only).\n"
+        f"Built on Data · Driven by Discipline"
+    )
+
+
 def log_outcome(record):
     """Append a closed-trade record. Used for weekly metrics later."""
     rows = load_outcomes()
@@ -424,10 +526,13 @@ def outcome_notice(trade, status, result_r, exit_time):
     else:
         head = f"⏱️ {status}"
         line = f"Result <b>{float(result_r):+.2f}R</b>" if result_r is not None else "Result n/a"
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"<b>TENSION TRADING DESK</b>\n"
         f"<b>{trade.get('stream')}</b>\n\n"
         f"{head}\n\n"
+        f"{tid_line}"
         f"<b>{trade.get('side')} {trade.get('pair')}</b>\n"
         f"Exit <b>{format_times(exit_time)}</b>\n"
         f"{line}\n\n"
@@ -730,20 +835,52 @@ def process_commands(state):
                 "• <b>TP1</b> — C1 midpoint\n"
                 "• <b>TP2</b> — Opposite C1 boundary\n\n"
                 "Same setup is sent <b>once</b>; message is edited for TP1 / WIN / LOSS.\n"
-                "BE after TP1 is a <b>suggestion only</b> (not auto).",
+                "BE after TP1 is a <b>suggestion only</b> (not auto).\n\n"
+                "<b>Ticket ID</b> — unique ref per trade (e.g. #TTD-0042)\n"
+                "Commands: /status /stats /pairs /ping /stop",
             )
             replied += 1
 
         elif low.startswith("/status"):
             if not _allow_reply(chat_id, "status", uid):
                 continue
+            last = state.get("last_scan_utc") or "—"
+            ok = state.get("last_scan_ok")
+            ok_s = "OK" if ok is True else ("FAIL" if ok is False else "—")
+            streak = int(state.get("scan_fail_streak") or 0)
+            pend = len(state.get("pending") or [])
+            err = state.get("last_scan_error") or ""
+            err_line = f"\nLast error: <code>{err}</code>" if err and ok is False else ""
+            # CRT plain health (separate state file)
+            crt_line = ""
+            try:
+                if os.path.exists("last_alert_state_crt_plain.json"):
+                    with open("last_alert_state_crt_plain.json", "r") as f:
+                        cs = json.load(f)
+                    crt_line = (
+                        f"\nCRT last scan: <b>{cs.get('last_scan_utc') or '—'}</b> · "
+                        f"pending: <b>{len(cs.get('pending') or [])}</b>"
+                    )
+            except Exception:
+                pass
             send_telegram_to(
                 chat_id,
                 "⚡ <b>Desk Status</b>\n\n"
                 "State: <b>ONLINE</b>\n"
                 "Engines: <b>CRT Plain</b> + <b>3C</b>\n"
-                f"Pairs mapped: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
+                f"3C last scan: <b>{last}</b>\n"
+                f"Scan result: <b>{ok_s}</b> · fail streak: <b>{streak}</b>\n"
+                f"3C open pending: <b>{pend}</b>"
+                f"{crt_line}\n"
+                f"Pairs mapped: {len(PAIRS)} | Subscribers: {len(load_subscribers())}"
+                f"{err_line}",
             )
+            replied += 1
+
+        elif low.startswith("/stats"):
+            if not _allow_reply(chat_id, "stats", uid):
+                continue
+            send_telegram_to(chat_id, build_stats_message())
             replied += 1
 
         elif low.startswith("/pairs"):
@@ -1663,9 +1800,12 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
     except Exception:
         news = ""
     news_line = f"FA: <b>{news}</b>\n" if news else ""
+    tid = sig.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{sig.get('stream', '3C')}</b>\n"
         f"Model: <b>{model}</b> · Session: <b>{sig.get('session', '—')}</b>\n"
         f"C1 TF: <b>{str(sig.get('c1_tf', '')).upper()}</b> → Entry TF: <b>{sig.get('ltf', '')}</b>\n"
@@ -1681,9 +1821,12 @@ def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_mi
 def tp1_update_message(trade):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     pips = float(trade.get("tp1_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', '3C')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1699,9 +1842,12 @@ def tp2_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     rr = float(trade.get("rr2") or 0)
     pips = float(trade.get("tp2_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', '3C')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1716,9 +1862,12 @@ def tp2_final_message(trade, exit_time):
 def sl_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
     pips = float(trade.get("risk_pips") or 0)
+    tid = trade.get("ticket_id") or ""
+    tid_line = f"Ticket: <b>{tid}</b>\n" if tid else ""
     return (
         f"{emoji} <b>TENSION TRADING DESK</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{tid_line}"
         f"<b>{trade.get('stream', '3C')}</b>\n"
         f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1759,6 +1908,7 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
         log_outcome(
             {
                 "engine": OUTCOMES_ENGINE,
+                "ticket_id": trade.get("ticket_id"),
                 "stream": trade.get("stream"),
                 "pair": trade.get("pair"),
                 "side": trade.get("side"),
@@ -1986,7 +2136,7 @@ def _metrics_block(trades):
     ) or "—"
     rows = []
     for i, t in enumerate(trades[-8:], 1):
-        tid = f"#3C-{i:03d}"
+        tid = t.get("ticket_id") or f"#3C-{i:03d}"
         side = t.get("side") or ("BUY" if int(t.get("direction") or 1) == 1 else "SELL")
         st = str(t.get("status", "")).upper()
         outcome = "Win (TP2)" if st == "WIN" else ("Loss (SL)" if st == "LOSS" else st)
@@ -2273,6 +2423,8 @@ def main():
 
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
+            if not sig.get("ticket_id"):
+                sig["ticket_id"] = next_ticket_id()
             status = "ENTRY_PENDING" if weekend else "ACTIVE"
             msg_ids = broadcast_message_ids(
                 build_signal_message(
@@ -2319,6 +2471,7 @@ def main():
                     {
                         "stream": stream_label,
                         "pair": pair,
+                        "ticket_id": sig.get("ticket_id"),
                         "message_id": message_id,
                         "message_ids": msg_ids,
                         "edit_chat_id": primary,
@@ -2355,6 +2508,7 @@ def main():
                 )
                 save_state(state)
 
+    mark_scan_health(state, ok=True)
     save_state(state)
     print("\n3C CRT SCAN COMPLETE | pending:", len(state["pending"]))
 
