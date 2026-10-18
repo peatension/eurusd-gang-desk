@@ -192,16 +192,21 @@ def format_dual_times(setup_time, signal_time=None, signal_sent=None):
 
 
 def forex_session(dt_like):
+    """UTC hour buckets. London opens at 06:00 UTC (= 07:00 WAT) so
+    07:30 WAT scans are not Asia-blocked. NY ends 21:00 UTC (= 22:00 WAT)."""
     try:
         h = int(_as_utc(dt_like).hour)
     except Exception:
         return "Unknown"
-    if 0 <= h < 7:
+    # Asia: 00:00–05:59 UTC  (01:00–06:59 WAT)
+    if 0 <= h < 6:
         return "Asia"
-    if 7 <= h < 12:
+    # London: 06:00–11:59 UTC (07:00–12:59 WAT) — covers 07:30 WAT start
+    if 6 <= h < 12:
         return "London"
     if 12 <= h < 16:
         return "London/NY Overlap"
+    # New York: 16:00–20:59 UTC (17:00–21:59 WAT)
     if 16 <= h < 21:
         return "New York"
     return "Off-hours"
@@ -422,7 +427,8 @@ def signal_blocked(state, sig, pip):
 
 
 def entry_is_fresh(candle_time, ltf_name, now=None):
-    """Reject stale entries so Telegram is not hours late vs the chart."""
+    """Reject stale entries so Telegram is not hours late vs the chart.
+    Tightened: ~2 bars max so signals stay sharp."""
     now = now or utc_now()
     try:
         ct = pd.Timestamp(candle_time)
@@ -438,18 +444,18 @@ def entry_is_fresh(candle_time, ltf_name, now=None):
         age_min = (now_ts - ct).total_seconds() / 60.0
     except Exception:
         return True, 0.0
-    # max age by entry TF (2–3 bars)
+    # ~2 bars max — keep signals sharp (was 3+ bars and felt late)
     limits = {
-        "1min": 15,
-        "5min": 45,
-        "15min": 90,
-        "30min": 150,
-        "1h": 240,
-        "4h": 600,
-        "1day": 2000,
-        "1week": 12000,
+        "1min": 10,
+        "5min": 25,
+        "15min": 50,
+        "30min": 90,
+        "1h": 150,
+        "4h": 400,
+        "1day": 1500,
+        "1week": 10000,
     }
-    max_age = limits.get(str(ltf_name).lower(), 90)
+    max_age = limits.get(str(ltf_name).lower(), 50)
     return age_min <= max_age, age_min
 
 def drop_forming_bar(df):
@@ -747,20 +753,52 @@ def render_setup_chart(ltf, sig, out_path="/tmp/crt_setup_chart.png"):
 
 
 # ============================================================
-# MESSAGES
+# MESSAGES  (PDF-style coordinates + dual WAT/UTC times kept)
 # ============================================================
 
-def _core_levels(trade):
-    """Safe for old pending rows that may lack crh/crl/mid."""
+def _px(pair, v):
+    """Adaptive price format: XAU 2dp, JPY 3dp, else 5dp."""
+    try:
+        x = float(v)
+    except Exception:
+        return str(v)
+    p = str(pair or "")
+    if "XAU" in p:
+        return f"{x:.2f}"
+    if "JPY" in p:
+        return f"{x:.3f}"
+    return f"{x:.5f}"
+
+
+def _entry_zone(trade):
+    """Small zone around structural entry for display (PDF style)."""
+    entry = float(trade.get("entry") or 0)
+    pair = str(trade.get("pair") or "")
+    if "XAU" in pair:
+        pip = 0.1
+    elif "JPY" in pair:
+        pip = 0.01
+    else:
+        pip = 0.0001
+    lo, hi = entry - 3 * pip, entry + 3 * pip
+    return f"{_px(pair, lo)} - {_px(pair, hi)}"
+
+
+def _core_levels(trade, tp1_state="Pending", tp2_state="Pending", sl_note=""):
+    """PDF-style coordinates. Safe for old pending rows missing crh/crl/mid."""
+    pair = trade.get("pair")
     entry = float(trade.get("entry") or 0)
     stop = float(trade.get("stop") or 0)
     tp1 = float(trade.get("tp1") or 0)
     tp2 = float(trade.get("tp2") or 0)
-    crh = trade.get("crh")
-    crl = trade.get("crl")
-    mid = trade.get("mid")
+    prop = trade.get("prop_stop")
+    risk = float(trade.get("risk_pips") or 0)
+    tp1_pips = float(trade.get("tp1_pips") or 0)
+    tp2_pips = float(trade.get("tp2_pips") or 0)
+    rr1 = float(trade.get("rr1") or 0)
+    rr2 = float(trade.get("rr2") or 0)
+    crh, crl, mid = trade.get("crh"), trade.get("crl"), trade.get("mid")
     if crh is None or crl is None or mid is None:
-        # recover from levels we always store
         direction = int(trade.get("direction") or (1 if entry <= tp1 else -1))
         if direction == 1:
             crl = crl if crl is not None else entry
@@ -770,126 +808,117 @@ def _core_levels(trade):
             crh = crh if crh is not None else entry
             mid = mid if mid is not None else tp1
             crl = crl if crl is not None else tp2
+    sl_line = f"🛑 SL: <b>{_px(pair, stop)}</b> ({risk:.1f} pips)"
+    if sl_note:
+        sl_line += f" <i>({sl_note})</i>"
+    if prop is not None:
+        try:
+            if abs(float(prop) - stop) > 1e-9:
+                sl_line += f"\n   Prop SL: <b>{_px(pair, prop)}</b>"
+        except Exception:
+            pass
     return (
-        f"C1 High <b>{float(crh):.5f}</b>\n"
-        f"C1 Mid  <b>{float(mid):.5f}</b>\n"
-        f"C1 Low  <b>{float(crl):.5f}</b>\n\n"
-        f"Entry <b>{entry:.5f}</b>\n"
-        f"SL (structure)     <b>{stop:.5f}</b>"
-        f" ({float(trade.get('risk_pips', 0)):.1f} pips)\n"
-        f"SL (Profirm Spread) <b>{float(trade.get('prop_stop', stop)):.5f}</b>"
-        f" ({float(trade.get('prop_risk_pips', trade.get('risk_pips', 0))):.1f} pips"
-        f" · buf {float(trade.get('prop_buffer_pips', 0)):.0f})\n"
-        f"TP1   <b>{tp1:.5f}</b>"
-        f" ({float(trade.get('tp1_pips', 0)):.1f} pips · {float(trade.get('rr1', 0)):.2f}R)\n"
-        f"TP2   <b>{tp2:.5f}</b>"
-        f" ({float(trade.get('tp2_pips', 0)):.1f} pips · {float(trade.get('rr2', 0)):.2f}R)\n"
+        f"Pair: <b>{pair}</b>\n"
+        f"Action: <b>{trade.get('side', '—')}</b>\n"
+        f"Entry Zone: <b>{_entry_zone(trade)}</b>\n"
+        f"Entry: <b>{_px(pair, entry)}</b>\n\n"
+        f"<b>Targets:</b>\n"
+        f"🎯 TP1: <b>{_px(pair, tp1)}</b> ({tp1_pips:.1f} pips · {rr1:.2f}R) — {tp1_state}\n"
+        f"🎯 TP2: <b>{_px(pair, tp2)}</b> ({tp2_pips:.1f} pips · {rr2:.2f}R) — {tp2_state}\n"
+        f"{sl_line}\n\n"
+        f"C1 High <b>{_px(pair, crh)}</b> · Mid <b>{_px(pair, mid)}</b> · Low <b>{_px(pair, crl)}</b>\n"
     )
 
 
-
 def build_signal_message(sig, weekend_limit=False, already_ignited=False, age_min=0.0):
-    emoji = "🟢" if sig["direction"] == 1 else "🔴"
+    """PDF-style signal. Keeps dual WAT/UTC times + stream/model/session."""
+    emoji = "🟢" if int(sig.get("direction", 1)) == 1 else "🔴"
     model = sig.get("entry_model", "PLAIN")
     if weekend_limit:
-        limit_side = "BUY LIMIT" if sig["direction"] == 1 else "SELL LIMIT"
+        limit_side = "BUY LIMIT" if int(sig.get("direction", 1)) == 1 else "SELL LIMIT"
         status = (
-            f"📌 Status: <b>ENTRY PENDING</b>\n"
-            f"Order: <b>{limit_side}</b> @ {float(sig['entry']):.5f}\n"
-            f"Weekend — activates when price trades through entry\n"
+            f"📌 Status: <b>Waiting for Entry</b>\n"
+            f"Order: <b>{limit_side}</b> @ {_px(sig.get('pair'), sig.get('entry'))}\n"
+            f"Weekend — activates when price trades through entry"
         )
     elif already_ignited:
         status = (
             f"⚠️ Status: <b>ALREADY IGNITED</b>\n"
-            f"Entry candle is ~{float(age_min):.0f} min old — move may already be underway.\n"
-            f"<b>Enter only if</b> price/structure still makes sense on your chart.\n"
-            f"💡 Suggestion only: BE after TP1 (not auto)\n"
+            f"Entry candle ~{float(age_min):.0f} min old — move may already be underway.\n"
+            f"<b>Enter only if</b> structure still valid on your chart."
         )
     else:
-        status = (
-            f"📌 Status: <b>ACTIVE</b>\n"
-            f"💡 Suggestion only: BE after TP1 (not auto)\n"
-        )
+        status = "📌 Status: <b>ACTIVE</b> — Waiting for Entry"
     try:
         news = desk.news_label_for_signal(sig.get("pair"), sig.get("candle_time") or sig.get("c2_time"))
     except Exception:
         news = ""
     news_line = f"News: <b>{news}</b>\n" if news else ""
     return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"════════════════════\n"
-        f"<b>{sig['stream']}</b>\n"
-        f"────────────────────\n\n"
-        f"{emoji} <b>{sig['side']} {sig['pair']}</b>\n\n"
-        f"C1 TF: <b>{sig['c1_tf'].upper()}</b> · Entry TF: <b>{sig['ltf']}</b>\n"
-        f"Entry model: <b>{model}</b>\n"
-        f"Session: <b>{sig.get('session', '—')}</b>\n"
-        f"Sweep: same TF as C1, close back inside\n"
+        f"{emoji} <b>TENSION TRADING DESK</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{sig.get('stream', 'CRT')}</b>\n"
+        f"Model: <b>{model}</b> · Session: <b>{sig.get('session', '—')}</b>\n"
+        f"C1 TF: <b>{str(sig.get('c1_tf', '')).upper()}</b> → Entry TF: <b>{sig.get('ltf', '')}</b>\n"
         f"{news_line}"
-        f"\n"
-        f"{_core_levels(sig)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{_core_levels(sig, tp1_state='Pending', tp2_state='Pending')}\n"
         f"{format_dual_times(sig.get('c2_time'), sig.get('candle_time'))}\n\n"
-        f"{status}\n"
-        f"<a href=\"{desk.tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"{status}\n\n"
+        f"📊 TradingView button below\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def tp1_update_message(trade):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
+    pips = float(trade.get("tp1_pips") or 0)
     return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"════════════════════\n"
-        f"<b>{trade['stream']}</b>\n"
-        f"────────────────────\n\n"
-        f"🎯 <b>TP1 HIT — HEADING TO TP2</b>\n\n"
-        f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
-        f"Session: <b>{trade.get('session', '—')}</b>\n\n"
-        f"{_core_levels(trade)}\n"
+        f"{emoji} <b>TENSION TRADING DESK</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{trade.get('stream', 'CRT')}</b>\n"
+        f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{_core_levels(trade, tp1_state='✅ ACHIEVED', tp2_state='Pending')}\n"
         f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
-        f"📌 Status: <b>TP1 HIT — ACTIVE</b>\n"
-        f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n"
-        f"💡 No automatic BE\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"📌 Status: <b>TP1 Hit (+{pips:.1f} pips)</b> — heading TP2\n"
+        f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def tp2_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
-    rr2 = float(trade.get("rr2", 0))
+    rr = float(trade.get("rr2") or 0)
+    pips = float(trade.get("tp2_pips") or 0)
     return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"════════════════════\n"
-        f"<b>{trade['stream']}</b>\n"
-        f"────────────────────\n\n"
-        f"🏆 <b>TP2 HIT — WIN</b>\n\n"
-        f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
-        f"Session: <b>{trade.get('session', '—')}</b>\n"
-        f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
-        f"Result: <b>+{rr2:.2f}R</b>\n\n"
-        f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
-        f"📌 Status: <b>CLOSED — WIN</b>\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"{emoji} <b>TENSION TRADING DESK</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{trade.get('stream', 'CRT')}</b>\n"
+        f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{_core_levels(trade, tp1_state='✅ ACHIEVED', tp2_state='✅ ACHIEVED')}\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n"
+        f"Exit: <b>{format_signal_time(exit_time)}</b>\n\n"
+        f"📌 Status: <b>CLOSED — WIN</b> (+{rr:.2f}R · +{pips:.1f} pips)\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def sl_final_message(trade, exit_time):
     emoji = "🟢" if int(trade.get("direction", 1)) == 1 else "🔴"
+    pips = float(trade.get("risk_pips") or 0)
     return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"════════════════════\n"
-        f"<b>{trade['stream']}</b>\n"
-        f"────────────────────\n\n"
-        f"❌ <b>SL HIT — LOSS</b>\n\n"
-        f"{emoji} <b>{trade['side']} {trade['pair']}</b>\n\n"
-        f"Session: <b>{trade.get('session', '—')}</b>\n"
-        f"Exit: <b>{format_signal_time(exit_time)}</b>\n"
-        f"Result: <b>-1.00R</b>\n\n"
-        f"{_core_levels(trade)}\n"
-        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n\n"
-        f"📌 Status: <b>CLOSED — LOSS</b>\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"{emoji} <b>TENSION TRADING DESK</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{trade.get('stream', 'CRT')}</b>\n"
+        f"Model: <b>{trade.get('entry_model', 'PLAIN')}</b> · Session: <b>{trade.get('session', '—')}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{_core_levels(trade, tp1_state='Pending', tp2_state='Pending', sl_note='HIT')}\n"
+        f"{format_dual_times(trade.get('c2_time'), trade.get('candle_time'))}\n"
+        f"Exit: <b>{format_signal_time(exit_time)}</b>\n\n"
+        f"📌 Status: <b>CLOSED — LOSS</b> (-1.00R · -{pips:.1f} pips)\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
@@ -901,8 +930,9 @@ def _edit_all_messages(trade, text):
         if chat:
             ids = {str(chat): trade["message_id"]}
     any_ok = False
+    pair = trade.get("pair")
     for chat, mid in ids.items():
-        ok = desk.edit_telegram(mid, text, chat)
+        ok = desk.edit_telegram(mid, text, chat, pair=pair)
         if ok:
             any_ok = True
         else:
@@ -1125,6 +1155,7 @@ def _crt_outcomes_between(t0, t1):
 
 
 def _metrics_block(trades):
+    """Journal-style metrics (PDF blueprint): totals + recent ticket lines."""
     if not trades:
         return "No completed CRT Plain trades in this period."
     wins = [t for t in trades if str(t.get("status", "")).upper() == "WIN"]
@@ -1135,6 +1166,13 @@ def _metrics_block(trades):
     rs = [float(t["result_r"]) for t in trades if t.get("result_r") is not None]
     net = sum(rs) if rs else 0.0
     exp = net / n if n else 0.0
+    # pip proxy from result_r * risk_pips when available
+    net_pips = 0.0
+    for t in trades:
+        try:
+            net_pips += float(t.get("result_r") or 0) * float(t.get("risk_pips") or 0)
+        except Exception:
+            pass
     by_session = {}
     for t in trades:
         s = t.get("session") or "Unknown"
@@ -1142,18 +1180,26 @@ def _metrics_block(trades):
     sess = "\n".join(
         f"• {s}: n={len(xs)} net={sum(xs):+.2f}R" for s, xs in sorted(by_session.items())
     ) or "—"
-    by_stream = {}
-    for t in trades:
-        s = t.get("stream") or "?"
-        by_stream.setdefault(s, []).append(float(t.get("result_r") or 0))
-    streams = "\n".join(
-        f"• {s}: n={len(xs)} net={sum(xs):+.2f}R" for s, xs in sorted(by_stream.items())
-    ) or "—"
+    # recent ticket journal (last 8)
+    rows = []
+    for i, t in enumerate(trades[-8:], 1):
+        tid = f"#CRT-{i:03d}"
+        side = t.get("side") or ("BUY" if int(t.get("direction") or 1) == 1 else "SELL")
+        st = str(t.get("status", "")).upper()
+        outcome = "Win (TP2)" if st == "WIN" else ("Loss (SL)" if st == "LOSS" else st)
+        if st == "WIN" and t.get("tp1_hit") and float(t.get("result_r") or 0) < float(t.get("rr2") or 99):
+            outcome = "Win (TP1)"
+        rr = t.get("result_r")
+        rr_s = f"{float(rr):+.2f}R" if rr is not None else "—"
+        rows.append(
+            f"{tid}  {t.get('pair','?')}  {side}  {rr_s}  {outcome}"
+        )
+    journal = "\n".join(rows) if rows else "—"
     return (
-        f"Trades: <b>{n}</b> | Wins: <b>{nw}</b> | Losses: <b>{nl}</b>\n"
-        f"WR: <b>{wr:.1f}%</b> | Net: <b>{net:+.2f}R</b> | Exp: <b>{exp:+.2f}R</b>\n\n"
-        f"<b>By session</b>\n{sess}\n\n"
-        f"<b>By stream</b>\n{streams}"
+        f"<b>TOTAL SIGNALS</b>  {n}     <b>WIN RATE</b>  {wr:.1f}%     <b>NET</b>  {net:+.2f}R\n"
+        f"Exp: <b>{exp:+.2f}R</b> · Net pips (approx): <b>{net_pips:+.0f}</b>\n\n"
+        f"<b>Recent journal</b>\n{journal}\n\n"
+        f"<b>By session</b>\n{sess}"
     )
 
 
@@ -1175,7 +1221,8 @@ def weekly_bounds(now=None):
     d = now.date()
     monday = d - timedelta(days=d.weekday())
     week_start = datetime(monday.year, monday.month, monday.day, 0, 0, tzinfo=timezone.utc)
-    period_monday = week_start if now.weekday() >= 5 else week_start - timedelta(days=7)
+    # Fri (4)+ = this week ending; Mon–Thu = previous full week
+    period_monday = week_start if now.weekday() >= 4 else week_start - timedelta(days=7)
     period_friday_end = period_monday + timedelta(days=4, hours=21)
     iso = period_monday.isocalendar()
     pid = f"{iso[0]}-W{iso[1]:02d}"
@@ -1214,7 +1261,7 @@ def yearly_bounds(state, now=None):
 
 def maybe_send_reports(state):
     w = wat_now()
-    if w.weekday() == 5 and in_wat_send_window(12, 0):
+    if w.weekday() == 4 and in_wat_send_window(22, 0):  # Friday after NY close (WAT)
         pid, t0, t1 = weekly_bounds()
         if state.get("weekly_report_id") != pid:
             trades = _crt_outcomes_between(t0, t1)
@@ -1318,6 +1365,7 @@ def main():
         for tf, fr in frames_ltf.items():
             if fr is not None:
                 check_pending(state, pair, fr, tf)
+                save_state(state)
 
     # --- Pass B: new signals only on CORE / slim scan pairs ---
     for pair in scan_pairs:
@@ -1423,26 +1471,25 @@ def main():
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             save_state(state)
 
-            # Stale: already claimed on disk — NEVER rebroadcast
-            if already_ignited:
-                print(
-                    f"  {stream_label}: skip ignited age={age_min:.0f}m "
-                    f"(claimed on disk, no Telegram)"
-                )
-                continue
-
+            # Stale entry: still send once with ALREADY IGNITED label (not silent).
+            # Claim already persisted above — will not re-fire next cron.
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
-            # Never use LATE as status — it was dropped from pending and TP1 never updated
             status = "ENTRY_PENDING" if weekend else "ACTIVE"
             msg_ids = desk.broadcast_message_ids(
                 build_signal_message(
                     sig,
                     weekend_limit=weekend,
-                    already_ignited=False,
+                    already_ignited=already_ignited,
                     age_min=age_min,
-                )
+                ),
+                pair=sig.get("pair"),
             )
+            if already_ignited:
+                print(
+                    f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
+                    f"(sent once, claimed)"
+                )
             try:
                 chart = render_setup_chart(ltf, sig)
                 if chart:
