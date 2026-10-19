@@ -37,6 +37,8 @@ _td_key_i = 0
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 SHEET_URL = os.getenv("SHEET_URL", "")
+# Master admin — ONLY secret ADMIN_ID (your Telegram numeric id)
+ADMIN_CHAT_ID = (os.getenv("ADMIN_ID") or "").strip()
 
 # --- Finnhub economic calendar (label only — never blocks signal) ---
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_KEY") or ""
@@ -498,8 +500,250 @@ def build_stats_message():
         f"{fmt('Last 7 days', s7)}\n"
         f"{fmt('Last 30 days', s30)}\n"
         f"Source: outcomes.json (live closed trades only).\n"
+        f"Use /performance for Weekly · Monthly · Yearly buttons."
+    )
+
+
+def is_admin(chat_id):
+    if not ADMIN_CHAT_ID:
+        return False
+    return str(chat_id).strip() == str(ADMIN_CHAT_ID).strip()
+
+
+def performance_keyboard():
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "📅 Weekly", "callback_data": "perf:weekly"},
+                {"text": "📆 Monthly", "callback_data": "perf:monthly"},
+            ],
+            [
+                {"text": "📈 Yearly", "callback_data": "perf:yearly"},
+                {"text": "⏱ Last 7d", "callback_data": "perf:7d"},
+            ],
+            [
+                {"text": "📊 Last 30d", "callback_data": "perf:30d"},
+            ],
+        ]
+    }
+
+
+def admin_keyboard():
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "👥 List subscribers", "callback_data": "admin:list"},
+            ],
+            [
+                {"text": "🚫 Unsub menu", "callback_data": "admin:unsub_menu"},
+                {"text": "🗑 Unsub ALL", "callback_data": "admin:unsub_all_confirm"},
+            ],
+            [
+                {"text": "📊 Performance", "callback_data": "admin:perf"},
+            ],
+        ]
+    }
+
+
+def risk_keyboard():
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "👤 Personal", "callback_data": "risk:personal"},
+                {"text": "🏦 Prop firm", "callback_data": "risk:prop"},
+            ],
+        ]
+    }
+
+
+def risk_profile(balance, mode="personal"):
+    """
+    Account-size tiers. mode: personal | prop
+    Returns risk_pct, max_open, daily_cap_pct, label notes.
+    """
+    bal = float(balance)
+    mode = (mode or "personal").lower()
+    prop = mode.startswith("prop")
+
+    if bal < 100:
+        risk_pct, max_open, daily = 0.5, 1, 1.5
+        tier = "Micro"
+    elif bal < 500:
+        risk_pct, max_open, daily = 1.0, 1, 2.0
+        tier = "Small"
+    elif bal < 2000:
+        risk_pct, max_open, daily = 1.0, 2, 3.0
+        tier = "Standard"
+    elif bal < 10000:
+        risk_pct, max_open, daily = 1.0, 3, 3.0
+        tier = "Funded / personal"
+    else:
+        risk_pct, max_open, daily = 0.75, 3, 2.5
+        tier = "Large"
+
+    if prop:
+        # Prop: tighter so one day doesn't kill the challenge
+        risk_pct = min(risk_pct, 0.5) if bal < 500 else min(risk_pct, 0.75)
+        if bal >= 500:
+            risk_pct = min(risk_pct, 0.5)
+        daily = min(daily, 2.0)
+        max_open = min(max_open, 2)
+        tier = f"Prop · {tier}"
+
+    risk_usd = bal * (risk_pct / 100.0)
+    daily_usd = bal * (daily / 100.0)
+    return {
+        "balance": bal,
+        "mode": "prop" if prop else "personal",
+        "tier": tier,
+        "risk_pct": risk_pct,
+        "risk_usd": risk_usd,
+        "max_open": max_open,
+        "daily_pct": daily,
+        "daily_usd": daily_usd,
+    }
+
+
+def _lot_for_risk(risk_usd, sl_pips, pip_value_per_lot=10.0):
+    """Standard XXXUSD-style: $10 per pip per 1.0 lot. Floor 0.01."""
+    if sl_pips <= 0 or pip_value_per_lot <= 0:
+        return 0.01
+    raw = float(risk_usd) / (float(sl_pips) * float(pip_value_per_lot))
+    lot = max(0.01, round(raw, 2))
+    return lot
+
+
+def build_risk_card(balance, mode="personal"):
+    """Project lot / risk from account size only — no pair required."""
+    try:
+        bal = float(str(balance).replace(",", "").replace("$", "").strip())
+    except Exception:
+        return None
+    if bal <= 0:
+        return None
+    p = risk_profile(bal, mode)
+    mode_label = "Prop firm" if p["mode"] == "prop" else "Personal"
+    # Example lots for common CRT SL distances (standard forex pip value)
+    examples = []
+    for sl in (10, 15, 20, 30, 50):
+        lot = _lot_for_risk(p["risk_usd"], sl)
+        examples.append(f"  SL {sl:>2} pips → <b>{lot:.2f}</b> lot")
+    ex = "\n".join(examples)
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"════════════════════\n"
+        f"<b>Risk / Lot projection</b>\n"
+        f"Mode: <b>{mode_label}</b> · Tier: <b>{p['tier']}</b>\n"
+        f"Balance: <b>${p['balance']:,.2f}</b>\n"
+        f"────────────────────\n\n"
+        f"Risk / trade: <b>{p['risk_pct']:.2f}%</b> = <b>${p['risk_usd']:,.2f}</b>\n"
+        f"Daily risk cap: <b>{p['daily_pct']:.1f}%</b> = <b>${p['daily_usd']:,.2f}</b>\n"
+        f"Max open trades: <b>{p['max_open']}</b>\n"
+        f"Min lot: <b>0.01</b>\n\n"
+        f"<b>Lot from your CRT signal SL</b>\n"
+        f"(standard USD-pair pip value ~$10 / pip / lot)\n"
+        f"{ex}\n\n"
+        f"<i>Read SL pips on the signal card → pick the matching row.\n"
+        f"XAU/JPY pairs: same risk $; confirm lot with your broker contract size.</i>\n\n"
         f"Built on Data · Driven by Discipline"
     )
+
+
+def unsub_menu_keyboard(subscribers):
+    """One Unsub button per chat_id (admin only). Max 20 rows."""
+    rows = []
+    for cid in list(subscribers)[:20]:
+        if ADMIN_CHAT_ID and str(cid) == str(ADMIN_CHAT_ID):
+            label = f"⭐ {cid} (admin — keep)"
+            rows.append([{"text": label, "callback_data": "admin:noop"}])
+        else:
+            rows.append([{
+                "text": f"🚫 Unsub {cid}",
+                "callback_data": f"admin:unsub:{cid}",
+            }])
+    rows.append([{"text": "« Back", "callback_data": "admin:home"}])
+    return {"inline_keyboard": rows}
+
+
+def outcomes_between_all(t0, t1):
+    """All closed WIN/LOSS outcomes in [t0, t1] — CRT + 3C combined."""
+    rows = load_outcomes()
+    out = []
+    for r in rows:
+        st = str(r.get("status") or "").upper()
+        if st not in ("WIN", "LOSS"):
+            continue
+        try:
+            et = _as_utc(r.get("exit_time") or r.get("candle_time") or r.get("signal_sent"))
+            if et is None:
+                continue
+            if t0 <= et <= t1:
+                out.append(r)
+        except Exception:
+            continue
+    return out
+
+
+def build_on_demand_report(kind, state=None):
+    """kind: weekly | monthly | yearly | 7d | 30d"""
+    state = state or {}
+    now = utc_now()
+    if kind == "weekly":
+        pid, t0, t1 = weekly_bounds(now)
+        title = "WEEKLY PERFORMANCE"
+        label = pid
+    elif kind == "monthly":
+        # current month to date (on-demand), not only previous month
+        t0 = datetime(now.year, now.month, 1, 0, 0, tzinfo=timezone.utc)
+        t1 = now
+        pid = f"{now.year}-{now.month:02d}"
+        title = "MONTHLY PERFORMANCE (MTD)"
+        label = pid
+    elif kind == "yearly":
+        pid, t0, t1 = yearly_bounds(state, now)
+        title = "YEARLY PERFORMANCE"
+        label = pid
+    elif kind == "7d":
+        t1 = now
+        t0 = now - timedelta(days=7)
+        title = "LAST 7 DAYS"
+        label = "7d"
+    elif kind == "30d":
+        t1 = now
+        t0 = now - timedelta(days=30)
+        title = "LAST 30 DAYS"
+        label = "30d"
+    else:
+        return "Unknown report kind."
+    trades = outcomes_between_all(t0, t1)
+    return (
+        f"<b>TENSION TRADING DESK</b>\n"
+        f"════════════════════\n"
+        f"<b>{title}</b>\n"
+        f"Period: <b>{label}</b>\n"
+        f"{t0.strftime('%d %b %Y %H:%M')} → {t1.strftime('%d %b %Y %H:%M')} UTC\n"
+        f"────────────────────\n\n"
+        f"{_metrics_block(trades)}\n\n"
+        f"Built on Data · Driven by Discipline"
+    )
+
+
+def answer_callback(callback_query_id, text=None, show_alert=False):
+    if not BOT_TOKEN or not callback_query_id:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+    payload = {"callback_query_id": callback_query_id, "show_alert": bool(show_alert)}
+    if text:
+        payload["text"] = str(text)[:200]
+    try:
+        requests.post(url, json=payload, timeout=15)
+    except Exception as e:
+        print("answerCallbackQuery error:", e)
+
+
+def send_telegram_markup(chat_id, text, reply_markup):
+    """Send with explicit inline keyboard (admin / performance menus)."""
+    return send_telegram_to(chat_id, text, reply_markup=reply_markup)
 
 
 def log_outcome(record):
@@ -641,14 +885,21 @@ def broadcast(text, pair=None):
 
 
 def edit_telegram(message_id, text, chat_id=None, pair=None):
-    target = str(chat_id or CHAT_ID or "")
-    if not BOT_TOKEN or not target or not message_id:
-        print(f"Telegram edit skip: token/target/mid missing target={target} mid={message_id}")
+    """Edit one Telegram message. Returns True on success.
+    Treats 'message is not modified' as success (already correct text).
+    """
+    target = str(chat_id or CHAT_ID or "").strip()
+    if not BOT_TOKEN or not target or message_id is None:
+        print(f"Telegram edit skip: token/target/mid missing target={target!r} mid={message_id!r}")
         return False
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        mid = message_id
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
     payload = {
         "chat_id": target,
-        "message_id": int(message_id) if str(message_id).isdigit() else message_id,
+        "message_id": mid,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
@@ -658,10 +909,14 @@ def edit_telegram(message_id, text, chat_id=None, pair=None):
         payload["reply_markup"] = kb
     try:
         data = requests.post(url, json=payload, timeout=20).json()
-        if not data.get("ok"):
-            print(f"Telegram edit fail ({target} mid={message_id}):", data)
-            return False
-        return True
+        if data.get("ok"):
+            return True
+        desc = str((data.get("description") or "")).lower()
+        # already at this text → treat as success so we don't spam fallbacks
+        if "message is not modified" in desc:
+            return True
+        print(f"Telegram edit fail ({target} mid={mid}):", data)
+        return False
     except Exception as e:
         print("Telegram edit error:", e)
         return False
@@ -773,6 +1028,155 @@ def process_commands(state):
     skipped_old = 0
     for result in results:
         uid = int(result.get("update_id", 0))
+
+        # ---------- INLINE BUTTON CALLBACKS ----------
+        cq = result.get("callback_query")
+        if cq:
+            cq_id = cq.get("id")
+            data = str(cq.get("data") or "")
+            from_user = cq.get("from") or {}
+            msg = cq.get("message") or {}
+            chat = msg.get("chat") or {}
+            chat_id = str(chat.get("id") or from_user.get("id") or "")
+            if not chat_id:
+                answer_callback(cq_id, "No chat")
+                continue
+            # age gate on callback message
+            msg_ts = msg.get("date")
+            try:
+                age = now - float(msg_ts)
+            except Exception:
+                age = 0
+            if msg_ts is not None and age > 600:
+                answer_callback(cq_id, "Menu expired — send /performance or /admin again")
+                skipped_old += 1
+                continue
+
+            if data.startswith("perf:"):
+                kind = data.split(":", 1)[1]
+                answer_callback(cq_id, f"Loading {kind}…")
+                try:
+                    send_telegram_to(chat_id, build_on_demand_report(kind, state))
+                except Exception as e:
+                    send_telegram_to(chat_id, f"Report error: {e}")
+                replied += 1
+                continue
+
+            if data.startswith("risk:"):
+                mode = data.split(":", 1)[1].strip().lower()
+                if mode not in ("personal", "prop"):
+                    answer_callback(cq_id, "Unknown mode")
+                    continue
+                answer_callback(cq_id, mode)
+                wait = state.setdefault("risk_wait", {})
+                wait[str(chat_id)] = {"mode": mode, "ts": now}
+                send_telegram_to(
+                    chat_id,
+                    f"{'🏦 Prop firm' if mode == 'prop' else '👤 Personal'} mode selected.\n\n"
+                    f"Send your <b>account balance</b> as a number only.\n"
+                    f"Example: <code>500</code> or <code>2500</code>",
+                )
+                replied += 1
+                continue
+
+            if data.startswith("admin:"):
+                if not is_admin(chat_id):
+                    answer_callback(cq_id, "Admin only", show_alert=True)
+                    continue
+                action = data[6:]  # after admin:
+                if action == "home" or action == "noop":
+                    answer_callback(cq_id)
+                    if action == "home":
+                        send_telegram_markup(
+                            chat_id,
+                            "🔐 <b>Admin panel — Tension Trading Desk</b>\n\n"
+                            f"Subscribers: <b>{len(load_subscribers())}</b>",
+                            admin_keyboard(),
+                        )
+                    continue
+                if action == "list":
+                    answer_callback(cq_id, "Subscribers")
+                    subs = load_subscribers()
+                    lines = "\n".join(f"• <code>{s}</code>" for s in subs) or "— none —"
+                    send_telegram_to(
+                        chat_id,
+                        f"👥 <b>Subscribers ({len(subs)})</b>\n\n{lines}\n\n"
+                        f"Force unsub: <code>/unsub CHAT_ID</code>",
+                    )
+                    replied += 1
+                    continue
+                if action == "unsub_menu":
+                    answer_callback(cq_id)
+                    subs = load_subscribers()
+                    send_telegram_markup(
+                        chat_id,
+                        "🚫 <b>Unsub menu</b>\nTap a user to remove them from CRT Engine alerts.",
+                        unsub_menu_keyboard(subs),
+                    )
+                    replied += 1
+                    continue
+                if action == "unsub_all_confirm":
+                    answer_callback(cq_id)
+                    send_telegram_markup(
+                        chat_id,
+                        "⚠️ <b>Unsub ALL subscribers?</b>\nThis removes everyone except you cannot undo easily.",
+                        {
+                            "inline_keyboard": [[
+                                {"text": "✅ Confirm Unsub ALL", "callback_data": "admin:unsub_all"},
+                                {"text": "Cancel", "callback_data": "admin:home"},
+                            ]]
+                        },
+                    )
+                    continue
+                if action == "unsub_all":
+                    answer_callback(cq_id, "Cleared", show_alert=True)
+                    keep = [str(ADMIN_CHAT_ID)] if ADMIN_CHAT_ID else []
+                    # always keep primary CHAT_ID channel if set
+                    if CHAT_ID and str(CHAT_ID) not in keep:
+                        keep.append(str(CHAT_ID))
+                    save_subscribers(keep)
+                    subscribers = load_subscribers()
+                    send_telegram_to(
+                        chat_id,
+                        f"🗑 <b>All subscribers cleared.</b>\nKept: {', '.join(keep) or 'none'}",
+                    )
+                    replied += 1
+                    continue
+                if action == "perf":
+                    answer_callback(cq_id)
+                    send_telegram_markup(
+                        chat_id,
+                        "📊 <b>Performance</b> — pick a period",
+                        performance_keyboard(),
+                    )
+                    continue
+                if action.startswith("unsub:"):
+                    target = action.split(":", 1)[1].strip()
+                    answer_callback(cq_id, f"Removed {target}", show_alert=True)
+                    subs = [x for x in load_subscribers() if str(x) != str(target)]
+                    save_subscribers(subs)
+                    subscribers = subs
+                    # notify target if possible
+                    try:
+                        send_telegram_to(
+                            target,
+                            "🔴 <b>Unsubscribed by admin.</b>\nYou will no longer receive Tension Trading Desk signals.",
+                        )
+                    except Exception:
+                        pass
+                    send_telegram_to(
+                        chat_id,
+                        f"✅ Removed <code>{target}</code>\nRemaining: <b>{len(subs)}</b>",
+                    )
+                    replied += 1
+                    continue
+                answer_callback(cq_id, "Unknown admin action")
+                continue
+
+            answer_callback(cq_id)
+            continue
+
+        # ---------- TEXT COMMANDS ----------
         message = result.get("message") or {}
         chat = message.get("chat") or {}
         chat_id = str(chat.get("id", ""))
@@ -791,6 +1195,23 @@ def process_commands(state):
             continue
 
         low = text.lower().split("@")[0].strip()
+        parts = low.split()
+
+        # Numeric reply while waiting for /risk balance
+        wait = state.setdefault("risk_wait", {})
+        pending_risk = wait.get(str(chat_id))
+        if pending_risk and not text.startswith("/"):
+            raw = text.replace(",", "").replace("$", "").strip()
+            if re.fullmatch(r"\d+(\.\d+)?", raw):
+                mode = (pending_risk.get("mode") or "personal")
+                card = build_risk_card(raw, mode)
+                wait.pop(str(chat_id), None)
+                if card:
+                    send_telegram_to(chat_id, card)
+                else:
+                    send_telegram_to(chat_id, "Invalid balance. Send a number like <code>1000</code>")
+                replied += 1
+                continue
 
         if low.startswith("/start"):
             if chat_id not in subscribers:
@@ -803,10 +1224,12 @@ def process_commands(state):
                 chat_id,
                 "🟢 <b>Subscribed — Tension Trading Desk</b>\n\n"
                 "You will receive alerts from both engines:\n"
-                "• <b>CRT Plain</b> — EUR/USD AUD/USD USD/CHF EUR/JPY XAU/USD\n"
-                "• <b>3C</b> — GBP/USD USD/JPY USD/CAD GBP/JPY\n\n"
-                "<i>Live slim desk (if active): EUR/USD XAU/USD USD/JPY USD/CAD only</i>\n\n"
-                "Commands: /help /status /pairs /ping /stop",
+                "• <b>CRT Plain</b>\n"
+                "• <b>3C</b>\n\n"
+                "Commands:\n"
+                "/performance — Weekly · Monthly · Yearly\n"
+                "/risk — Lot size from your balance\n"
+                "/stats /status /pairs /ping /stop /help",
             )
             replied += 1
 
@@ -825,19 +1248,22 @@ def process_commands(state):
         elif low.startswith("/help"):
             if not _allow_reply(chat_id, "help", uid):
                 continue
+            help_admin = (
+                "\n\n<b>Admin</b>\n/admin — panel\n/unsub CHAT_ID — force remove\n/subs — list"
+                if is_admin(chat_id) else ""
+            )
             send_telegram_to(
                 chat_id,
-                "📖 <b>How to read signals</b>\n\n"
+                "📖 <b>Tension Trading Desk</b>\n\n"
                 "• <b>C1</b> — HTF range candle\n"
-                "• <b>C2</b> — Sweep + close back inside (same TF)\n"
-                "• <b>Entry</b> — LTF model (MSS / CISD / PLAIN / MODEL1 / FVG)\n"
-                "• <b>SL</b> — Beyond sweep extreme (+ prop buffer shown)\n"
-                "• <b>TP1</b> — C1 midpoint\n"
-                "• <b>TP2</b> — Opposite C1 boundary\n\n"
-                "Same setup is sent <b>once</b>; message is edited for TP1 / WIN / LOSS.\n"
-                "BE after TP1 is a <b>suggestion only</b> (not auto).\n\n"
-                "<b>Ticket ID</b> — unique ref per trade (e.g. #TTD-0042)\n"
-                "Commands: /status /stats /pairs /ping /stop",
+                "• <b>C2</b> — Sweep + close back inside\n"
+                "• <b>TP1</b> — C1 midpoint · <b>TP2</b> — opposite side\n\n"
+                "Same setup once; message edited for TP1 / WIN / LOSS.\n\n"
+                "<b>Commands</b>\n"
+                "/performance — Weekly/Monthly/Yearly buttons\n"
+                "/risk — Personal or Prop lot projection\n"
+                "/stats /status /pairs /ping /stop"
+                f"{help_admin}",
             )
             replied += 1
 
@@ -851,7 +1277,6 @@ def process_commands(state):
             pend = len(state.get("pending") or [])
             err = state.get("last_scan_error") or ""
             err_line = f"\nLast error: <code>{err}</code>" if err and ok is False else ""
-            # CRT plain health (separate state file)
             crt_line = ""
             try:
                 if os.path.exists("last_alert_state_crt_plain.json"):
@@ -881,6 +1306,109 @@ def process_commands(state):
             if not _allow_reply(chat_id, "stats", uid):
                 continue
             send_telegram_to(chat_id, build_stats_message())
+            replied += 1
+
+        elif low.startswith("/performance") or low.startswith("/report"):
+            if not _allow_reply(chat_id, "performance", uid):
+                continue
+            send_telegram_markup(
+                chat_id,
+                "📊 <b>TENSION TRADING DESK — Performance</b>\n\n"
+                "Tap a period to view anytime:",
+                performance_keyboard(),
+            )
+            replied += 1
+
+        elif low.startswith("/risk") or low.startswith("/lot"):
+            if not _allow_reply(chat_id, "risk", uid):
+                continue
+            send_telegram_markup(
+                chat_id,
+                "📐 <b>Lot size / risk projector</b>\n\n"
+                "Uses your account size only — no pair needed.\n"
+                "Size from the SL pips on your CRT signal card.\n\n"
+                "Choose account type:",
+                risk_keyboard(),
+            )
+            replied += 1
+
+        elif low.startswith("/weekly"):
+            if not _allow_reply(chat_id, "weekly", uid):
+                continue
+            send_telegram_to(chat_id, build_on_demand_report("weekly", state))
+            replied += 1
+
+        elif low.startswith("/monthly"):
+            if not _allow_reply(chat_id, "monthly", uid):
+                continue
+            send_telegram_to(chat_id, build_on_demand_report("monthly", state))
+            replied += 1
+
+        elif low.startswith("/yearly"):
+            if not _allow_reply(chat_id, "yearly", uid):
+                continue
+            send_telegram_to(chat_id, build_on_demand_report("yearly", state))
+            replied += 1
+
+        elif low.startswith("/admin"):
+            if not is_admin(chat_id):
+                send_telegram_to(chat_id, "⛔ Admin only.")
+                continue
+            if not _allow_reply(chat_id, "admin", uid):
+                continue
+            send_telegram_markup(
+                chat_id,
+                "🔐 <b>Admin panel — Tension Trading Desk</b>\n\n"
+                f"Your id: <code>{chat_id}</code>\n"
+                f"Subscribers: <b>{len(load_subscribers())}</b>\n\n"
+                "Use buttons or:\n"
+                "<code>/unsub CHAT_ID</code>\n"
+                "<code>/subs</code>",
+                admin_keyboard(),
+            )
+            replied += 1
+
+        elif low.startswith("/subs"):
+            if not is_admin(chat_id):
+                send_telegram_to(chat_id, "⛔ Admin only.")
+                continue
+            if not _allow_reply(chat_id, "subs", uid):
+                continue
+            subs = load_subscribers()
+            lines = "\n".join(f"• <code>{s}</code>" for s in subs) or "— none —"
+            send_telegram_to(chat_id, f"👥 <b>Subscribers ({len(subs)})</b>\n\n{lines}")
+            replied += 1
+
+        elif parts and parts[0] in ("/unsub", "/unsubscribe"):
+            if not is_admin(chat_id):
+                send_telegram_to(chat_id, "⛔ Admin only.")
+                continue
+            if not _allow_reply(chat_id, "unsub", uid):
+                continue
+            if len(parts) < 2:
+                send_telegram_to(
+                    chat_id,
+                    "Usage: <code>/unsub CHAT_ID</code>\nOr open /admin → Unsub menu",
+                )
+                continue
+            target = parts[1].strip()
+            if not re.fullmatch(r"-?\d+", target):
+                send_telegram_to(chat_id, "Invalid chat id.")
+                continue
+            subs = [x for x in load_subscribers() if str(x) != target]
+            save_subscribers(subs)
+            subscribers = subs
+            try:
+                send_telegram_to(
+                    target,
+                    "🔴 <b>Unsubscribed by admin.</b>\nYou will no longer receive desk signals.",
+                )
+            except Exception:
+                pass
+            send_telegram_to(
+                chat_id,
+                f"✅ Removed <code>{target}</code>\nRemaining: <b>{len(subs)}</b>",
+            )
             replied += 1
 
         elif low.startswith("/pairs"):
@@ -1348,6 +1876,13 @@ def _floor_c2(c2_time):
     except Exception:
         s = str(c2_time or "").replace("T", " ").replace("Z", "")
         return s[:16]
+
+
+def make_fire_lock(stream_label, pair, direction, c2_time, entry_model):
+    """Permanent per-stream fire lock — presence = already sent, never re-send."""
+    c2 = _floor_c2(c2_time)
+    model = str(entry_model or "PLAIN").upper()
+    return f"fired:{stream_label}|{pair}|{int(direction or 0)}|{c2}|{model}"
 
 
 def make_setup_uid(pair, direction, c2_time, crh=None, crl=None):
@@ -1880,57 +2415,86 @@ def sl_final_message(trade, exit_time):
 
 
 def _edit_all_messages(trade, text):
-    """Edit every chat message_id stored for this trade. Returns True if any edit ok."""
-    ids = trade.get("message_ids") or {}
+    """Edit every stored message_id. Falls back to CHAT_ID if map is incomplete."""
+    ids = {}
+    raw = trade.get("message_ids") or {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if k is not None and v is not None:
+                ids[str(k)] = v
     if not ids and trade.get("message_id"):
         chat = trade.get("edit_chat_id") or (str(CHAT_ID) if CHAT_ID else None)
         if chat:
-            ids = {str(chat): trade["message_id"]}
+            ids[str(chat)] = trade["message_id"]
+    # last resort: primary CHAT_ID + single message_id
+    if not ids and trade.get("message_id") and CHAT_ID:
+        ids[str(CHAT_ID)] = trade["message_id"]
+
+    if not ids:
+        print(
+            f"  EDIT SKIP — no message_ids on trade "
+            f"{trade.get('stream')} {trade.get('pair')} ticket={trade.get('ticket_id')}"
+        )
+        return False
+
     any_ok = False
     pair = trade.get("pair")
     for chat, mid in ids.items():
         ok = edit_telegram(mid, text, chat, pair=pair)
         if ok:
             any_ok = True
+            print(f"  EDIT OK chat={chat} mid={mid} {trade.get('stream')} {pair}")
         else:
-            print(f"  edit fail chat={chat} mid={mid} stream={trade.get('stream')}")
+            print(f"  EDIT FAIL chat={chat} mid={mid} {trade.get('stream')} {pair}")
     return any_ok
 
 
 def finalize_trade(trade, status, result_r, exit_time, edit_text):
+    """Always try edit → always broadcast verdict → always log outcome."""
     if edit_text:
         ok = _edit_all_messages(trade, edit_text)
         if not ok:
-            print(f"  all edits failed {trade.get('stream')} {trade.get('pair')} — broadcast fallback")
-            broadcast(edit_text)
+            print(f"  all edits failed {trade.get('stream')} {trade.get('pair')} — broadcast full card")
+            try:
+                broadcast(edit_text, pair=trade.get("pair"))
+            except Exception as e:
+                print("  broadcast edit_text error:", e)
     if status in ("WIN", "LOSS"):
-        broadcast(outcome_notice(trade, status, result_r, exit_time))
-        log_outcome(
-            {
-                "engine": OUTCOMES_ENGINE,
-                "ticket_id": trade.get("ticket_id"),
-                "stream": trade.get("stream"),
-                "pair": trade.get("pair"),
-                "side": trade.get("side"),
-                "direction": trade.get("direction"),
-                "status": status,
-                "result_r": float(result_r) if result_r is not None else None,
-                "exit_time": exit_time,
-                "entry": trade.get("entry"),
-                "stop": trade.get("stop"),
-                "tp1": trade.get("tp1"),
-                "tp2": trade.get("tp2"),
-                "rr1": trade.get("rr1"),
-                "rr2": trade.get("rr2"),
-                "candle_time": trade.get("candle_time"),
-                "signal_sent": trade.get("signal_sent"),
-                "session": trade.get("session"),
-                "tp1_hit": bool(trade.get("tp1_hit")),
-                "c1_tf": trade.get("c1_tf"),
-                "ltf": trade.get("ltf"),
-                "entry_model": trade.get("entry_model"),
-            }
-        )
+        try:
+            broadcast(outcome_notice(trade, status, result_r, exit_time), pair=trade.get("pair"))
+            print(f"  VERDICT broadcast {status} {trade.get('stream')} {trade.get('pair')} R={result_r}")
+        except Exception as e:
+            print("  verdict broadcast error:", e)
+        try:
+            log_outcome(
+                {
+                    "engine": OUTCOMES_ENGINE,
+                    "ticket_id": trade.get("ticket_id"),
+                    "stream": trade.get("stream"),
+                    "pair": trade.get("pair"),
+                    "side": trade.get("side"),
+                    "direction": trade.get("direction"),
+                    "status": status,
+                    "result_r": float(result_r) if result_r is not None else None,
+                    "exit_time": exit_time,
+                    "entry": trade.get("entry"),
+                    "stop": trade.get("stop"),
+                    "tp1": trade.get("tp1"),
+                    "tp2": trade.get("tp2"),
+                    "rr1": trade.get("rr1"),
+                    "rr2": trade.get("rr2"),
+                    "candle_time": trade.get("candle_time"),
+                    "signal_sent": trade.get("signal_sent"),
+                    "session": trade.get("session"),
+                    "tp1_hit": bool(trade.get("tp1_hit")),
+                    "c1_tf": trade.get("c1_tf"),
+                    "ltf": trade.get("ltf"),
+                    "entry_model": trade.get("entry_model"),
+                }
+            )
+            print(f"  OUTCOME logged {status} {trade.get('pair')}")
+        except Exception as e:
+            print("  log_outcome error:", e)
 
 
 # ============================================================
@@ -1949,6 +2513,19 @@ def purge_expired_pending(state):
         kept.append(t)
     state["pending"] = kept
 
+def _ltf_norm(name):
+    """Normalize TF labels so 15min/15m/5min/5m match across streams."""
+    n = str(name or "").strip().lower().replace(" ", "")
+    aliases = {
+        "15": "15min", "15m": "15min", "15min": "15min",
+        "5": "5min", "5m": "5min", "5min": "5min",
+        "30": "30min", "30m": "30min", "30min": "30min",
+        "1h": "1h", "60": "1h", "60min": "1h",
+        "4h": "4h", "240": "4h",
+    }
+    return aliases.get(n, n)
+
+
 def check_pending(state, pair, ltf, ltf_name=None):
     """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first. TP1 edit kept."""
     if not state["pending"] or ltf is None:
@@ -1960,10 +2537,11 @@ def check_pending(state, pair, ltf, ltf_name=None):
         if trade.get("pair") != pair:
             remaining.append(trade)
             continue
-        # Only manage this trade on its own entry TF dataframe
-        if ltf_name and trade.get("ltf") and str(trade.get("ltf")) != str(ltf_name):
-            remaining.append(trade)
-            continue
+        # Only manage this trade on its own entry TF (normalized aliases)
+        if ltf_name and trade.get("ltf"):
+            if _ltf_norm(trade.get("ltf")) != _ltf_norm(ltf_name):
+                remaining.append(trade)
+                continue
         status = trade.get("status")
         # Weekend LIMIT: activate when price traded through entry; expire stale limits
         if status == "ENTRY_PENDING":
@@ -2073,7 +2651,10 @@ def check_pending(state, pair, ltf, ltf_name=None):
                     text = tp1_update_message(trade)
                     ok = _edit_all_messages(trade, text)
                     if not ok:
-                        broadcast(text)
+                        try:
+                            broadcast(text, pair=pair)
+                        except Exception:
+                            broadcast(text)
                         print(f"  TP1 edit failed — broadcast fallback {trade.get('stream')} {pair}")
                     else:
                         print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
@@ -2376,20 +2957,29 @@ def main():
                 sig.get("crl"),
             )
             sig["setup_uid"] = suid
+            flk = make_fire_lock(
+                stream_label,
+                pair,
+                sig.get("direction"),
+                sig.get("c2_time") or sig.get("candle_time"),
+                entry_model,
+            )
 
-            # HARD lock: same C1/C2 already claimed this process or prior run
-            if state["last_alert_keys"].get(f"setup:{suid}"):
-                print(f"  {stream_label}: already alerted (setup_uid)")
+            # PERMANENT per-stream lock — presence alone blocks re-send every cron
+            if state["last_alert_keys"].get(flk):
+                print(f"  {stream_label}: already fired (lock) — skip")
                 continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
-                print(f"  {stream_label}: already alerted")
+                print(f"  {stream_label}: already alerted (key match)")
+                state["last_alert_keys"][flk] = key
+                save_state(state)
                 continue
             if pending_owns_setup(
                 state, pair, sig.get("direction"), suid,
                 sig.get("crh"), sig.get("crl"), sig.get("entry"), pip,
             ):
                 print(f"  {stream_label}: open pending same setup — skip")
-                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][flk] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
                 save_state(state)
                 continue
@@ -2397,7 +2987,7 @@ def main():
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
-                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][flk] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
                 save_state(state)
                 continue
@@ -2416,9 +3006,10 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
 
-            # CLAIM + PERSIST before any Telegram send (stops re-fire across cron runs)
-            state["last_alert_keys"][f"setup:{suid}"] = key
+            # CLAIM + PERSIST before Telegram — flk survives even if key string drifts
+            state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            state["last_alert_keys"][f"setup:{suid}"] = key
             save_state(state)
 
             signal_sent = utc_now().isoformat()
@@ -2438,7 +3029,7 @@ def main():
             if already_ignited:
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"(sent once, claimed)"
+                    f"(sent once, locked)"
                 )
             primary = str(CHAT_ID) if CHAT_ID else (next(iter(msg_ids), None))
             message_id = msg_ids.get(primary) if primary else None
@@ -2451,6 +3042,7 @@ def main():
                 f"msgs={len(msg_ids)}"
             )
 
+            state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             # Always track pending so TP1/SL edits work even if Telegram hiccups
@@ -2504,7 +3096,12 @@ def main():
                         "status": status,
                         "tp1_hit": False,
                         "last_checked_index": entry_idx,
+                        "last_checked_time": sig["candle_time"],
                     }
+                )
+                print(
+                    f"  PENDING stored {stream_label} {pair} "
+                    f"mid={message_id} ids={len(msg_ids)} pending_n={len(state['pending'])}"
                 )
                 save_state(state)
 
