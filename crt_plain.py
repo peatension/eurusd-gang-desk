@@ -355,8 +355,8 @@ def _floor_c2(c2_time):
 
 def make_setup_uid(pair, direction, c2_time, crh=None, crl=None):
     """
-    Stable id for one C1/C2 setup across streams/models/runs.
-    Same pair + direction + C2 minute + C1 range → one alert only.
+    Stable id for one C1/C2 setup (pair + direction + C2 minute + C1 range).
+    Used for pending ownership / cross-checks — not the sole Telegram fire lock.
     """
     c2 = _floor_c2(c2_time)
     try:
@@ -365,6 +365,17 @@ def make_setup_uid(pair, direction, c2_time, crh=None, crl=None):
     except Exception:
         crh_s, crl_s = "?", "?"
     return f"{pair}|{int(direction)}|{c2}|{crh_s}|{crl_s}"
+
+
+def make_fire_lock(stream_label, pair, direction, c2_time, entry_model):
+    """
+    Permanent per-stream fire lock. Presence in last_alert_keys = already sent
+    on a previous cron — never re-send that stream card again.
+    Different streams (1H→15m vs 1H→5m) keep separate locks so both can fire once.
+    """
+    c2 = _floor_c2(c2_time)
+    model = str(entry_model or "PLAIN").upper()
+    return f"fired:{stream_label}|{pair}|{int(direction or 0)}|{c2}|{model}"
 
 
 def pending_owns_setup(state, pair, direction, suid, crh, crl, entry, pip):
@@ -939,57 +950,85 @@ def sl_final_message(trade, exit_time):
 
 
 def _edit_all_messages(trade, text):
-    """Edit every chat message_id stored for this trade. Returns True if any edit ok."""
-    ids = trade.get("message_ids") or {}
+    """Edit every stored message_id. CHAT_ID fallback if map incomplete."""
+    ids = {}
+    raw = trade.get("message_ids") or {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if k is not None and v is not None:
+                ids[str(k)] = v
     if not ids and trade.get("message_id"):
         chat = trade.get("edit_chat_id") or (str(desk.CHAT_ID) if desk.CHAT_ID else None)
         if chat:
-            ids = {str(chat): trade["message_id"]}
+            ids[str(chat)] = trade["message_id"]
+    if not ids and trade.get("message_id") and desk.CHAT_ID:
+        ids[str(desk.CHAT_ID)] = trade["message_id"]
+
+    if not ids:
+        print(
+            f"  EDIT SKIP — no message_ids "
+            f"{trade.get('stream')} {trade.get('pair')} ticket={trade.get('ticket_id')}"
+        )
+        return False
+
     any_ok = False
     pair = trade.get("pair")
     for chat, mid in ids.items():
         ok = desk.edit_telegram(mid, text, chat, pair=pair)
         if ok:
             any_ok = True
+            print(f"  EDIT OK chat={chat} mid={mid} {trade.get('stream')} {pair}")
         else:
-            print(f"  edit fail chat={chat} mid={mid} stream={trade.get('stream')}")
+            print(f"  EDIT FAIL chat={chat} mid={mid} {trade.get('stream')} {pair}")
     return any_ok
 
 
 def finalize_trade(trade, status, result_r, exit_time, edit_text):
+    """Always try edit → always broadcast verdict → always log outcome."""
     if edit_text:
         ok = _edit_all_messages(trade, edit_text)
         if not ok:
-            print(f"  all edits failed {trade.get('stream')} {trade.get('pair')} — broadcast fallback")
-            desk.broadcast(edit_text)
+            print(f"  all edits failed {trade.get('stream')} {trade.get('pair')} — broadcast full card")
+            try:
+                desk.broadcast(edit_text, pair=trade.get("pair"))
+            except Exception as e:
+                print("  broadcast edit_text error:", e)
     if status in ("WIN", "LOSS"):
-        desk.broadcast(desk.outcome_notice(trade, status, result_r, exit_time))
-        desk.log_outcome(
-            {
-                "engine": OUTCOMES_ENGINE,
-                "ticket_id": trade.get("ticket_id"),
-                "stream": trade.get("stream"),
-                "pair": trade.get("pair"),
-                "side": trade.get("side"),
-                "direction": trade.get("direction"),
-                "status": status,
-                "result_r": float(result_r) if result_r is not None else None,
-                "exit_time": exit_time,
-                "entry": trade.get("entry"),
-                "stop": trade.get("stop"),
-                "tp1": trade.get("tp1"),
-                "tp2": trade.get("tp2"),
-                "rr1": trade.get("rr1"),
-                "rr2": trade.get("rr2"),
-                "candle_time": trade.get("candle_time"),
-                "signal_sent": trade.get("signal_sent"),
-                "session": trade.get("session"),
-                "tp1_hit": bool(trade.get("tp1_hit")),
-                "c1_tf": trade.get("c1_tf"),
-                "ltf": trade.get("ltf"),
-                "entry_model": trade.get("entry_model"),
-            }
-        )
+        try:
+            desk.broadcast(desk.outcome_notice(trade, status, result_r, exit_time), pair=trade.get("pair"))
+            print(f"  VERDICT broadcast {status} {trade.get('stream')} {trade.get('pair')} R={result_r}")
+        except Exception as e:
+            print("  verdict broadcast error:", e)
+        try:
+            desk.log_outcome(
+                {
+                    "engine": OUTCOMES_ENGINE,
+                    "ticket_id": trade.get("ticket_id"),
+                    "stream": trade.get("stream"),
+                    "pair": trade.get("pair"),
+                    "side": trade.get("side"),
+                    "direction": trade.get("direction"),
+                    "status": status,
+                    "result_r": float(result_r) if result_r is not None else None,
+                    "exit_time": exit_time,
+                    "entry": trade.get("entry"),
+                    "stop": trade.get("stop"),
+                    "tp1": trade.get("tp1"),
+                    "tp2": trade.get("tp2"),
+                    "rr1": trade.get("rr1"),
+                    "rr2": trade.get("rr2"),
+                    "candle_time": trade.get("candle_time"),
+                    "signal_sent": trade.get("signal_sent"),
+                    "session": trade.get("session"),
+                    "tp1_hit": bool(trade.get("tp1_hit")),
+                    "c1_tf": trade.get("c1_tf"),
+                    "ltf": trade.get("ltf"),
+                    "entry_model": trade.get("entry_model"),
+                }
+            )
+            print(f"  OUTCOME logged {status} {trade.get('pair')}")
+        except Exception as e:
+            print("  log_outcome error:", e)
 
 
 # ============================================================
@@ -1008,6 +1047,18 @@ def purge_expired_pending(state):
         kept.append(t)
     state["pending"] = kept
 
+def _ltf_norm(name):
+    n = str(name or "").strip().lower().replace(" ", "")
+    aliases = {
+        "15": "15min", "15m": "15min", "15min": "15min",
+        "5": "5min", "5m": "5min", "5min": "5min",
+        "30": "30min", "30m": "30min", "30min": "30min",
+        "1h": "1h", "60": "1h", "60min": "1h",
+        "4h": "4h", "240": "4h",
+    }
+    return aliases.get(n, n)
+
+
 def check_pending(state, pair, ltf, ltf_name=None):
     """ACTIVE / TP1_HIT. Same-bar SL+TP2 → SL first. TP1 edit kept."""
     if not state["pending"] or ltf is None:
@@ -1019,10 +1070,11 @@ def check_pending(state, pair, ltf, ltf_name=None):
         if trade.get("pair") != pair:
             remaining.append(trade)
             continue
-        # Only manage this trade on its own entry TF dataframe
-        if ltf_name and trade.get("ltf") and str(trade.get("ltf")) != str(ltf_name):
-            remaining.append(trade)
-            continue
+        # Only manage this trade on its own entry TF (normalized)
+        if ltf_name and trade.get("ltf"):
+            if _ltf_norm(trade.get("ltf")) != _ltf_norm(ltf_name):
+                remaining.append(trade)
+                continue
         status = trade.get("status")
         # Weekend LIMIT: activate when price traded through entry; expire stale limits
         if status == "ENTRY_PENDING":
@@ -1133,9 +1185,12 @@ def check_pending(state, pair, ltf, ltf_name=None):
                     ok = _edit_all_messages(trade, text)
                     if not ok:
                         try:
-                            desk.broadcast(text)
-                        except NameError:
-                            broadcast(text)
+                            desk.broadcast(text, pair=pair)
+                        except Exception:
+                            try:
+                                desk.broadcast(text)
+                            except Exception as e2:
+                                print(f"  TP1 broadcast error: {e2}")
                         print(f"  TP1 edit failed — broadcast fallback {trade.get('stream')} {pair}")
                     else:
                         print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
@@ -1441,28 +1496,37 @@ def main():
                 sig.get("crl"),
             )
             sig["setup_uid"] = suid
+            flk = make_fire_lock(
+                stream_label,
+                pair,
+                sig.get("direction"),
+                sig.get("c2_time") or sig.get("candle_time"),
+                entry_model,
+            )
 
-            # HARD lock: same C1/C2 already claimed this process or prior run
-            if state["last_alert_keys"].get(f"setup:{suid}"):
-                print(f"  {stream_label}: already alerted (setup_uid)")
+            # PERMANENT per-stream lock — presence alone blocks re-send every cron
+            if state["last_alert_keys"].get(flk):
+                print(f"  {stream_label}: already fired (lock) — skip")
                 continue
             if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
-                print(f"  {stream_label}: already alerted")
+                print(f"  {stream_label}: already alerted (key match)")
+                state["last_alert_keys"][flk] = key
+                save_state(state)
                 continue
             if pending_owns_setup(
                 state, pair, sig.get("direction"), suid,
                 sig.get("crh"), sig.get("crl"), sig.get("entry"), pip,
             ):
                 print(f"  {stream_label}: open pending same setup — skip")
-                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][flk] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                save_state(state)  # persist skip so next cron does not re-fire
+                save_state(state)
                 continue
 
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
-                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][flk] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
                 save_state(state)
                 continue
@@ -1481,15 +1545,13 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
 
-            # CLAIM + PERSIST before any Telegram send.
-            # Previous bug: claim only lived in memory until end of scan →
-            # next cron (or overlap) reloaded empty keys and re-fired same setup.
-            state["last_alert_keys"][f"setup:{suid}"] = key
+            # CLAIM + PERSIST before Telegram — flk survives even if key string drifts
+            state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            state["last_alert_keys"][f"setup:{suid}"] = key
             save_state(state)
 
-            # Stale entry: still send once with ALREADY IGNITED label (not silent).
-            # Claim already persisted above — will not re-fire next cron.
+            # Stale: send ONCE with ALREADY IGNITED, then lock blocks every later cron
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
             if not sig.get("ticket_id"):
@@ -1507,7 +1569,7 @@ def main():
             if already_ignited:
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"(sent once, claimed)"
+                    f"(sent once, locked)"
                 )
             try:
                 chart = render_setup_chart(ltf, sig)
@@ -1529,6 +1591,7 @@ def main():
                 f"msgs={len(msg_ids)}"
             )
 
+            state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"setup:{suid}"] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             # Always track pending so TP1/SL edits work even if Telegram hiccups
@@ -1582,7 +1645,13 @@ def main():
                         "status": status,
                         "tp1_hit": False,
                         "last_checked_index": entry_idx,
+                        "last_checked_time": sig["candle_time"],
                     }
+                )
+                n_pend = len(state["pending"])
+                print(
+                    f"  PENDING stored {stream_label} {pair} "
+                    f"mid={message_id} ids={len(msg_ids)} pending_n={n_pend}"
                 )
                 # Persist pending immediately so TP1/SL + dedup survive mid-scan crash
                 save_state(state)
