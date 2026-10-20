@@ -83,11 +83,22 @@ def main():
     print("PLAIN base + selective MSS/TS | PDF signal format")
     print("=" * 70)
     apply_slim()
+    # Commands at start (fresh updates) — shared bot token
     state = desk.load_state()
-    desk.process_commands(state)
-    desk.save_state(state)
+    try:
+        desk.process_commands(state)
+        desk.save_state(state)
+    except Exception as e:
+        print("process_commands (start) error:", e)
     crt_plain.main()
     desk.main()
+    # Commands again at end so replies land same run if user typed mid-scan
+    try:
+        state2 = desk.load_state()
+        desk.process_commands(state2)
+        desk.save_state(state2)
+    except Exception as e:
+        print("process_commands (end) error:", e)
 
 
 if __name__ == "__main__":
