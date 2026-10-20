@@ -2957,6 +2957,8 @@ def main():
                 sig.get("crl"),
             )
             sig["setup_uid"] = suid
+            c2_floor = _floor_c2(sig.get("c2_time") or sig.get("candle_time"))
+            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}"
             flk = make_fire_lock(
                 stream_label,
                 pair,
@@ -2965,7 +2967,15 @@ def main():
                 entry_model,
             )
 
-            # PERMANENT per-stream lock — presence alone blocks re-send every cron
+            # 1) SHARED setup lock — one publish per C1/C2 across ALL streams/models
+            if state["last_alert_keys"].get(f"setup:{suid}") or state["last_alert_keys"].get(setup_core):
+                print(f"  {stream_label}: same setup already published — skip")
+                state["last_alert_keys"][flk] = key
+                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][setup_core] = key
+                save_state(state)
+                continue
+            # 2) Per-stream lock
             if state["last_alert_keys"].get(flk):
                 print(f"  {stream_label}: already fired (lock) — skip")
                 continue
@@ -2981,6 +2991,8 @@ def main():
                 print(f"  {stream_label}: open pending same setup — skip")
                 state["last_alert_keys"][flk] = key
                 state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][setup_core] = key
                 save_state(state)
                 continue
 
@@ -3006,10 +3018,11 @@ def main():
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
             already_ignited = not ok_fresh
 
-            # CLAIM + PERSIST before Telegram — flk survives even if key string drifts
+            # CLAIM + PERSIST before Telegram (shared setup + stream locks)
             state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             state["last_alert_keys"][f"setup:{suid}"] = key
+            state["last_alert_keys"][setup_core] = key
             save_state(state)
 
             signal_sent = utc_now().isoformat()
@@ -3044,6 +3057,7 @@ def main():
 
             state["last_alert_keys"][flk] = key
             state["last_alert_keys"][f"setup:{suid}"] = key
+            state["last_alert_keys"][setup_core] = key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = key
             # Always track pending so TP1/SL edits work even if Telegram hiccups
             if True:
