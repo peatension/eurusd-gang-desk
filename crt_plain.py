@@ -437,9 +437,23 @@ def signal_blocked(state, sig, pip):
 
 
 
+def _ltf_max_age_min(ltf_name):
+    """Soft freshness window (~2 bars). Hard skip uses 2× this."""
+    limits = {
+        "1min": 10,
+        "5min": 25,
+        "15min": 50,
+        "30min": 90,
+        "1h": 150,
+        "4h": 400,
+        "1day": 1500,
+        "1week": 10000,
+    }
+    return float(limits.get(str(ltf_name).lower().replace(" ", ""), 50))
+
+
 def entry_is_fresh(candle_time, ltf_name, now=None):
-    """Reject stale entries so Telegram is not hours late vs the chart.
-    Tightened: ~2 bars max so signals stay sharp."""
+    """Soft gate: age <= ~2 bars → fresh. Caller hard-skips at 2× max."""
     now = now or utc_now()
     try:
         ct = pd.Timestamp(candle_time)
@@ -455,18 +469,7 @@ def entry_is_fresh(candle_time, ltf_name, now=None):
         age_min = (now_ts - ct).total_seconds() / 60.0
     except Exception:
         return True, 0.0
-    # ~2 bars max — keep signals sharp (was 3+ bars and felt late)
-    limits = {
-        "1min": 10,
-        "5min": 25,
-        "15min": 50,
-        "30min": 90,
-        "1h": 150,
-        "4h": 400,
-        "1day": 1500,
-        "1week": 10000,
-    }
-    max_age = limits.get(str(ltf_name).lower(), 50)
+    max_age = _ltf_max_age_min(ltf_name)
     return age_min <= max_age, age_min
 
 def drop_forming_bar(df):
@@ -1196,11 +1199,20 @@ def check_pending(state, pair, ltf, ltf_name=None):
                         print(f"  TP1 HIT edited {trade.get('stream')} {pair}")
                 except Exception as e:
                     print(f"  TP1 update error {trade.get('stream')} {pair}: {e}")
+                # Persist TP1 immediately so next cron does not re-process from ACTIVE
+                try:
+                    save_state(state)
+                except Exception as e:
+                    print(f"  TP1 save_state error: {e}")
 
         if not closed:
             remaining.append(trade)
 
     state["pending"] = remaining
+    try:
+        save_state(state)
+    except Exception as e:
+        print(f"  check_pending save_state error: {e}")
 
 
 # ============================================================
@@ -1556,6 +1568,19 @@ def main():
                 print(f"  {stream_label}: candle time check error {e}")
 
             ok_fresh, age_min = entry_is_fresh(sig["candle_time"], ltf_name)
+            soft_max = _ltf_max_age_min(ltf_name)
+            # Hard skip: too old to be useful — lock only, no Telegram noise
+            if age_min > soft_max * 2.0:
+                print(
+                    f"  {stream_label}: TOO STALE age={age_min:.0f}m "
+                    f"(>{soft_max * 2:.0f}m) — lock, no send"
+                )
+                state["last_alert_keys"][flk] = key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                state["last_alert_keys"][f"setup:{suid}"] = key
+                state["last_alert_keys"][setup_core] = key
+                save_state(state)
+                continue
             already_ignited = not ok_fresh
 
             # CLAIM + PERSIST before Telegram (shared setup + stream locks)
@@ -1571,15 +1596,18 @@ def main():
             if not sig.get("ticket_id"):
                 sig["ticket_id"] = desk.next_ticket_id()
             status = "ENTRY_PENDING" if weekend else "ACTIVE"
-            msg_ids = desk.broadcast_message_ids(
-                build_signal_message(
-                    sig,
-                    weekend_limit=weekend,
-                    already_ignited=already_ignited,
-                    age_min=age_min,
-                ),
-                pair=sig.get("pair"),
+            body = build_signal_message(
+                sig,
+                weekend_limit=weekend,
+                already_ignited=already_ignited,
+                age_min=age_min,
             )
+            msg_ids = desk.broadcast_message_ids(body, pair=sig.get("pair")) or {}
+            # Guarantee at least one editable message_id (edits need this)
+            if not msg_ids and desk.CHAT_ID:
+                mid = desk.send_telegram_to(desk.CHAT_ID, body, reply_markup=desk.tv_inline_keyboard(sig.get("pair")))
+                if mid:
+                    msg_ids[str(desk.CHAT_ID)] = mid
             if already_ignited:
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
@@ -1598,6 +1626,8 @@ def main():
             message_id = msg_ids.get(primary) if primary else None
             if not message_id and msg_ids:
                 message_id = next(iter(msg_ids.values()))
+            if not message_id:
+                print(f"  {stream_label}: WARN no message_id — verdict will broadcast-only")
 
             print(
                 f"  {stream_label}: {status} {sig['side']} | "
