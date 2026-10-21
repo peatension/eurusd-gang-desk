@@ -11,6 +11,28 @@
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
     },
+    "AUD/JPY|-1|2026-10-21 20:00|entry:111261": {
+      "c2_minute": "2026-10-21 20:00",
+      "claimed_at": "2026-10-21T21:02:08.394714+00:00",
+      "direction": -1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "111261",
+      "pair": "AUD/JPY",
+      "sent_at": "2026-10-21T21:02:11.338282+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
+    },
+    "EUR/JPY|-1|2026-10-21 20:00|entry:177736": {
+      "c2_minute": "2026-10-21 20:00",
+      "claimed_at": "2026-10-21T21:03:17.217891+00:00",
+      "direction": -1,
+      "engine": "3C",
+      "entry_id": "177736",
+      "pair": "EUR/JPY",
+      "sent_at": "2026-10-21T21:03:20.048140+00:00",
+      "status": "sent",
+      "stream": "3C 1H\u219215m PLAIN"
+    },
     "USD/JPY|-1|2026-10-21 17:00|entry:158174": {
       "c2_minute": "2026-10-21 17:00",
       "claimed_at": "2026-10-21T18:48:25.197874+00:00",
