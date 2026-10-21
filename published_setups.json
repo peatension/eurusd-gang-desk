@@ -1,4 +1,16 @@
 {
-  "version": 1,
-  "setups": {}
+  "setups": {
+    "USD/JPY|-1|2026-10-21 17:00|entry:158174": {
+      "c2_minute": "2026-10-21 17:00",
+      "claimed_at": "2026-10-21T18:48:25.197874+00:00",
+      "direction": -1,
+      "engine": "3C",
+      "entry_id": "158174",
+      "pair": "USD/JPY",
+      "sent_at": "2026-10-21T18:48:27.354457+00:00",
+      "status": "sent",
+      "stream": "3C 1H\u219215m PLAIN"
+    }
+  },
+  "version": 1
 }
