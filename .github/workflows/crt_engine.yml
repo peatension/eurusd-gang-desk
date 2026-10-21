@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,16 +47,17 @@ jobs:
           SHEET_URL: ${{ secrets.SHEET_URL }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          DISABLE_COMMAND_POLLING: "1"
         run: python desk_runner.py
 
-      # Always attempt persist — even if the scan step had warnings
+      # Always attempt persistence, even if the scan step fails.
       - name: Commit state
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add \
+          for f in \
             last_alert_state_crt.json \
             last_alert_state_crt_plain.json \
             last_alert_state_crt_set2.json \
@@ -61,13 +65,19 @@ jobs:
             last_alert_state_smc.json \
             subscribers.json \
             outcomes.json \
+            published_setups.json \
             telegram_offset.json \
-            ticket_seq.json \
-            2>/dev/null || true
+            ticket_seq.json; do
+            if [ -f "$f" ]; then
+              git add -f -- "$f"
+            fi
+          done
 
           if git diff --cached --quiet; then
             echo "No state changes to commit."
           else
             git commit -m "chore: persist CRT+3C state [skip ci]"
-            git push
+            git fetch origin "$GITHUB_REF_NAME"
+            git rebase "origin/$GITHUB_REF_NAME"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
