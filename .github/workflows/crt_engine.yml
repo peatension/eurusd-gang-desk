@@ -5,9 +5,12 @@ name: CRT Engine
 on:
   workflow_dispatch:
 
+# CRITICAL: do NOT cancel in-progress runs.
+# cancel-in-progress: true was killing jobs before Commit state,
+# so locks/pending never reached GitHub → duplicates every cron.
 concurrency:
   group: crt-desk
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -43,7 +46,9 @@ jobs:
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
         run: python desk_runner.py
 
+      # Always attempt persist — even if the scan step had warnings
       - name: Commit state
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
