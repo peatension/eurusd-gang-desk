@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 import importlib
+import published_setups
 
 desk = importlib.import_module("3c_model")
 
@@ -340,6 +341,23 @@ def entries_same_zone(e1, e2, pip, tol_pips=ENTRY_DEDUP_PIPS):
         return False
 
 
+def entry_identity(entry, pip):
+    """Stable entry identity at 0.1 pip resolution; avoids coarse bucket edge collisions."""
+    try:
+        unit = abs(float(pip)) * 0.1
+        if unit <= 0:
+            return "unknown"
+        return str(int(round(float(entry) / unit)))
+    except Exception:
+        return "unknown"
+
+
+def same_entry_identity(e1, e2, pip):
+    """True only when two prices represent the same entry to 0.1 pip precision."""
+    a = entry_identity(e1, pip)
+    return a != "unknown" and a == entry_identity(e2, pip)
+
+
 
 def _floor_c2(c2_time):
     """Normalize C2 timestamp to minute precision UTC string."""
@@ -367,72 +385,45 @@ def make_setup_uid(pair, direction, c2_time, crh=None, crl=None):
     return f"{pair}|{int(direction)}|{c2}|{crh_s}|{crl_s}"
 
 
-def make_fire_lock(stream_label, pair, direction, c2_time, entry_model):
+def make_fire_lock(stream_label, pair, direction, c2_time, entry_model, entry=None, pip=None):
     """
-    Permanent per-stream fire lock. Presence in last_alert_keys = already sent
-    on a previous cron — never re-send that stream card again.
-    Different streams (1H→15m vs 1H→5m) keep separate locks so both can fire once.
+    Permanent per-stream lock scoped to the actual entry price.
+    Distinct entries on the same pair/C2 are allowed to fire independently.
     """
     c2 = _floor_c2(c2_time)
     model = str(entry_model or "PLAIN").upper()
-    return f"fired:{stream_label}|{pair}|{int(direction or 0)}|{c2}|{model}"
+    zone = entry_identity(entry, pip) if entry is not None and pip is not None else "unknown"
+    return f"fired:{stream_label}|{pair}|{int(direction or 0)}|{c2}|{model}|entry:{zone}"
 
 
 def pending_owns_setup(state, pair, direction, suid, crh, crl, entry, pip):
-    """True if an open pending trade is the same setup (any stream)."""
+    """True only when an open trade already owns this exact entry identity."""
     open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
     for t in state.get("pending") or []:
-        if t.get("pair") != pair:
+        if t.get("pair") != pair or t.get("status") not in open_st:
             continue
-        if t.get("status") not in open_st:
+        if int(t.get("direction") or 0) != int(direction or 0):
             continue
-        if t.get("setup_uid") and t.get("setup_uid") == suid:
+        if same_entry_identity(entry, t.get("entry"), pip):
             return True
-        if int(t.get("direction") or 0) != int(direction):
-            continue
-        # same C1 range
-        try:
-            if crh is not None and t.get("crh") is not None:
-                if abs(float(t["crh"]) - float(crh)) <= 3 * float(pip) and abs(
-                    float(t.get("crl") or 0) - float(crl or 0)
-                ) <= 3 * float(pip):
-                    return True
-        except Exception:
-            pass
-        try:
-            if entries_same_zone(entry, t.get("entry"), pip, tol_pips=8):
-                return True
-        except Exception:
-            pass
     return False
 
 
 def signal_blocked(state, sig, pip):
-    """Block same-level multi-model spam and bias flips while a trade is open."""
+    """Keep the existing opposite-direction safety guard; entry dedup is handled separately."""
     pair = sig.get("pair")
     direction = int(sig.get("direction") or 0)
-    entry = float(sig.get("entry") or 0)
-    fam = stream_family(sig.get("stream"))
     open_st = (None, "ACTIVE", "TP1_HIT", "ENTRY_PENDING", "LATE")
     for t in state.get("pending") or []:
-        if t.get("pair") != pair:
+        if t.get("pair") != pair or t.get("status") not in open_st:
             continue
-        if t.get("status") not in open_st:
-            continue
-        t_entry = float(t.get("entry") or 0)
         t_dir = int(t.get("direction") or 0)
         t_stream = str(t.get("stream") or "")
-        # identical / near-identical entry → one signal only
-        if entries_same_zone(entry, t_entry, pip):
-            return f"same entry zone as open {t_stream}"
-        # opposite direction on same pair while something is live → no flip noise
+        # Do not block a distinct entry just because it is near an existing entry.
         if t_dir and direction and t_dir != direction:
             return f"bias conflict with open {t_stream}"
-        # same HTF family + same direction + close levels → one fire
-        if stream_family(t_stream) == fam and t_dir == direction:
-            if entries_same_zone(entry, t_entry, pip, tol_pips=12):
-                return f"same family {fam} open {t_stream}"
     return None
+
 
 
 
@@ -1493,6 +1484,7 @@ def main():
                 continue
 
             key = sig["candle_key"]
+            alert_key = f"{key}|entry:{entry_identity(sig.get('entry'), pip)}"
             sess = sig.get("session")
             if BLOCK_ASIA_SESSION and sess == "Asia":
                 print(f"  {stream_label}: Asia session blocked")
@@ -1510,30 +1502,33 @@ def main():
             sig["setup_uid"] = suid
             # Coarse id: same C2 candle + pair + direction (all streams/models)
             c2_floor = _floor_c2(sig.get("c2_time") or sig.get("candle_time"))
-            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}"
+            entry_id = entry_identity(sig.get("entry"), pip)
+            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}|entry:{entry_id}"
+            entry_setup_key = f"setup_entry:{suid}|entry:{entry_id}"
             flk = make_fire_lock(
                 stream_label,
                 pair,
                 sig.get("direction"),
                 sig.get("c2_time") or sig.get("candle_time"),
                 entry_model,
+                sig.get("entry"), pip,
             )
 
             # 1) SHARED setup lock — one publish per C1/C2 across ALL streams/models
-            if state["last_alert_keys"].get(f"setup:{suid}") or state["last_alert_keys"].get(setup_core):
+            if state["last_alert_keys"].get(entry_setup_key) or state["last_alert_keys"].get(setup_core):
                 print(f"  {stream_label}: same setup already published — skip")
-                state["last_alert_keys"][flk] = key
-                state["last_alert_keys"][f"setup:{suid}"] = key
-                state["last_alert_keys"][setup_core] = key
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][entry_setup_key] = alert_key
+                state["last_alert_keys"][setup_core] = alert_key
                 save_state(state)
                 continue
             # 2) Per-stream lock (model-specific) — blocks same stream re-discover
             if state["last_alert_keys"].get(flk):
                 print(f"  {stream_label}: already fired (lock) — skip")
                 continue
-            if state["last_alert_keys"].get(f"{stream_label}:{pair}") == key:
+            if state["last_alert_keys"].get(f"{stream_label}:{pair}") == alert_key:
                 print(f"  {stream_label}: already alerted (key match)")
-                state["last_alert_keys"][flk] = key
+                state["last_alert_keys"][flk] = alert_key
                 save_state(state)
                 continue
             if pending_owns_setup(
@@ -1541,18 +1536,18 @@ def main():
                 sig.get("crh"), sig.get("crl"), sig.get("entry"), pip,
             ):
                 print(f"  {stream_label}: open pending same setup — skip")
-                state["last_alert_keys"][flk] = key
-                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                state["last_alert_keys"][f"setup:{suid}"] = key
-                state["last_alert_keys"][setup_core] = key
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
+                state["last_alert_keys"][entry_setup_key] = alert_key
+                state["last_alert_keys"][setup_core] = alert_key
                 save_state(state)
                 continue
 
             block_reason = signal_blocked(state, sig, pip)
             if block_reason:
                 print(f"  {stream_label}: blocked — {block_reason}")
-                state["last_alert_keys"][flk] = key
-                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
                 save_state(state)
                 continue
 
@@ -1575,20 +1570,30 @@ def main():
                     f"  {stream_label}: TOO STALE age={age_min:.0f}m "
                     f"(>{soft_max * 2:.0f}m) — lock, no send"
                 )
-                state["last_alert_keys"][flk] = key
-                state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-                state["last_alert_keys"][f"setup:{suid}"] = key
-                state["last_alert_keys"][setup_core] = key
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
+                state["last_alert_keys"][entry_setup_key] = alert_key
+                state["last_alert_keys"][setup_core] = alert_key
                 save_state(state)
                 continue
             already_ignited = not ok_fresh
 
             # CLAIM + PERSIST before Telegram (shared setup + stream locks)
-            state["last_alert_keys"][flk] = key
-            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
-            state["last_alert_keys"][f"setup:{suid}"] = key
-            state["last_alert_keys"][setup_core] = key
-            save_state(state)
+            state["last_alert_keys"][flk] = alert_key
+            state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
+            state["last_alert_keys"][entry_setup_key] = alert_key
+            state["last_alert_keys"][setup_core] = alert_key
+            save_state(state)  # persist local claim before shared ledger / Telegram
+
+            ledger_claimed, ledger_key = published_setups.claim(
+                pair, sig.get("direction"), sig.get("c2_time") or sig.get("candle_time"),
+                sig.get("entry"), pip, engine="CRT_PLAIN", stream=stream_label,
+            )
+            if not ledger_claimed:
+                print(f"  {stream_label}: DUP suppressed by published_setups.json — {ledger_key}")
+                save_state(state)
+                continue
+            save_state(state)  # persist after shared-ledger claim too
 
             # Stale: send ONCE with ALREADY IGNITED, then lock blocks every later cron
             signal_sent = utc_now().isoformat()
@@ -1608,6 +1613,8 @@ def main():
                 mid = desk.send_telegram_to(desk.CHAT_ID, body, reply_markup=desk.tv_inline_keyboard(sig.get("pair")))
                 if mid:
                     msg_ids[str(desk.CHAT_ID)] = mid
+            if msg_ids:
+                published_setups.mark_sent(ledger_key)
             if already_ignited:
                 print(
                     f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
@@ -1635,10 +1642,10 @@ def main():
                 f"msgs={len(msg_ids)}"
             )
 
-            state["last_alert_keys"][flk] = key
-            state["last_alert_keys"][f"setup:{suid}"] = key
-            state["last_alert_keys"][setup_core] = key
-            state["last_alert_keys"][f"{stream_label}:{pair}"] = key
+            state["last_alert_keys"][flk] = alert_key
+            state["last_alert_keys"][entry_setup_key] = alert_key
+            state["last_alert_keys"][setup_core] = alert_key
+            state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
             # Always track pending so TP1/SL edits work even if Telegram hiccups
             if True:
                 try:
