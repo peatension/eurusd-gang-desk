@@ -507,10 +507,16 @@ def build_stats_message():
     )
 
 
-def is_admin(chat_id):
-    if not ADMIN_CHAT_ID:
+def is_admin(user_id):
+    """Match secret ADMIN_ID to Telegram *user* id (from.id).
+    Never pass group chat.id here — groups have their own negative ids.
+    """
+    raw = (ADMIN_CHAT_ID or "").strip()  # from os.getenv("ADMIN_ID")
+    if not raw or user_id is None:
         return False
-    return str(chat_id).strip() == str(ADMIN_CHAT_ID).strip()
+    a = re.sub(r"\D", "", str(raw))
+    u = re.sub(r"\D", "", str(user_id))
+    return bool(a) and a == u
 
 
 def performance_keyboard():
@@ -1041,6 +1047,7 @@ def process_commands(state):
             msg = cq.get("message") or {}
             chat = msg.get("chat") or {}
             chat_id = str(chat.get("id") or from_user.get("id") or "")
+            user_id = str(from_user.get("id") or "")
             if not chat_id:
                 answer_callback(cq_id, "No chat")
                 continue
@@ -1075,7 +1082,7 @@ def process_commands(state):
                 continue
 
             if data.startswith("admin:"):
-                if not is_admin(chat_id):
+                if not is_admin(user_id):
                     answer_callback(cq_id, "Admin only", show_alert=True)
                     continue
                 action = data[6:]  # after admin:
@@ -1174,7 +1181,9 @@ def process_commands(state):
         # ---------- TEXT COMMANDS ----------
         message = result.get("message") or {}
         chat = message.get("chat") or {}
+        from_user = message.get("from") or {}
         chat_id = str(chat.get("id", ""))
+        user_id = str(from_user.get("id") or "")
         text = (message.get("text") or "").strip()
         if not chat_id or not text:
             continue
@@ -1245,7 +1254,7 @@ def process_commands(state):
                 continue
             help_admin = (
                 "\n\n<b>Admin</b>\n/admin — panel\n/unsub CHAT_ID — force remove\n/subs — list"
-                if is_admin(chat_id) else ""
+                if is_admin(user_id) else ""
             )
             send_telegram_to(
                 chat_id,
@@ -1346,15 +1355,21 @@ def process_commands(state):
             replied += 1
 
         elif low.startswith("/admin"):
-            if not is_admin(chat_id):
-                send_telegram_to(chat_id, "⛔ Admin only.")
+            if not is_admin(user_id):
+                send_telegram_to(
+                    chat_id,
+                    "⛔ Admin only.\n"
+                    f"Your user id: <code>{user_id}</code>\n"
+                    f"This chat id: <code>{chat_id}</code>",
+                )
                 continue
             if not _allow_reply(chat_id, "admin", uid):
                 continue
             send_telegram_markup(
                 chat_id,
                 "🔐 <b>Admin panel — Tension Trading Desk</b>\n\n"
-                f"Your id: <code>{chat_id}</code>\n"
+                f"Your user id: <code>{user_id}</code>\n"
+                f"Chat id: <code>{chat_id}</code>\n"
                 f"Subscribers: <b>{len(load_subscribers())}</b>\n\n"
                 "Use buttons or:\n"
                 "<code>/unsub CHAT_ID</code>\n"
@@ -1364,7 +1379,7 @@ def process_commands(state):
             replied += 1
 
         elif low.startswith("/subs"):
-            if not is_admin(chat_id):
+            if not is_admin(user_id):
                 send_telegram_to(chat_id, "⛔ Admin only.")
                 continue
             if not _allow_reply(chat_id, "subs", uid):
@@ -1375,7 +1390,7 @@ def process_commands(state):
             replied += 1
 
         elif parts and parts[0] in ("/unsub", "/unsubscribe"):
-            if not is_admin(chat_id):
+            if not is_admin(user_id):
                 send_telegram_to(chat_id, "⛔ Admin only.")
                 continue
             if not _allow_reply(chat_id, "unsub", uid):
