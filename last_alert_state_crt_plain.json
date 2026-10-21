@@ -101,17 +101,17 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-21 18:00:00|-1|PLAIN",
       "setup_uid": "AUD/JPY|-1|2026-10-21 18:00|111.26497|111.12005",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-21 18:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-21 18:45:00"
     }
   ],
   "weekly_report_id": "2026-W41",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-21T19:02:12.750193+00:00",
+  "last_scan_utc": "2026-10-21T19:11:06.622978+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
