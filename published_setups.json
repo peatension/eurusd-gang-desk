@@ -44,6 +44,17 @@
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
     },
+    "AUD/JPY|1|2026-10-22 19:00|entry:109986": {
+      "c2_minute": "2026-10-22 19:00",
+      "claimed_at": "2026-10-22T20:02:13.095582+00:00",
+      "direction": 1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "109986",
+      "pair": "AUD/JPY",
+      "sent_at": "2026-10-22T20:02:15.431064+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
+    },
     "EUR/JPY|-1|2026-10-21 20:00|entry:177736": {
       "c2_minute": "2026-10-21 20:00",
       "claimed_at": "2026-10-21T21:03:17.217891+00:00",
