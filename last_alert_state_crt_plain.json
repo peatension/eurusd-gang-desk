@@ -125,7 +125,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-22 14:45:00"
+      "last_checked_time": "2026-10-22 15:00:00"
     },
     {
       "stream": "CRT 1H\u219215m PLAIN",
@@ -167,14 +167,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-22 14:45:00"
+      "last_checked_time": "2026-10-22 15:00:00"
     }
   ],
   "weekly_report_id": "2026-W41",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-22T15:17:05.103314+00:00",
+  "last_scan_utc": "2026-10-22T15:22:08.135074+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
