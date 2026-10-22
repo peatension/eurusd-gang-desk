@@ -2214,5 +2214,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0011",
+    "stream": "CRT 1H\u219215m PLAIN",
+    "pair": "AUD/JPY",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 5.625141495797178,
+    "exit_time": "2026-10-22 16:45:00",
+    "entry": 110.34478,
+    "stop": 110.39604982142858,
+    "tp1": 110.20058,
+    "tp2": 110.05638,
+    "rr1": 2.812570747898589,
+    "rr2": 5.625141495797178,
+    "candle_time": "2026-10-22 14:15:00",
+    "signal_sent": "2026-10-22T15:02:18.640076+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
