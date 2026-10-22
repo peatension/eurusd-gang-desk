@@ -186,15 +186,15 @@
       "setup_uid": "XAU/USD|1|2026-10-22 20:00|4032.04174|4020.91561",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-22 20:15:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-22 20:45:00"
     }
   ],
   "weekly_report_id": "2026-W41",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-22T21:02:10.416218+00:00",
+  "last_scan_utc": "2026-10-22T21:06:02.068612+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
