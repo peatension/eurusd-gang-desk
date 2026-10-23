@@ -167,7 +167,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 16:45:00"
+      "last_checked_time": "2026-10-23 17:00:00"
     },
     {
       "stream": "CRT 1H\u219215m PLAIN",
@@ -206,17 +206,17 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-23 16:00:00|-1|PLAIN",
       "setup_uid": "AUD/JPY|-1|2026-10-23 16:00|110.41659|110.20501",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 16:45:00"
+      "last_checked_time": "2026-10-23 17:00:00"
     }
   ],
   "weekly_report_id": "2026-W41",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-23T17:16:08.465453+00:00",
+  "last_scan_utc": "2026-10-23T17:21:07.809106+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
