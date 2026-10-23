@@ -153,7 +153,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 08:45:00"
+      "last_checked_time": "2026-10-23 09:00:00"
     },
     {
       "stream": "3C 4H\u219215m MSS",
@@ -195,7 +195,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 08:45:00"
+      "last_checked_time": "2026-10-23 09:00:00"
     }
   ],
   "weekly_report_id": null,
@@ -203,7 +203,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-23T09:12:12.737156+00:00",
+  "last_scan_utc": "2026-10-23T09:18:10.544181+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
