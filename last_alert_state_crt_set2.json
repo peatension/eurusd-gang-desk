@@ -131,13 +131,14 @@
     "fired:3C 1H\u219215m PLAIN|USD/JPY|1|2026-10-23 18:00|PLAIN|entry:156828": "3C 1H\u219215m PLAIN|USD/JPY|2026-10-23 18:00:00|1|PLAIN|entry:156828",
     "fired:3C 1H\u21925m PLAIN|USD/JPY|1|2026-10-23 18:00|PLAIN|entry:156828": "3C 1H\u21925m PLAIN|USD/JPY|2026-10-23 18:00:00|1|PLAIN|entry:156828",
     "fired:3C 4H\u219230m PLAIN|EUR/JPY|-1|2026-10-23 16:00|PLAIN|entry:175816": "3C 4H\u219230m PLAIN|EUR/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:175816",
-    "setup_entry:EUR/JPY|-1|2026-10-23 16:00|175.81566|175.10112|entry:175816": "3C 4H\u219215m PLAIN|EUR/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:175816",
-    "setup_core:EUR/JPY|-1|2026-10-23 16:00|entry:175816": "3C 4H\u219215m PLAIN|EUR/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:175816",
+    "setup_entry:EUR/JPY|-1|2026-10-23 16:00|175.81566|175.10112|entry:175816": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 16:00:00|-1|MSS|entry:175816",
+    "setup_core:EUR/JPY|-1|2026-10-23 16:00|entry:175816": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 16:00:00|-1|MSS|entry:175816",
     "fired:3C 4H\u219215m PLAIN|EUR/JPY|-1|2026-10-23 16:00|PLAIN|entry:175816": "3C 4H\u219215m PLAIN|EUR/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:175816",
     "fired:3C 4H\u219230m PLAIN|USD/JPY|-1|2026-10-23 16:00|PLAIN|entry:156948": "3C 4H\u219230m PLAIN|USD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:156948",
     "setup_entry:USD/JPY|-1|2026-10-23 16:00|156.94779|156.33833|entry:156948": "3C 4H\u219215m PLAIN|USD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:156948",
     "setup_core:USD/JPY|-1|2026-10-23 16:00|entry:156948": "3C 4H\u219215m PLAIN|USD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:156948",
-    "fired:3C 4H\u219215m PLAIN|USD/JPY|-1|2026-10-23 16:00|PLAIN|entry:156948": "3C 4H\u219215m PLAIN|USD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:156948"
+    "fired:3C 4H\u219215m PLAIN|USD/JPY|-1|2026-10-23 16:00|PLAIN|entry:156948": "3C 4H\u219215m PLAIN|USD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:156948",
+    "fired:3C 4H\u219215m MSS|EUR/JPY|-1|2026-10-23 16:00|MSS|entry:175816": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 16:00:00|-1|MSS|entry:175816"
   },
   "pending": [
     {
@@ -180,7 +181,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 20:00:00"
+      "last_checked_time": "2026-10-23 20:15:00"
     }
   ],
   "weekly_report_id": null,
@@ -188,7 +189,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-23T20:27:21.259493+00:00",
+  "last_scan_utc": "2026-10-23T20:33:31.860960+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
