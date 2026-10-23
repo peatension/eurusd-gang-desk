@@ -6,7 +6,7 @@
     "3C 4H\u219215m:GBP/USD": "3C 4H\u219215m|GBP/USD|2026-10-07 23:00:00|1|PLAIN",
     "3C 4H\u219230m:GBP/USD": "3C 4H\u219230m|GBP/USD|2026-10-08 08:00:00|1|PLAIN",
     "3C 4H\u219230m MSS:USD/JPY": "3C 4H\u219230m MSS|USD/JPY|2026-10-09 12:00:00|-1|MSS",
-    "3C 4H\u219215m MSS:USD/JPY": "3C 4H\u219215m MSS|USD/JPY|2026-10-21 12:00:00|1|MSS|entry:157895",
+    "3C 4H\u219215m MSS:USD/JPY": "3C 4H\u219215m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS|entry:157109",
     "3C 4H\u219215m:USD/JPY": "3C 4H\u219215m|USD/JPY|2026-10-07 23:00:00|-1|PLAIN",
     "3C 4H\u219230m:USD/JPY": "3C 4H\u219230m|USD/JPY|2026-10-07 23:00:00|-1|PLAIN",
     "3C 1H\u21925m MSS:GBP/JPY": "3C 1H\u21925m MSS|GBP/JPY|2026-10-08 05:00:00|-1|MSS",
@@ -104,8 +104,13 @@
     "fired:3C 4H\u219230m MSS|EUR/JPY|-1|2026-10-22 16:00|MSS|entry:176220": "3C 4H\u219230m MSS|EUR/JPY|2026-10-22 16:00:00|-1|MSS|entry:176220",
     "fired:3C 4H\u219215m MSS|EUR/JPY|-1|2026-10-23 04:00|MSS|entry:176167": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167",
     "3C 4H\u219215m MSS:EUR/JPY": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167",
-    "setup_entry:EUR/JPY|-1|2026-10-23 04:00|176.16726|175.19356|entry:176167": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167",
-    "setup_core:EUR/JPY|-1|2026-10-23 04:00|entry:176167": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167"
+    "setup_entry:EUR/JPY|-1|2026-10-23 04:00|176.16726|175.19356|entry:176167": "3C 4H\u219230m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167",
+    "setup_core:EUR/JPY|-1|2026-10-23 04:00|entry:176167": "3C 4H\u219230m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167",
+    "fired:3C 4H\u219215m MSS|USD/JPY|-1|2026-10-23 04:00|MSS|entry:157109": "3C 4H\u219215m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS|entry:157109",
+    "setup_entry:USD/JPY|-1|2026-10-23 04:00|157.10949|156.06874|entry:157109": "3C 4H\u219230m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS|entry:157109",
+    "setup_core:USD/JPY|-1|2026-10-23 04:00|entry:157109": "3C 4H\u219230m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS|entry:157109",
+    "fired:3C 4H\u219230m MSS|USD/JPY|-1|2026-10-23 04:00|MSS|entry:157109": "3C 4H\u219230m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS|entry:157109",
+    "fired:3C 4H\u219230m MSS|EUR/JPY|-1|2026-10-23 04:00|MSS|entry:176167": "3C 4H\u219230m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS|entry:176167"
   },
   "pending": [
     {
@@ -145,10 +150,52 @@
       "entry_model": "MSS",
       "candle_key": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS",
       "setup_uid": "EUR/JPY|-1|2026-10-23 04:00|176.16726|175.19356",
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-23 08:15:00"
+    },
+    {
+      "stream": "3C 4H\u219215m MSS",
+      "pair": "USD/JPY",
+      "ticket_id": "#TTD-0017",
+      "message_id": 1622,
+      "message_ids": {
+        "-1004423692487": 1622,
+        "6937879685": 3134,
+        "7080941387": 3135
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 157.10949,
+      "stop": 157.19715339285713,
+      "tp1": 156.589115,
+      "tp2": 156.06874,
+      "rr1": 5.936058177077844,
+      "rr2": 11.872116354155688,
+      "risk_pips": 8.766339285713798,
+      "tp1_pips": 52.037500000000136,
+      "tp2_pips": 104.07500000000027,
+      "prop_stop": 157.23715339285712,
+      "prop_risk_pips": 12.766339285713002,
+      "prop_buffer_pips": 4.0,
+      "crh": 157.10949,
+      "crl": 156.06874,
+      "mid": 156.589115,
+      "candle_time": "2026-10-23 08:15:00",
+      "c2_time": "2026-10-23 04:00:00",
+      "signal_sent": "2026-10-23T08:33:36.033204+00:00",
+      "session": "London",
+      "c1_tf": "4h",
+      "ltf": "15min",
+      "entry_model": "MSS",
+      "candle_key": "3C 4H\u219215m MSS|USD/JPY|2026-10-23 04:00:00|-1|MSS",
+      "setup_uid": "USD/JPY|-1|2026-10-23 04:00|157.10949|156.06874",
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 08:00:00"
+      "last_checked_time": "2026-10-23 08:15:00"
     }
   ],
   "weekly_report_id": null,
@@ -156,7 +203,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-23T08:27:23.650542+00:00",
+  "last_scan_utc": "2026-10-23T08:33:39.880294+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }

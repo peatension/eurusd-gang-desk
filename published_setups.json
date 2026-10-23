@@ -132,6 +132,17 @@
       "status": "sent",
       "stream": "3C 1H\u219215m PLAIN"
     },
+    "USD/JPY|-1|2026-10-23 04:00|entry:157109": {
+      "c2_minute": "2026-10-23 04:00",
+      "claimed_at": "2026-10-23T08:33:36.031815+00:00",
+      "direction": -1,
+      "engine": "3C",
+      "entry_id": "157109",
+      "pair": "USD/JPY",
+      "sent_at": "2026-10-23T08:33:38.564720+00:00",
+      "status": "sent",
+      "stream": "3C 4H\u219215m MSS"
+    },
     "USD/JPY|1|2026-10-22 10:00|entry:156773": {
       "c2_minute": "2026-10-22 10:00",
       "claimed_at": "2026-10-22T11:03:17.035556+00:00",
