@@ -118,48 +118,6 @@
   "pending": [
     {
       "stream": "3C 4H\u219215m MSS",
-      "pair": "EUR/JPY",
-      "ticket_id": "#TTD-0016",
-      "message_id": 1621,
-      "message_ids": {
-        "-1004423692487": 1621,
-        "6937879685": 3132,
-        "7080941387": 3133
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": -1,
-      "side": "SELL",
-      "entry": 176.16726,
-      "stop": 176.2533080357143,
-      "tp1": 175.68041,
-      "tp2": 175.19356,
-      "rr1": 5.65788627199426,
-      "rr2": 11.31577254398852,
-      "risk_pips": 8.604803571429898,
-      "tp1_pips": 48.6850000000004,
-      "tp2_pips": 97.3700000000008,
-      "prop_stop": 176.2933080357143,
-      "prop_risk_pips": 12.604803571429102,
-      "prop_buffer_pips": 4.0,
-      "crh": 176.16726,
-      "crl": 175.19356,
-      "mid": 175.68041,
-      "candle_time": "2026-10-23 07:15:00",
-      "c2_time": "2026-10-23 04:00:00",
-      "signal_sent": "2026-10-23T08:03:13.938256+00:00",
-      "session": "London",
-      "c1_tf": "4h",
-      "ltf": "15min",
-      "entry_model": "MSS",
-      "candle_key": "3C 4H\u219215m MSS|EUR/JPY|2026-10-23 04:00:00|-1|MSS",
-      "setup_uid": "EUR/JPY|-1|2026-10-23 04:00|176.16726|175.19356",
-      "status": "TP1_HIT",
-      "tp1_hit": true,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 12:45:00"
-    },
-    {
-      "stream": "3C 4H\u219215m MSS",
       "pair": "USD/JPY",
       "ticket_id": "#TTD-0017",
       "message_id": 1622,
@@ -198,7 +156,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-23 12:45:00"
+      "last_checked_time": "2026-10-23 13:00:00"
     }
   ],
   "weekly_report_id": null,
@@ -206,7 +164,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-23T13:13:14.134884+00:00",
+  "last_scan_utc": "2026-10-23T13:18:16.633638+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
