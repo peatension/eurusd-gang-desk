@@ -1,7 +1,7 @@
 """
 TENSION TRADING DESK — SMC Primary Engine (replaces v4 score models)
 
-LOCKED research (walk-forward 12/12 positive, mean ~+1.17R):
+CORE LOGIC UNCHANGED:
   H4 bias align
   H1 displacement BOS
   OB preferred, else FVG
@@ -11,17 +11,17 @@ LOCKED research (walk-forward 12/12 positive, mean ~+1.17R):
   TP1 1.5R | TP2 2.0R
   ADV stream = OUT
 
-Pairs: EUR/USD, GBP/USD, USD/JPY, AUD/USD
+PAIRS — full replace (old primary set removed). From inducement solid cells
+(3/3, n≥15, no Exp spike, WR≥50% all windows), all stood out on 1H→15m:
+  GBP/USD · EUR/USD · EUR/JPY · AUD/USD · USD/CHF · NZD/USD · USD/JPY
+  XAU out (W2 WR failed).
 
-Lifecycle:
-  SIGNAL (active on M15 touch)
-    -> TP1 HIT (message edit)
-    -> TP2 WIN / SL LOSS (message edit)
+CRT-style add-ons only (no strategy change):
+  dual WAT/UTC times · session label · tighter signal card layout
 
-Telegram multi-user: /start /stop /help /status /pairs /ping
+Lifecycle: SIGNAL → TP1 HIT → TP2 WIN / SL LOSS (message edit)
+Telegram: /start /stop /help /status /pairs /ping
 State: last_alert_state_smc.json + subscribers_smc.json
-(Can share BOT_TOKEN with CRT; separate state files.)
-
 Motto: Built on Data. / Driven by Discipline.
 """
 
@@ -31,6 +31,71 @@ import time
 import requests
 import pandas as pd
 import numpy as np
+from datetime import datetime, timezone, timedelta
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def format_signal_time(dt_like):
+    """Naive feed times = UTC. CRT-style dual WAT + UTC display."""
+    try:
+        ts = pd.Timestamp(dt_like)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        else:
+            ts = ts.tz_convert("UTC")
+        try:
+            wat = ts.tz_convert("Africa/Lagos")
+        except Exception:
+            wat = ts + pd.Timedelta(hours=1)
+
+        def ampm(x):
+            return x.strftime("%I:%M %p").lstrip("0")
+
+        return (
+            f"🇳🇬 {ampm(wat)} WAT · 🌐 {ampm(ts)} UTC · "
+            f"{wat.strftime('%d %b %Y')}"
+        )
+    except Exception:
+        return str(dt_like)
+
+
+def format_dual_times(bos_time, touch_time=None):
+    setup = bos_time or touch_time
+    signal = touch_time or bos_time
+    return (
+        f"🕯 BOS candle: <b>{format_signal_time(setup)}</b>\n"
+        f"📡 M15 touch: <b>{format_signal_time(signal)}</b>"
+    )
+
+
+def forex_session(dt_like):
+    try:
+        h = int(pd.Timestamp(dt_like).hour)
+    except Exception:
+        return "—"
+    if 0 <= h < 6:
+        return "Asia"
+    if 6 <= h < 12:
+        return "London"
+    if 12 <= h < 16:
+        return "London/NY Overlap"
+    if 16 <= h < 21:
+        return "New York"
+    return "Off-hours"
+
+
+def _px(pair, x):
+    try:
+        x = float(x)
+    except Exception:
+        return str(x)
+    if "JPY" in str(pair):
+        return f"{x:.3f}"
+    return f"{x:.5f}"
+
 
 # ============================================================
 # ENV
@@ -43,7 +108,7 @@ SHEET_URL = os.getenv("SHEET_URL", "")
 
 STATE_FILE = "last_alert_state_smc.json"
 SUBSCRIBERS_FILE = "subscribers_smc.json"
-STATE_VERSION = 5
+STATE_VERSION = 7  # pair replace only — core logic same as v5
 
 PIP_BUF = 2.0
 RR1 = 1.5
@@ -51,12 +116,19 @@ RR2 = 2.0
 MAX_HOLD_BARS = 180
 M15_LOOKAHEAD = 96  # ~24h of M15 after H1 BOS
 
+# Solid inducement cells only (old EUR/GBP/USDJPY/AUD primary package removed)
 PAIRS = {
-    "EUR/USD": {"pip": 0.0001, "tv": "OANDA:EURUSD"},
     "GBP/USD": {"pip": 0.0001, "tv": "OANDA:GBPUSD"},
-    "USD/JPY": {"pip": 0.01, "tv": "OANDA:USDJPY"},
+    "EUR/USD": {"pip": 0.0001, "tv": "OANDA:EURUSD"},
+    "EUR/JPY": {"pip": 0.01,   "tv": "OANDA:EURJPY"},
     "AUD/USD": {"pip": 0.0001, "tv": "OANDA:AUDUSD"},
+    "USD/CHF": {"pip": 0.0001, "tv": "OANDA:USDCHF"},
+    "NZD/USD": {"pip": 0.0001, "tv": "OANDA:NZDUSD"},
+    "USD/JPY": {"pip": 0.01,   "tv": "OANDA:USDJPY"},
 }
+
+# Stream label only (stood out on 1H→15m) — does not change analyze_pair logic
+PAIR_STREAM = {p: "SMC 1H→15m" for p in PAIRS}
 
 
 # ============================================================
@@ -448,7 +520,7 @@ def analyze_pair(h4, h1, m15, pair, pip):
             side = "BUY" if d == 1 else "SELL"
 
             return {
-                "stream": "SMC Primary",
+                "stream": PAIR_STREAM.get(pair, "SMC 1H→15m"),
                 "pair": pair,
                 "direction": d,
                 "side": side,
@@ -466,6 +538,7 @@ def analyze_pair(h4, h1, m15, pair, pip):
                 "bos_time": str(t),
                 "candle_time": candle_time,
                 "candle_key": f"SMC|{pair}|{candle_time}|{d}|{ztype}",
+                "session": forex_session(candle_time),
             }
         # only consider most recent viable BOS path
         # continue scanning older only if no touch window yet — for live we break after first candidate window
@@ -514,66 +587,82 @@ def save_state(state):
 
 def build_signal_message(sig):
     emoji = "🟢" if sig["direction"] == 1 else "🔴"
+    pair = sig["pair"]
+    stream = sig.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m")
+    sess = sig.get("session") or forex_session(sig.get("candle_time"))
     return (
-        f"<b>TENSION TRADING DESK</b>\n"
-        f"════════════════════\n"
-        f"<b>SMC Primary</b>\n"
-        f"────────────────────\n\n"
-        f"{emoji} <b>{sig['side']} {sig['pair']}</b>\n\n"
-        f"Zone: <b>{sig['zone_type']}</b> (first touch)\n"
-        f"H4 bias · H1 displacement BOS · M15 entry\n\n"
-        f"Zone High <b>{sig['zhi']:.5f}</b>\n"
-        f"Entry mid <b>{sig['entry']:.5f}</b>\n"
-        f"Zone Low  <b>{sig['zlo']:.5f}</b>\n\n"
-        f"SL  <b>{sig['stop']:.5f}</b> ({sig['risk_pips']:.1f} pips)\n"
-        f"TP1 <b>{sig['tp1']:.5f}</b> ({sig['rr1']:.1f}R)\n"
-        f"TP2 <b>{sig['tp2']:.5f}</b> ({sig['rr2']:.1f}R)\n\n"
-        f"BOS <b>{sig['bos_time']}</b>\n"
-        f"Touch <b>{sig['candle_time']}</b>\n\n"
-        f"🚀 <b>TRADE ACTIVE</b>\n"
+        f"{emoji} <b>TENSION TRADING DESK</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{stream}</b>\n"
+        f"Zone: <b>{sig['zone_type']}</b> · Session: <b>{sess}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{emoji} <b>{sig['side']} {pair}</b>\n\n"
+        f"H4 bias · H1 displacement BOS · OB/FVG first touch · M15\n\n"
+        f"Zone High <b>{_px(pair, sig['zhi'])}</b>\n"
+        f"Entry mid <b>{_px(pair, sig['entry'])}</b>\n"
+        f"Zone Low  <b>{_px(pair, sig['zlo'])}</b>\n\n"
+        f"SL  <b>{_px(pair, sig['stop'])}</b> ({float(sig['risk_pips']):.1f} pips)\n"
+        f"TP1 <b>{_px(pair, sig['tp1'])}</b> ({float(sig['rr1']):.1f}R)\n"
+        f"TP2 <b>{_px(pair, sig['tp2'])}</b> ({float(sig['rr2']):.1f}R)\n\n"
+        f"{format_dual_times(sig.get('bos_time'), sig.get('candle_time'))}\n\n"
+        f"📌 Status: <b>ACTIVE</b> — Waiting for Entry\n"
         f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
-        f"<a href=\"{tradingview_url(sig['pair'])}\">Open {sig['pair']} on TradingView</a>\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"<a href=\"{tradingview_url(pair)}\">Open {pair} on TradingView</a>\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def tp1_message(trade):
+    pair = trade["pair"]
+    stream = trade.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m")
     return (
         f"<b>TENSION TRADING DESK</b>\n"
-        f"<b>SMC Primary</b>\n\n"
-        f"✅ <b>TP1 TOUCHED</b> ({trade.get('rr1', RR1)}R)\n\n"
-        f"<b>{trade['side']} {trade['pair']}</b>\n"
-        f"TP1 <b>{float(trade['tp1']):.5f}</b>\n\n"
-        f"Still heading TP2 <b>{float(trade['tp2']):.5f}</b>\n"
-        f"💡 Suggestion: BE manually if desired\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{stream}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"✅ <b>TP1 HIT</b> (+{float(trade.get('rr1', RR1)):.1f}R)\n\n"
+        f"<b>{trade['side']} {pair}</b>\n"
+        f"TP1 <b>{_px(pair, trade['tp1'])}</b>\n"
+        f"Still heading TP2 <b>{_px(pair, trade['tp2'])}</b>\n\n"
+        f"📌 Status: <b>TP1 HIT — ACTIVE</b>\n"
+        f"💡 Suggestion only: BE after TP1 (not auto)\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def tp2_message(trade, exit_time):
+    pair = trade["pair"]
+    stream = trade.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m")
+    rr = float(trade.get("rr2", RR2))
     return (
         f"<b>TENSION TRADING DESK</b>\n"
-        f"<b>SMC Primary</b>\n\n"
-        f"🏆 <b>TP2 HIT</b>\n\n"
-        f"<b>{trade['side']} {trade['pair']}</b>\n"
-        f"Exit <b>{exit_time}</b>\n"
-        f"Result <b>+{float(trade.get('rr2', RR2)):.1f}R</b>\n\n"
-        f"🏆 FINAL VERDICT: WIN\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{stream}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🏆 <b>TP2 HIT — WIN</b>\n\n"
+        f"<b>{trade['side']} {pair}</b>\n"
+        f"Exit <b>{format_signal_time(exit_time)}</b>\n"
+        f"Result <b>+{rr:.2f}R</b>\n\n"
+        f"📌 Status: <b>CLOSED — WIN</b>\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
 def sl_message(trade, exit_time):
+    pair = trade["pair"]
+    stream = trade.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m")
     return (
         f"<b>TENSION TRADING DESK</b>\n"
-        f"<b>SMC Primary</b>\n\n"
-        f"🔴 <b>STOP LOSS HIT</b>\n\n"
-        f"<b>{trade['side']} {trade['pair']}</b>\n"
-        f"SL <b>{float(trade['stop']):.5f}</b>\n"
-        f"Exit <b>{exit_time}</b>\n"
-        f"Result <b>-1R</b>\n\n"
-        f"🔴 FINAL VERDICT: LOSS\n\n"
-        f"Built on Data.\nDriven by Discipline."
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>{stream}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"❌ <b>SL HIT — LOSS</b>\n\n"
+        f"<b>{trade['side']} {pair}</b>\n"
+        f"SL <b>{_px(pair, trade['stop'])}</b>\n"
+        f"Exit <b>{format_signal_time(exit_time)}</b>\n"
+        f"Result <b>-1.00R</b>\n\n"
+        f"📌 Status: <b>CLOSED — LOSS</b>\n\n"
+        f"Built on Data · Driven by Discipline"
     )
 
 
@@ -674,9 +763,9 @@ def check_pending(state, pair, m15):
 
 def main():
     print("=" * 70)
-    print("TENSION TRADING DESK — SMC PRIMARY (v4 score models REPLACED)")
+    print("TENSION TRADING DESK — SMC PRIMARY")
     print("H4 bias | displacement BOS | OB/FVG first touch | M15 | 1.5R/2.0R")
-    print("ADV = OFF")
+    print("Pairs: solid inducement set | stream label 1H→15m | ADV = OFF")
     print("=" * 70)
 
     if not TWELVE_DATA_KEY:
@@ -710,6 +799,9 @@ def main():
         if state["last_alert_keys"].get(pair) == key:
             print("  already alerted")
             continue
+        if state["last_alert_keys"].get(f"fired:{key}"):
+            print("  fire-locked")
+            continue
 
         dup = any(
             t.get("pair") == pair and t.get("status") == "ACTIVE"
@@ -719,14 +811,18 @@ def main():
             print("  active trade open")
             continue
 
+        # claim before Telegram (CRT-style)
+        state["last_alert_keys"][pair] = key
+        state["last_alert_keys"][f"fired:{key}"] = True
+        save_state(state)
+
         msg = build_signal_message(sig)
         message_id = broadcast(msg)
         print(f"  SIGNAL {sig['side']} | {sig['zone_type']} | {sig['risk_pips']:.1f} pips")
 
-        state["last_alert_keys"][pair] = key
         if message_id:
             state["pending"].append({
-                "stream": "SMC Primary",
+                "stream": sig.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m"),
                 "pair": pair,
                 "message_id": message_id,
                 "edit_chat_id": str(CHAT_ID) if CHAT_ID else None,
@@ -745,9 +841,10 @@ def main():
                 "tp1_hit": False,
                 "last_checked_index": len(m15) - 1,
             })
+            save_state(state)
         send_to_sheet({
             "action": "NEW_SIGNAL",
-            "stream": "SMC Primary",
+            "stream": sig.get("stream") or PAIR_STREAM.get(pair, "SMC 1H→15m"),
             "pair": pair,
             "side": sig["side"],
             "entry": sig["entry"],
