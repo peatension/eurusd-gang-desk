@@ -1,0 +1,62 @@
+name: SMC Engine
+
+# External cron-job.org → workflow_dispatch (same pattern as CRT).
+# Do NOT enable GitHub schedule here (overlapping runners = spam).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: smc-engine
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-smc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests pandas numpy
+
+      - name: Run SMC Engine
+        env:
+          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
+          TWELVE_DATA_KEYS: ${{ secrets.TWELVE_DATA_KEYS }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_SMC || secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID_SMC || secrets.TELEGRAM_CHAT_ID }}
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: python smc_engine.py
+
+      - name: Commit SMC state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            last_alert_state_smc.json \
+            subscribers_smc.json \
+            telegram_offset_smc.json \
+            2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No SMC state changes to commit."
+          else
+            git commit -m "chore(smc): persist state [skip ci]"
+            git push
+          fi
