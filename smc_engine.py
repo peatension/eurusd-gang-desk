@@ -102,14 +102,36 @@ def _px(pair, x):
 # ENV
 # ============================================================
 
-TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY")
-BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+# Secrets (SMC bot uses BOT_TOKEN + CHAT_ID; multi-key Twelve from last-week secret)
+def _twelve_keys():
+    raw = os.getenv("TWELVE_DATA_KEYS") or os.getenv("TWELVE_DATA_KEY") or ""
+    keys = [k.strip() for k in raw.replace("\n", ",").split(",") if k.strip()]
+    return keys
+
+TWELVE_KEYS = _twelve_keys()
+TWELVE_DATA_KEY = TWELVE_KEYS[0] if TWELVE_KEYS else None  # legacy alias
+_td_i = 0
+
+# Workflow maps secrets.BOT_TOKEN_SMC → BOT_TOKEN, secrets.CHAT_ID_SMC → CHAT_ID
+BOT_TOKEN = (
+    os.getenv("BOT_TOKEN_SMC")
+    or os.getenv("BOT_TOKEN")
+    or os.getenv("TELEGRAM_BOT_TOKEN_SMC")
+    or os.getenv("TELEGRAM_BOT_TOKEN")
+)
+CHAT_ID = (
+    os.getenv("CHAT_ID_SMC")
+    or os.getenv("CHAT_ID")
+    or os.getenv("TELEGRAM_CHAT_ID_SMC")
+    or os.getenv("TELEGRAM_CHAT_ID")
+)
 SHEET_URL = os.getenv("SHEET_URL", "")
+ADMIN_ID = os.getenv("ADMIN_ID", "")
 
 STATE_FILE = "last_alert_state_smc.json"
 SUBSCRIBERS_FILE = "subscribers_smc.json"
-STATE_VERSION = 9  # + parallel FVG model labels
+OUTCOMES_FILE = "outcomes_smc.json"
+STATE_VERSION = 10  # multi-edit + outcomes + CRT-parity commands
 
 PIP_BUF = 2.0
 RR1 = 1.5
@@ -201,18 +223,22 @@ def send_telegram_to(chat_id, text):
 
 
 def broadcast(text):
+    """Send to all subs. Returns (primary_mid, {chat_id: message_id})."""
     subs = load_subscribers()
     if not subs:
         print("No subscribers.")
-        return None
+        return None, {}
     primary = str(CHAT_ID) if CHAT_ID else subs[0]
+    ids = {}
     primary_mid = None
     for cid in subs:
         mid = send_telegram_to(cid, text)
-        if str(cid) == primary and mid:
-            primary_mid = mid
+        if mid:
+            ids[str(cid)] = mid
+            if str(cid) == primary:
+                primary_mid = mid
         time.sleep(0.05)
-    return primary_mid
+    return primary_mid, ids
 
 
 def edit_telegram(message_id, text, chat_id=None):
@@ -233,6 +259,80 @@ def edit_telegram(message_id, text, chat_id=None):
     except Exception as e:
         print("Telegram edit error:", e)
         return False
+
+
+def edit_all_messages(trade, text):
+    """Re-edit signal on every chat that received it (CRT-style)."""
+    mids = trade.get("message_ids") or {}
+    if not mids and trade.get("message_id"):
+        cid = str(trade.get("edit_chat_id") or CHAT_ID or "")
+        if cid:
+            mids = {cid: trade["message_id"]}
+    ok_any = False
+    for cid, mid in mids.items():
+        if edit_telegram(mid, text, cid):
+            ok_any = True
+        time.sleep(0.03)
+    return ok_any
+
+
+def append_outcome(trade, status, result_r, exit_time):
+    rec = {
+        "engine": "SMC",
+        "stream": trade.get("stream"),
+        "model": trade.get("model"),
+        "pair": trade.get("pair"),
+        "side": trade.get("side"),
+        "status": status,
+        "result_r": float(result_r),
+        "entry": trade.get("entry"),
+        "stop": trade.get("stop"),
+        "tp1": trade.get("tp1"),
+        "tp2": trade.get("tp2"),
+        "candle_time": trade.get("candle_time"),
+        "exit_time": str(exit_time),
+        "closed_at": utc_now().isoformat(),
+    }
+    rows = []
+    if os.path.exists(OUTCOMES_FILE):
+        try:
+            with open(OUTCOMES_FILE, "r") as f:
+                rows = json.load(f) or []
+        except Exception:
+            rows = []
+    rows.append(rec)
+    try:
+        with open(OUTCOMES_FILE, "w") as f:
+            json.dump(rows[-500:], f, indent=2)
+    except Exception as e:
+        print("outcomes save error:", e)
+    send_to_sheet({"action": "OUTCOME", **rec})
+
+
+def load_outcomes():
+    if not os.path.exists(OUTCOMES_FILE):
+        return []
+    try:
+        with open(OUTCOMES_FILE, "r") as f:
+            return json.load(f) or []
+    except Exception:
+        return []
+
+
+def metrics_block(rows, title):
+    if not rows:
+        return f"<b>{title}</b>\nNo closed trades yet."
+    n = len(rows)
+    wins = sum(1 for r in rows if float(r.get("result_r") or 0) > 0)
+    losses = n - wins
+    wr = 100.0 * wins / n if n else 0
+    exp = sum(float(r.get("result_r") or 0) for r in rows) / n if n else 0
+    net = sum(float(r.get("result_r") or 0) for r in rows)
+    return (
+        f"<b>{title}</b>\n"
+        f"Trades: <b>{n}</b> · W/L: <b>{wins}/{losses}</b>\n"
+        f"WR: <b>{wr:.1f}%</b> · Exp: <b>{exp:+.3f}R</b> · Net: <b>{net:+.2f}R</b>"
+    )
 
 
 def process_commands(state):
@@ -258,7 +358,7 @@ def process_commands(state):
         text = (message.get("text") or "").strip()
         if not chat_id or not text:
             continue
-        low = text.lower()
+        low = text.lower().split("@")[0].strip()
 
         if low.startswith("/start"):
             if chat_id not in subscribers:
@@ -267,9 +367,12 @@ def process_commands(state):
             send_telegram_to(
                 chat_id,
                 "🟢 <b>Subscribed — SMC Engine</b>\n\n"
-                "Stream: <b>SMC Primary</b>\n"
-                "H4 bias · H1 displacement BOS · OB/FVG first touch · M15\n\n"
-                "Commands: /help /status /pairs /ping /stop",
+                "Models: <b>PRIMARY</b> + <b>FVG</b> (labeled)\n"
+                "H4 bias · H1 BOS · OB/FVG · M15 first touch · TP 1.5R/2.0R\n\n"
+                "Commands:\n"
+                "/help /status /pairs /ping /stop\n"
+                "/stats /performance /weekly /monthly\n"
+                "/risk",
             )
         elif low.startswith("/stop"):
             subscribers = [x for x in subscribers if x != chat_id]
@@ -278,28 +381,81 @@ def process_commands(state):
         elif low.startswith("/help"):
             send_telegram_to(
                 chat_id,
-                "📖 <b>SMC Primary</b>\n\n"
+                "📖 <b>SMC Engine</b>\n\n"
                 "1. H4 bias must agree\n"
-                "2. H1 displacement BOS (impulsive close)\n"
-                "3. Zone = Order Block (else FVG)\n"
-                "4. First M15 touch → entry at <b>50%</b> of zone\n"
-                "5. SL beyond zone + 2 pips\n"
-                "6. TP1 1.5R · TP2 2.0R\n\n"
-                "BE after TP1 = suggestion only (not auto).",
+                "2. H1 displacement BOS\n"
+                "3. PRIMARY = OB preferred else FVG · FVG = FVG only\n"
+                "4. First M15 touch → entry at zone 50%\n"
+                "5. SL zone extreme + 2 pips\n"
+                "6. TP1 1.5R · TP2 2.0R\n"
+                "7. Signal re-edits: TP1 → WIN/LOSS\n\n"
+                "/stats /performance /weekly /monthly /risk /pairs /status",
             )
         elif low.startswith("/status"):
+            active = sum(1 for x in state.get("pending", []) if x.get("status") == "ACTIVE")
             send_telegram_to(
                 chat_id,
                 "⚡ <b>SMC Engine Status</b>\n\n"
                 "State: <b>ONLINE</b>\n"
-                "Model: <b>SMC Primary</b> (ADV off)\n"
-                f"Pairs: {len(PAIRS)} | Subscribers: {len(load_subscribers())}",
+                f"Models: <b>{', '.join(MODELS)}</b>\n"
+                f"Pairs: <b>{len(PAIRS)}</b> · Subs: <b>{len(load_subscribers())}</b>\n"
+                f"Open signals: <b>{active}</b>",
             )
         elif low.startswith("/pairs"):
-            lines = "\n".join(f"• <code>{p}</code>" for p in PAIRS)
+            lines = "\n".join(
+                f"• <code>{p}</code> — {PAIR_STREAM.get(p, 'SMC')}" for p in PAIRS
+            )
             send_telegram_to(chat_id, f"📊 <b>SMC pairs</b>\n\n{lines}")
         elif low.startswith("/ping"):
             send_telegram_to(chat_id, "pong 🏓 — SMC engine operational.")
+        elif low.startswith("/stats") or low.startswith("/performance") or low.startswith("/report"):
+            rows = load_outcomes()
+            send_telegram_to(chat_id, metrics_block(rows, "SMC — All-time performance"))
+        elif low.startswith("/weekly"):
+            rows = load_outcomes()
+            cutoff = utc_now() - timedelta(days=7)
+            filt = []
+            for r in rows:
+                try:
+                    ts = pd.Timestamp(r.get("closed_at") or r.get("exit_time"))
+                    if ts.tzinfo is None:
+                        ts = ts.tz_localize("UTC")
+                    if ts >= cutoff:
+                        filt.append(r)
+                except Exception:
+                    pass
+            send_telegram_to(chat_id, metrics_block(filt, "SMC — Last 7 days"))
+        elif low.startswith("/monthly"):
+            rows = load_outcomes()
+            cutoff = utc_now() - timedelta(days=30)
+            filt = []
+            for r in rows:
+                try:
+                    ts = pd.Timestamp(r.get("closed_at") or r.get("exit_time"))
+                    if ts.tzinfo is None:
+                        ts = ts.tz_localize("UTC")
+                    if ts >= cutoff:
+                        filt.append(r)
+                except Exception:
+                    pass
+            send_telegram_to(chat_id, metrics_block(filt, "SMC — Last 30 days"))
+        elif low.startswith("/risk") or low.startswith("/lot"):
+            send_telegram_to(
+                chat_id,
+                "📐 <b>SMC risk guide</b>\n\n"
+                "Risk 0.5%–1% of equity per signal.\n"
+                "Lot ≈ (Equity × risk%) / (SL_pips × pip_value).\n"
+                "TP1 1.5R · TP2 2.0R · no auto BE.\n\n"
+                "Example 1000 account · 1% · 15 pip SL (EURUSD):\n"
+                "Risk $10 · ~0.07 lots (broker-dependent).",
+            )
+        elif low.startswith("/admin") and ADMIN_ID and chat_id == str(ADMIN_ID):
+            subs = load_subscribers()
+            send_telegram_to(
+                chat_id,
+                f"🛠 <b>Admin</b>\nSubs: {len(subs)}\n"
+                + "\n".join(f"<code>{s}</code>" for s in subs[:40]),
+            )
 
     save_subscribers(subscribers)
 
@@ -324,16 +480,21 @@ def tradingview_url(pair):
 # DATA
 # ============================================================
 
-def fetch(symbol, interval, outputsize=500, retries=4):
+def fetch(symbol, interval, outputsize=500, retries=6):
+    global _td_i
+    if not TWELVE_KEYS:
+        print("No Twelve Data keys loaded")
+        return None
     url = "https://api.twelvedata.com/time_series"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "outputsize": outputsize,
-        "apikey": TWELVE_DATA_KEY,
-        "format": "JSON",
-    }
     for _ in range(retries):
+        key = TWELVE_KEYS[_td_i % len(TWELVE_KEYS)]
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "outputsize": outputsize,
+            "apikey": key,
+            "format": "JSON",
+        }
         try:
             data = requests.get(url, params=params, timeout=30).json()
             if "values" in data:
@@ -344,14 +505,17 @@ def fetch(symbol, interval, outputsize=500, retries=4):
                 df = df.dropna().sort_values("datetime").reset_index(drop=True)
                 time.sleep(8)
                 return df
-            if data.get("code") == 429 or "credits" in str(data).lower():
-                print(f"Rate limit {symbol} {interval}, waiting...")
+            msg = str(data).lower()
+            if data.get("code") == 429 or "credit" in msg or "limit" in msg:
+                print(f"Rate limit {symbol} {interval}, rotate key, wait...")
+                _td_i += 1
                 time.sleep(65)
                 continue
             print(f"API error {symbol} {interval}:", data)
             return None
         except Exception as e:
             print(f"Fetch error {symbol} {interval}:", e)
+            _td_i += 1
             time.sleep(10)
     return None
 
@@ -699,7 +863,6 @@ def check_pending(state, pair, m15):
         return
     remaining = []
     latest = len(m15) - 1
-    primary_chat = str(CHAT_ID) if CHAT_ID else None
 
     for trade in state["pending"]:
         if trade.get("pair") != pair:
@@ -717,16 +880,15 @@ def check_pending(state, pair, m15):
 
         signal_index = int(matches[0])
         last_checked = int(trade.get("last_checked_index", signal_index))
-        start = max(signal_index + 1, last_checked + 1)
+        start_i = max(signal_index + 1, last_checked + 1)
         direction = int(trade["direction"])
         stop = float(trade["stop"])
         tp1 = float(trade["tp1"])
         tp2 = float(trade["tp2"])
         tp1_hit = bool(trade.get("tp1_hit", False))
         closed = False
-        edit_chat = trade.get("edit_chat_id") or primary_chat
 
-        for j in range(start, latest + 1):
+        for j in range(start_i, latest + 1):
             high = float(m15["high"].iloc[j])
             low = float(m15["low"].iloc[j])
             candle_time = str(m15["datetime"].iloc[j])
@@ -742,37 +904,49 @@ def check_pending(state, pair, m15):
                 hit_tp1 = low <= tp1
 
             if hit_sl:
-                edit_telegram(trade.get("message_id"), sl_message(trade, candle_time), edit_chat)
-                send_to_sheet({
-                    "action": "OUTCOME", "status": "LOSS", "stream": "SMC Primary",
-                    "pair": pair, "result_r": -1, "exit_time": candle_time,
-                })
+                text = sl_message(trade, candle_time)
+                ok = edit_all_messages(trade, text)
+                if not ok:
+                    broadcast(text)
+                append_outcome(trade, "LOSS", -1.0, candle_time)
+                print(f"  CLOSE LOSS {trade.get('model')} {pair}")
                 closed = True
                 break
             if hit_tp2:
-                edit_telegram(trade.get("message_id"), tp2_message(trade, candle_time), edit_chat)
-                send_to_sheet({
-                    "action": "OUTCOME", "status": "WIN", "stream": "SMC Primary",
-                    "pair": pair, "result_r": float(trade.get("rr2", RR2)), "exit_time": candle_time,
-                })
+                text = tp2_message(trade, candle_time)
+                ok = edit_all_messages(trade, text)
+                if not ok:
+                    broadcast(text)
+                append_outcome(trade, "WIN", float(trade.get("rr2", RR2)), candle_time)
+                print(f"  CLOSE WIN {trade.get('model')} {pair}")
                 closed = True
                 break
             if hit_tp1 and not tp1_hit:
                 trade["tp1_hit"] = True
                 tp1_hit = True
-                edit_telegram(trade.get("message_id"), tp1_message(trade), edit_chat)
+                trade["status"] = "TP1_HIT"
+                text = tp1_message(trade)
+                ok = edit_all_messages(trade, text)
+                if not ok:
+                    broadcast(text)
                 send_to_sheet({
-                    "action": "TP1_TOUCH", "stream": "SMC Primary",
-                    "pair": pair, "exit_time": candle_time,
+                    "action": "TP1_TOUCH",
+                    "stream": trade.get("stream"),
+                    "pair": pair,
+                    "exit_time": candle_time,
                 })
+                print(f"  TP1 HIT {trade.get('model')} {pair}")
+                save_state(state)
             if j - signal_index >= MAX_HOLD_BARS:
-                edit_telegram(
-                    trade.get("message_id"),
-                    f"<b>SMC</b>\n<b>SMC Primary</b>\n\n"
-                    f"⏱️ <b>TIME EXIT</b>\n\n<b>{trade['side']} {pair}</b>\n"
-                    f"Max hold reached.\n\nBuilt on Data.\nDriven by Discipline.",
-                    edit_chat,
+                text = (
+                    f"<b>SMC</b>\n━━━━━━━━━━━━━━━━━━━\n"
+                    f"<b>{trade.get('stream')}</b>\n\n"
+                    f"⏱️ <b>TIME EXIT</b>\n\n"
+                    f"<b>{trade['side']} {pair}</b>\n"
+                    f"Max hold reached.\n\nBuilt on Data · Driven by Discipline."
                 )
+                edit_all_messages(trade, text)
+                append_outcome(trade, "TIME", 0.0, candle_time)
                 closed = True
                 break
         if not closed:
@@ -792,9 +966,10 @@ def main():
     print(f"Models: {list(MODELS)} | AUD/JPY out | ADV = OFF")
     print("=" * 70)
 
-    if not TWELVE_DATA_KEY:
-        print("Missing TWELVE_DATA_KEY")
+    if not TWELVE_KEYS:
+        print("Missing TWELVE_DATA_KEYS / TWELVE_DATA_KEY")
         return
+    print(f"Twelve keys loaded: {len(TWELVE_KEYS)}")
 
     state = load_state()
     if BOT_TOKEN:
@@ -842,18 +1017,19 @@ def main():
             save_state(state)
 
             msg = build_signal_message(sig)
-            message_id = broadcast(msg)
+            message_id, message_ids = broadcast(msg)
             print(
                 f"  SIGNAL {model} {sig['side']} | zone={sig['zone_type']} | "
-                f"{sig['risk_pips']:.1f} pips"
+                f"{sig['risk_pips']:.1f} pips | msgs={len(message_ids)}"
             )
 
-            if message_id:
+            if message_id or message_ids:
                 state["pending"].append({
                     "stream": sig.get("stream"),
                     "model": model,
                     "pair": pair,
                     "message_id": message_id,
+                    "message_ids": message_ids,
                     "edit_chat_id": str(CHAT_ID) if CHAT_ID else None,
                     "direction": sig["direction"],
                     "side": sig["side"],
