@@ -54,7 +54,7 @@ jobs:
           git add \
             last_alert_state_smc.json \
             subscribers_smc.json \
-            telegram_offset_smc.json \
+            telegram_offset_smc.json \n            outcomes_smc.json \
             2>/dev/null || true
 
           if git diff --cached --quiet; then
