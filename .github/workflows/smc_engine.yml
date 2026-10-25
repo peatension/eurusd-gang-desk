@@ -1,7 +1,10 @@
 name: SMC Engine
 
-# External cron-job.org → workflow_dispatch (same pattern as CRT).
-# Do NOT enable GitHub schedule here (overlapping runners = spam).
+# External cron → workflow_dispatch only.
+# Secrets (names ending in _SMC for Telegram):
+#   BOT_TOKEN_SMC
+#   CHAT_ID_SMC
+#   TWELVE_DATA_KEYS  (latest multi-key secret)
 on:
   workflow_dispatch:
 
@@ -34,10 +37,10 @@ jobs:
 
       - name: Run SMC Engine
         env:
-          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           TWELVE_DATA_KEYS: ${{ secrets.TWELVE_DATA_KEYS }}
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_SMC || secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID_SMC || secrets.TELEGRAM_CHAT_ID }}
+          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN_SMC }}
+          CHAT_ID: ${{ secrets.CHAT_ID_SMC }}
           SHEET_URL: ${{ secrets.SHEET_URL }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
         run: python smc_engine.py
