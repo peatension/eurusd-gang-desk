@@ -966,17 +966,19 @@ def main():
     print(f"Models: {list(MODELS)} | AUD/JPY out | ADV = OFF")
     print("=" * 70)
 
-    if not TWELVE_KEYS:
-        print("Missing TWELVE_DATA_KEYS / TWELVE_DATA_KEY")
-        return
-    print(f"Twelve keys loaded: {len(TWELVE_KEYS)}")
-
     state = load_state()
+    # Commands always first (fast path even if data keys missing)
     if BOT_TOKEN:
         process_commands(state)
+        save_state(state)
         print(f"Subscribers: {len(load_subscribers())}")
     else:
         print("BOT_TOKEN missing — scan only.")
+
+    if not TWELVE_KEYS:
+        print("Missing TWELVE_DATA_KEYS / TWELVE_DATA_KEY — skip market scan")
+        return
+    print(f"Twelve keys loaded: {len(TWELVE_KEYS)}")
 
     for pair, cfg in PAIRS.items():
         pip = cfg["pip"]
