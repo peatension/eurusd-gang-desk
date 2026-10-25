@@ -1,0 +1,57 @@
+name: SMC Commands
+
+# Fast path: /start /stop /stats /help — no Twelve Data, no signals.
+# Interval: EXTERNAL cron every 1 min → workflow_dispatch.
+# (GitHub native schedule cannot reliably run under 5 min.)
+# Signal scan stays on SMC Engine (separate external cron).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: smc-commands
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  smc-commands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy
+
+      - name: Process SMC Telegram commands
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN_SMC }}
+          CHAT_ID: ${{ secrets.CHAT_ID_SMC }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: python smc_cmd_runner.py
+
+      - name: Commit SMC command state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            last_alert_state_smc.json \
+            subscribers_smc.json \
+            2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No SMC command state changes."
+          else
+            git commit -m "chore(smc): command state [skip ci]"
+            git push
+          fi
