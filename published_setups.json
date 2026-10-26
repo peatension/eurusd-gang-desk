@@ -252,6 +252,17 @@
       "sent_at": "2026-10-22T21:01:48.888746+00:00",
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
+    },
+    "XAU/USD|1|2026-10-26 07:00|entry:4004004": {
+      "c2_minute": "2026-10-26 07:00",
+      "claimed_at": "2026-10-26T08:02:07.682334+00:00",
+      "direction": 1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "4004004",
+      "pair": "XAU/USD",
+      "sent_at": "2026-10-26T08:02:09.117200+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
     }
   },
   "version": 1
