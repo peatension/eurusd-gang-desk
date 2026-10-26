@@ -58,7 +58,7 @@
     "fired:CRT 4H\u219215m MSS|XAU/USD|-1|2026-10-21 12:00|MSS|entry:4141130": "CRT 4H\u219215m MSS|XAU/USD|2026-10-21 12:00:00|-1|MSS|entry:4141130",
     "fired:CRT 4H\u219230m MSS|XAU/USD|-1|2026-10-21 12:00|MSS|entry:4141130": "CRT 4H\u219230m MSS|XAU/USD|2026-10-21 12:00:00|-1|MSS|entry:4141130",
     "fired:CRT 1H\u219215m PLAIN|AUD/JPY|-1|2026-10-21 18:00|PLAIN|entry:111265": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-21 18:00:00|-1|PLAIN|entry:111265",
-    "CRT 1H\u219215m PLAIN:AUD/JPY": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-23 16:00:00|-1|PLAIN|entry:110417",
+    "CRT 1H\u219215m PLAIN:AUD/JPY": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN|entry:110580",
     "setup_entry:AUD/JPY|-1|2026-10-21 18:00|111.26497|111.12005|entry:111265": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-21 18:00:00|-1|PLAIN|entry:111265",
     "setup_core:AUD/JPY|-1|2026-10-21 18:00|entry:111265": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-21 18:00:00|-1|PLAIN|entry:111265",
     "fired:CRT 1H\u21925m PLAIN|AUD/JPY|-1|2026-10-21 18:00|PLAIN|entry:111265": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-21 18:00:00|-1|PLAIN|entry:111265",
@@ -147,7 +147,11 @@
     "CRT 4H\u219215m TS:XAU/USD": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
     "setup_entry:XAU/USD|-1|2026-10-26 04:00|4016.87086|3977.58455|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
     "setup_core:XAU/USD|-1|2026-10-26 04:00|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
-    "fired:CRT 4H\u219215m PLAIN|XAU/USD|-1|2026-10-26 04:00|PLAIN|entry:4016871": "CRT 4H\u219215m PLAIN|XAU/USD|2026-10-26 04:00:00|-1|PLAIN|entry:4016871"
+    "fired:CRT 4H\u219215m PLAIN|XAU/USD|-1|2026-10-26 04:00|PLAIN|entry:4016871": "CRT 4H\u219215m PLAIN|XAU/USD|2026-10-26 04:00:00|-1|PLAIN|entry:4016871",
+    "fired:CRT 1H\u219215m PLAIN|AUD/JPY|1|2026-10-26 10:00|PLAIN|entry:110580": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN|entry:110580",
+    "setup_entry:AUD/JPY|1|2026-10-26 10:00|110.76460|110.57950|entry:110580": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN|entry:110580",
+    "setup_core:AUD/JPY|1|2026-10-26 10:00|entry:110580": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN|entry:110580",
+    "fired:CRT 1H\u21925m PLAIN|AUD/JPY|1|2026-10-26 10:00|PLAIN|entry:110580": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN|entry:110580"
   },
   "pending": [
     {
@@ -190,6 +194,48 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
+      "last_checked_time": "2026-10-26 10:45:00"
+    },
+    {
+      "stream": "CRT 1H\u219215m PLAIN",
+      "pair": "AUD/JPY",
+      "ticket_id": "#TTD-0026",
+      "message_id": 1665,
+      "message_ids": {
+        "-1004423692487": 1665,
+        "6937879685": 3182,
+        "7080941387": 3183
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 110.5795,
+      "stop": 110.54622839285715,
+      "tp1": 110.67205,
+      "tp2": 110.7646,
+      "rr1": 2.7816510216245933,
+      "rr2": 5.563302043249187,
+      "risk_pips": 3.327160714285071,
+      "tp1_pips": 9.25500000000028,
+      "tp2_pips": 18.51000000000056,
+      "prop_stop": 110.51622839285714,
+      "prop_risk_pips": 6.327160714285185,
+      "prop_buffer_pips": 3.0,
+      "crh": 110.7646,
+      "crl": 110.5795,
+      "mid": 110.67205,
+      "candle_time": "2026-10-26 10:30:00",
+      "c2_time": "2026-10-26 10:00:00",
+      "signal_sent": "2026-10-26T11:02:12.909385+00:00",
+      "session": "London",
+      "c1_tf": "1h",
+      "ltf": "15min",
+      "entry_model": "PLAIN",
+      "candle_key": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-10-26 10:00:00|1|PLAIN",
+      "setup_uid": "AUD/JPY|1|2026-10-26 10:00|110.76460|110.57950",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 397,
       "last_checked_time": "2026-10-26 10:30:00"
     }
   ],
@@ -197,7 +243,7 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-26T10:56:14.473629+00:00",
+  "last_scan_utc": "2026-10-26T11:02:14.996962+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
