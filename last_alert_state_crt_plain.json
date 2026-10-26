@@ -146,7 +146,8 @@
     "fired:CRT 4H\u219215m TS|XAU/USD|-1|2026-10-26 04:00|TS|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
     "CRT 4H\u219215m TS:XAU/USD": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
     "setup_entry:XAU/USD|-1|2026-10-26 04:00|4016.87086|3977.58455|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
-    "setup_core:XAU/USD|-1|2026-10-26 04:00|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871"
+    "setup_core:XAU/USD|-1|2026-10-26 04:00|entry:4016871": "CRT 4H\u219215m TS|XAU/USD|2026-10-26 04:00:00|-1|TS|entry:4016871",
+    "fired:CRT 4H\u219215m PLAIN|XAU/USD|-1|2026-10-26 04:00|PLAIN|entry:4016871": "CRT 4H\u219215m PLAIN|XAU/USD|2026-10-26 04:00:00|-1|PLAIN|entry:4016871"
   },
   "pending": [
     {
@@ -189,14 +190,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-26 09:30:00"
+      "last_checked_time": "2026-10-26 09:45:00"
     }
   ],
   "weekly_report_id": "2026-W43",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-26T09:56:15.562554+00:00",
+  "last_scan_utc": "2026-10-26T10:02:09.540914+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
