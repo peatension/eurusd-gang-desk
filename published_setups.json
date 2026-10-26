@@ -220,6 +220,17 @@
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
     },
+    "XAU/USD|-1|2026-10-26 04:00|entry:4016871": {
+      "c2_minute": "2026-10-26 04:00",
+      "claimed_at": "2026-10-26T09:22:20.428450+00:00",
+      "direction": -1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "4016871",
+      "pair": "XAU/USD",
+      "sent_at": "2026-10-26T09:22:22.025508+00:00",
+      "status": "sent",
+      "stream": "CRT 4H\u219215m TS"
+    },
     "XAU/USD|1|2026-10-22 07:00|entry:4085453": {
       "c2_minute": "2026-10-22 07:00",
       "claimed_at": "2026-10-22T08:01:49.968474+00:00",
