@@ -231,8 +231,8 @@
       "setup_uid": "EUR/JPY|-1|2026-10-28 14:00|176.11434|175.82784",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-28 14:15:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-28 14:45:00"
     }
   ],
   "weekly_report_id": "2026-W43",
@@ -240,7 +240,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-28T15:03:13.529246+00:00",
+  "last_scan_utc": "2026-10-28T15:07:19.039683+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
