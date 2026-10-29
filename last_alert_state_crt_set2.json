@@ -207,7 +207,8 @@
     "setup_core:USD/JPY|1|2026-10-29 08:00|entry:157798": "3C 1H\u21925m PLAIN|USD/JPY|2026-10-29 08:00:00|1|PLAIN|entry:157798",
     "fired:3C 1H\u21925m PLAIN|USD/JPY|1|2026-10-29 08:00|PLAIN|entry:157798": "3C 1H\u21925m PLAIN|USD/JPY|2026-10-29 08:00:00|1|PLAIN|entry:157798",
     "fired:3C 1H\u219215m PLAIN|EUR/JPY|-1|2026-10-29 08:00|PLAIN|entry:175958": "3C 1H\u219215m PLAIN|EUR/JPY|2026-10-29 08:00:00|-1|PLAIN|entry:175958",
-    "fired:3C 1H\u21925m PLAIN|EUR/JPY|-1|2026-10-29 08:00|PLAIN|entry:175958": "3C 1H\u21925m PLAIN|EUR/JPY|2026-10-29 08:00:00|-1|PLAIN|entry:175958"
+    "fired:3C 1H\u21925m PLAIN|EUR/JPY|-1|2026-10-29 08:00|PLAIN|entry:175958": "3C 1H\u21925m PLAIN|EUR/JPY|2026-10-29 08:00:00|-1|PLAIN|entry:175958",
+    "fired:3C 4H\u219215m PLAIN|EUR/JPY|1|2026-10-29 04:00|PLAIN|entry:175795": "3C 4H\u219215m PLAIN|EUR/JPY|2026-10-29 04:00:00|1|PLAIN|entry:175795"
   },
   "pending": [],
   "weekly_report_id": "2026-W43",
@@ -215,7 +216,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-29T09:43:28.944772+00:00",
+  "last_scan_utc": "2026-10-29T09:48:26.256589+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
