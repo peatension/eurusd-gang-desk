@@ -71,7 +71,7 @@
     "setup_core:AUD/JPY|1|2026-10-21 22:00|entry:111042": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-21 22:00:00|1|PLAIN|entry:111042",
     "fired:CRT 1H\u21925m PLAIN|AUD/JPY|1|2026-10-21 22:00|PLAIN|entry:111042": "CRT 1H\u21925m PLAIN|AUD/JPY|2026-10-21 22:00:00|1|PLAIN|entry:111042",
     "fired:CRT 1H\u219215m PLAIN|XAU/USD|1|2026-10-22 07:00|PLAIN|entry:4085453": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-22 07:00:00|1|PLAIN|entry:4085453",
-    "CRT 1H\u219215m PLAIN:XAU/USD": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485",
+    "CRT 1H\u219215m PLAIN:XAU/USD": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN|entry:4020576",
     "setup_entry:XAU/USD|1|2026-10-22 07:00|4101.89097|4085.45281|entry:4085453": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-22 07:00:00|1|PLAIN|entry:4085453",
     "setup_core:XAU/USD|1|2026-10-22 07:00|entry:4085453": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-22 07:00:00|1|PLAIN|entry:4085453",
     "fired:CRT 1H\u21925m PLAIN|XAU/USD|1|2026-10-22 07:00|PLAIN|entry:4085453": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-22 07:00:00|1|PLAIN|entry:4085453",
@@ -218,7 +218,11 @@
     "fired:CRT 1H\u219215m PLAIN|XAU/USD|1|2026-10-29 12:00|PLAIN|entry:4018485": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485",
     "setup_entry:XAU/USD|1|2026-10-29 12:00|4040.53690|4018.48503|entry:4018485": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485",
     "setup_core:XAU/USD|1|2026-10-29 12:00|entry:4018485": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485",
-    "fired:CRT 1H\u21925m PLAIN|XAU/USD|1|2026-10-29 12:00|PLAIN|entry:4018485": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485"
+    "fired:CRT 1H\u21925m PLAIN|XAU/USD|1|2026-10-29 12:00|PLAIN|entry:4018485": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 12:00:00|1|PLAIN|entry:4018485",
+    "fired:CRT 1H\u219215m PLAIN|XAU/USD|1|2026-10-29 14:00|PLAIN|entry:4020576": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN|entry:4020576",
+    "setup_entry:XAU/USD|1|2026-10-29 14:00|4036.26200|4020.57559|entry:4020576": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN|entry:4020576",
+    "setup_core:XAU/USD|1|2026-10-29 14:00|entry:4020576": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN|entry:4020576",
+    "fired:CRT 1H\u21925m PLAIN|XAU/USD|1|2026-10-29 14:00|PLAIN|entry:4020576": "CRT 1H\u21925m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN|entry:4020576"
   },
   "pending": [
     {
@@ -261,14 +265,56 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-10-29 14:30:00"
+      "last_checked_time": "2026-10-29 14:45:00"
+    },
+    {
+      "stream": "CRT 1H\u219215m PLAIN",
+      "pair": "XAU/USD",
+      "ticket_id": "#TTD-0054",
+      "message_id": 1730,
+      "message_ids": {
+        "-1004423692487": 1730,
+        "6937879685": 3293,
+        "7080941387": 3294
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 4020.57559,
+      "stop": 4016.613758392857,
+      "tp1": 4028.418795,
+      "tp2": 4036.262,
+      "rr1": 1.9796916622754888,
+      "rr2": 3.9593833245509775,
+      "risk_pips": 396.18316071428126,
+      "tp1_pips": 784.3205000000125,
+      "tp2_pips": 1568.641000000025,
+      "prop_stop": 4016.313758392857,
+      "prop_risk_pips": 426.18316071429945,
+      "prop_buffer_pips": 30.0,
+      "crh": 4036.262,
+      "crl": 4020.57559,
+      "mid": 4028.418795,
+      "candle_time": "2026-10-29 14:15:00",
+      "c2_time": "2026-10-29 14:00:00",
+      "signal_sent": "2026-10-29T15:02:11.835859+00:00",
+      "session": "London/NY Overlap",
+      "c1_tf": "1h",
+      "ltf": "15min",
+      "entry_model": "PLAIN",
+      "candle_key": "CRT 1H\u219215m PLAIN|XAU/USD|2026-10-29 14:00:00|1|PLAIN",
+      "setup_uid": "XAU/USD|1|2026-10-29 14:00|4036.26200|4020.57559",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 396,
+      "last_checked_time": "2026-10-29 14:15:00"
     }
   ],
   "weekly_report_id": "2026-W43",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-10-29T14:56:10.234244+00:00",
+  "last_scan_utc": "2026-10-29T15:02:15.104205+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
