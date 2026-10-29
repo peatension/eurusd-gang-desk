@@ -205,48 +205,6 @@
   },
   "pending": [
     {
-      "stream": "3C 1H\u219215m PLAIN",
-      "pair": "USD/JPY",
-      "ticket_id": "#TTD-0046",
-      "message_id": 1715,
-      "message_ids": {
-        "-1004423692487": 1715,
-        "6937879685": 3263,
-        "7080941387": 3264
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": 1,
-      "side": "BUY",
-      "entry": 157.80846,
-      "stop": 157.78092767857143,
-      "tp1": 157.856215,
-      "tp2": 157.90397,
-      "rr1": 1.7345068458501516,
-      "rr2": 3.469013691700303,
-      "risk_pips": 2.753232142856632,
-      "tp1_pips": 4.775499999999511,
-      "tp2_pips": 9.550999999999021,
-      "prop_stop": 157.74092767857144,
-      "prop_risk_pips": 6.753232142855836,
-      "prop_buffer_pips": 4.0,
-      "crh": 157.90397,
-      "crl": 157.80846,
-      "mid": 157.856215,
-      "candle_time": "2026-10-29 07:15:00",
-      "c2_time": "2026-10-29 07:00:00",
-      "signal_sent": "2026-10-29T08:03:12.639380+00:00",
-      "session": "London",
-      "c1_tf": "1h",
-      "ltf": "15min",
-      "entry_model": "PLAIN",
-      "candle_key": "3C 1H\u219215m PLAIN|USD/JPY|2026-10-29 07:00:00|1|PLAIN",
-      "setup_uid": "USD/JPY|1|2026-10-29 07:00|157.90397|157.80846",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-29 07:15:00"
-    },
-    {
       "stream": "3C 4H\u219215m MSS",
       "pair": "EUR/JPY",
       "ticket_id": "#TTD-0047",
@@ -285,8 +243,8 @@
       "setup_uid": "EUR/JPY|1|2026-10-29 04:00|176.16209|175.79480",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 395,
-      "last_checked_time": "2026-10-29 07:00:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-29 07:45:00"
     }
   ],
   "weekly_report_id": "2026-W43",
@@ -294,7 +252,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-29T08:03:18.280983+00:00",
+  "last_scan_utc": "2026-10-29T08:07:23.357981+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
