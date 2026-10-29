@@ -3222,5 +3222,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0054",
+    "stream": "CRT 1H\u219215m PLAIN",
+    "pair": "XAU/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 3.9593833245509775,
+    "exit_time": "2026-10-29 14:45:00",
+    "entry": 4020.57559,
+    "stop": 4016.613758392857,
+    "tp1": 4028.418795,
+    "tp2": 4036.262,
+    "rr1": 1.9796916622754888,
+    "rr2": 3.9593833245509775,
+    "candle_time": "2026-10-29 14:15:00",
+    "signal_sent": "2026-10-29T15:02:11.835859+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
