@@ -257,10 +257,10 @@
       "entry_model": "PLAIN",
       "candle_key": "3C 1H\u219215m PLAIN|EUR/JPY|2026-10-30 06:00:00|-1|PLAIN",
       "setup_uid": "EUR/JPY|-1|2026-10-30 06:00|176.35877|176.08260",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-30 06:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-30 06:45:00"
     }
   ],
   "weekly_report_id": "2026-W43",
@@ -268,7 +268,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-30T07:03:14.740275+00:00",
+  "last_scan_utc": "2026-10-30T07:07:21.371974+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
