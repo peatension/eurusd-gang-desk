@@ -278,8 +278,8 @@
       "setup_uid": "USD/JPY|-1|2026-10-30 14:00|157.34175|157.09357",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-10-30 14:15:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-10-30 14:45:00"
     }
   ],
   "weekly_report_id": "2026-W43",
@@ -287,7 +287,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-10-30T15:03:11.258480+00:00",
+  "last_scan_utc": "2026-10-30T15:07:23.151087+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
