@@ -242,8 +242,9 @@
     "setup_core:USD/JPY|-1|2026-11-02 06:00|entry:157871": "3C 1H\u21925m PLAIN|USD/JPY|2026-11-02 06:00:00|-1|PLAIN|entry:157871",
     "fired:3C 1H\u21925m PLAIN|USD/JPY|-1|2026-11-02 06:00|PLAIN|entry:157871": "3C 1H\u21925m PLAIN|USD/JPY|2026-11-02 06:00:00|-1|PLAIN|entry:157871",
     "fired:3C 4H\u219215m MSS|USD/JPY|-1|2026-11-02 04:00|MSS|entry:157976": "3C 4H\u219215m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976",
-    "setup_entry:USD/JPY|-1|2026-11-02 04:00|157.97586|157.67895|entry:157976": "3C 4H\u219215m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976",
-    "setup_core:USD/JPY|-1|2026-11-02 04:00|entry:157976": "3C 4H\u219215m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976"
+    "setup_entry:USD/JPY|-1|2026-11-02 04:00|157.97586|157.67895|entry:157976": "3C 4H\u219230m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976",
+    "setup_core:USD/JPY|-1|2026-11-02 04:00|entry:157976": "3C 4H\u219230m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976",
+    "fired:3C 4H\u219230m MSS|USD/JPY|-1|2026-11-02 04:00|MSS|entry:157976": "3C 4H\u219230m MSS|USD/JPY|2026-11-02 04:00:00|-1|MSS|entry:157976"
   },
   "pending": [],
   "weekly_report_id": "2026-W44",
@@ -251,7 +252,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-11-02T08:27:20.811260+00:00",
+  "last_scan_utc": "2026-11-02T08:33:27.107458+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
