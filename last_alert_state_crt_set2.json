@@ -297,7 +297,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-02 12:15:00"
+      "last_checked_time": "2026-11-02 12:30:00"
     },
     {
       "stream": "3C 1H\u219215m PLAIN",
@@ -347,7 +347,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-11-02T12:47:12.910343+00:00",
+  "last_scan_utc": "2026-11-02T12:53:10.092437+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
