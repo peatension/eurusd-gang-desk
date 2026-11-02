@@ -294,10 +294,10 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m PLAIN|XAU/USD|2026-11-02 12:00:00|1|PLAIN",
       "setup_uid": "XAU/USD|1|2026-11-02 12:00|3907.31841|3898.86123",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 397,
-      "last_checked_time": "2026-11-02 12:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-02 12:45:00"
     },
     {
       "stream": "CRT 1H\u219215m PLAIN",
@@ -336,17 +336,17 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m PLAIN|AUD/JPY|2026-11-02 12:00:00|1|PLAIN",
       "setup_uid": "AUD/JPY|1|2026-11-02 12:00|110.75283|110.61582",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-11-02 12:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-02 12:45:00"
     }
   ],
   "weekly_report_id": "2026-W44",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-11-02T13:02:06.013960+00:00",
+  "last_scan_utc": "2026-11-02T13:06:18.361526+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
