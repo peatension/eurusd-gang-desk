@@ -198,6 +198,17 @@
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
     },
+    "AUD/JPY|1|2026-11-02 12:00|entry:110616": {
+      "c2_minute": "2026-11-02 12:00",
+      "claimed_at": "2026-11-02T13:02:04.540577+00:00",
+      "direction": 1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "110616",
+      "pair": "AUD/JPY",
+      "sent_at": "2026-11-02T13:02:06.008490+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
+    },
     "EUR/JPY|-1|2026-10-21 20:00|entry:177736": {
       "c2_minute": "2026-10-21 20:00",
       "claimed_at": "2026-10-21T21:03:17.217891+00:00",
@@ -734,6 +745,17 @@
       "entry_id": "4020576",
       "pair": "XAU/USD",
       "sent_at": "2026-10-29T15:02:13.793154+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
+    },
+    "XAU/USD|1|2026-11-02 12:00|entry:3898861": {
+      "c2_minute": "2026-11-02 12:00",
+      "claimed_at": "2026-11-02T13:01:41.880649+00:00",
+      "direction": 1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "3898861",
+      "pair": "XAU/USD",
+      "sent_at": "2026-11-02T13:01:43.263091+00:00",
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
     }
