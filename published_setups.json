@@ -462,6 +462,17 @@
       "status": "sent",
       "stream": "3C 1H\u219215m PLAIN"
     },
+    "USD/JPY|-1|2026-11-02 04:00|entry:157976": {
+      "c2_minute": "2026-11-02 04:00",
+      "claimed_at": "2026-11-02T08:03:04.774538+00:00",
+      "direction": -1,
+      "engine": "3C",
+      "entry_id": "157976",
+      "pair": "USD/JPY",
+      "sent_at": "2026-11-02T08:03:06.039248+00:00",
+      "status": "sent",
+      "stream": "3C 4H\u219215m MSS"
+    },
     "USD/JPY|-1|2026-11-02 06:00|entry:157871": {
       "c2_minute": "2026-11-02 06:00",
       "claimed_at": "2026-11-02T07:03:19.956889+00:00",
@@ -604,6 +615,17 @@
       "sent_at": "2026-10-29T10:01:48.404743+00:00",
       "status": "sent",
       "stream": "CRT 1H\u219215m PLAIN"
+    },
+    "XAU/USD|-1|2026-11-02 04:00|entry:3915016": {
+      "c2_minute": "2026-11-02 04:00",
+      "claimed_at": "2026-11-02T08:02:32.970895+00:00",
+      "direction": -1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "3915016",
+      "pair": "XAU/USD",
+      "sent_at": "2026-11-02T08:02:34.313829+00:00",
+      "status": "sent",
+      "stream": "CRT 4H\u219215m MSS"
     },
     "XAU/USD|1|2026-10-22 07:00|entry:4085453": {
       "c2_minute": "2026-10-22 07:00",
