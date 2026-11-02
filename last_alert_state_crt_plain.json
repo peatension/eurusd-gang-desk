@@ -259,48 +259,6 @@
   "pending": [
     {
       "stream": "CRT 1H\u219215m PLAIN",
-      "pair": "XAU/USD",
-      "ticket_id": "#TTD-0068",
-      "message_id": 1764,
-      "message_ids": {
-        "-1004423692487": 1764,
-        "6937879685": 3351,
-        "7080941387": 3352
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": 1,
-      "side": "BUY",
-      "entry": 3898.86123,
-      "stop": 3897.300326428571,
-      "tp1": 3903.08982,
-      "tp2": 3907.31841,
-      "rr1": 2.709065490912794,
-      "rr2": 5.418130981825296,
-      "risk_pips": 156.0903571428753,
-      "tp1_pips": 422.85900000001675,
-      "tp2_pips": 845.717999999988,
-      "prop_stop": 3897.000326428571,
-      "prop_risk_pips": 186.09035714289348,
-      "prop_buffer_pips": 30.0,
-      "crh": 3907.31841,
-      "crl": 3898.86123,
-      "mid": 3903.08982,
-      "candle_time": "2026-11-02 12:15:00",
-      "c2_time": "2026-11-02 12:00:00",
-      "signal_sent": "2026-11-02T13:01:41.883306+00:00",
-      "session": "London/NY Overlap",
-      "c1_tf": "1h",
-      "ltf": "15min",
-      "entry_model": "PLAIN",
-      "candle_key": "CRT 1H\u219215m PLAIN|XAU/USD|2026-11-02 12:00:00|1|PLAIN",
-      "setup_uid": "XAU/USD|1|2026-11-02 12:00|3907.31841|3898.86123",
-      "status": "TP1_HIT",
-      "tp1_hit": true,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-11-02 12:45:00"
-    },
-    {
-      "stream": "CRT 1H\u219215m PLAIN",
       "pair": "AUD/JPY",
       "ticket_id": "#TTD-0069",
       "message_id": 1765,
@@ -339,14 +297,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-02 12:45:00"
+      "last_checked_time": "2026-11-02 13:00:00"
     }
   ],
   "weekly_report_id": "2026-W44",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-11-02T13:17:16.041725+00:00",
+  "last_scan_utc": "2026-11-02T13:21:06.397942+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
