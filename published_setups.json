@@ -363,6 +363,17 @@
       "status": "sent",
       "stream": "3C 1H\u219215m PLAIN"
     },
+    "EUR/JPY|1|2026-11-02 11:00|entry:176956": {
+      "c2_minute": "2026-11-02 11:00",
+      "claimed_at": "2026-11-02T12:03:17.977927+00:00",
+      "direction": 1,
+      "engine": "3C",
+      "entry_id": "176956",
+      "pair": "EUR/JPY",
+      "sent_at": "2026-11-02T12:03:19.938732+00:00",
+      "status": "sent",
+      "stream": "3C 1H\u219215m PLAIN"
+    },
     "USD/JPY|-1|2026-10-21 17:00|entry:158174": {
       "c2_minute": "2026-10-21 17:00",
       "claimed_at": "2026-10-21T18:48:25.197874+00:00",
