@@ -3702,5 +3702,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "3C_CRT",
+    "ticket_id": "#TTD-0073",
+    "stream": "3C 1H\u219215m PLAIN",
+    "pair": "EUR/JPY",
+    "side": "SELL",
+    "direction": -1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-03 13:30:00",
+    "entry": 177.00222,
+    "stop": 177.04029125,
+    "tp1": 176.897555,
+    "tp2": 176.79289,
+    "rr1": 2.7491873789271075,
+    "rr2": 5.498374757854961,
+    "candle_time": "2026-11-03 10:15:00",
+    "signal_sent": "2026-11-03T11:04:04.527549+00:00",
+    "session": "London",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
