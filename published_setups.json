@@ -627,6 +627,17 @@
       "status": "sent",
       "stream": "3C 4H\u219230m MSS"
     },
+    "USD/JPY|1|2026-11-04 13:00|entry:158258": {
+      "c2_minute": "2026-11-04 13:00",
+      "claimed_at": "2026-11-04T14:03:01.460743+00:00",
+      "direction": 1,
+      "engine": "3C",
+      "entry_id": "158258",
+      "pair": "USD/JPY",
+      "sent_at": "2026-11-04T14:03:03.432159+00:00",
+      "status": "sent",
+      "stream": "3C 1H\u219215m PLAIN"
+    },
     "XAU/USD|-1|2026-10-23 16:00|entry:4005608": {
       "c2_minute": "2026-10-23 16:00",
       "claimed_at": "2026-10-23T17:01:48.074536+00:00",
