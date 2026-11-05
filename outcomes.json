@@ -4014,5 +4014,29 @@
     "c1_tf": "4h",
     "ltf": "30min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "3C_CRT",
+    "ticket_id": "#TTD-0081",
+    "stream": "3C 4H\u219215m MSS",
+    "pair": "USD/JPY",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 5.946244928852688,
+    "exit_time": "2026-11-05 12:30:00",
+    "entry": 157.84642,
+    "stop": 157.74685464285716,
+    "tp1": 158.14244,
+    "tp2": 158.43846,
+    "rr1": 2.973122464426344,
+    "rr2": 5.946244928852688,
+    "candle_time": "2026-11-05 07:15:00",
+    "signal_sent": "2026-11-05T08:03:39.647586+00:00",
+    "session": "London",
+    "tp1_hit": true,
+    "c1_tf": "4h",
+    "ltf": "15min",
+    "entry_model": "MSS"
   }
 ]
