@@ -1055,6 +1055,17 @@
       "sent_at": "2026-11-06T08:02:07.323556+00:00",
       "status": "sent",
       "stream": "CRT 4H\u219215m MSS"
+    },
+    "XAU/USD|1|2026-11-06 14:00|entry:4032258": {
+      "c2_minute": "2026-11-06 14:00",
+      "claimed_at": "2026-11-06T15:02:04.679490+00:00",
+      "direction": 1,
+      "engine": "CRT_PLAIN",
+      "entry_id": "4032258",
+      "pair": "XAU/USD",
+      "sent_at": "2026-11-06T15:02:06.727249+00:00",
+      "status": "sent",
+      "stream": "CRT 1H\u219215m PLAIN"
     }
   },
   "version": 1
