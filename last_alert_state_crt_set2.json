@@ -375,48 +375,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-06 12:45:00"
-    },
-    {
-      "stream": "3C 1H\u219215m PLAIN",
-      "pair": "EUR/JPY",
-      "ticket_id": "#TTD-0095",
-      "message_id": 3464,
-      "message_ids": {
-        "6937879685": 3464,
-        "7080941387": 3465
-      },
-      "edit_chat_id": "6937879685",
-      "direction": -1,
-      "side": "SELL",
-      "entry": 176.97065,
-      "stop": 177.02014910714288,
-      "tp1": 176.835745,
-      "tp2": 176.70084,
-      "rr1": 2.725402694852694,
-      "rr2": 5.450805389705388,
-      "risk_pips": 4.949910714287853,
-      "tp1_pips": 13.490500000000338,
-      "tp2_pips": 26.981000000000677,
-      "prop_stop": 177.06014910714288,
-      "prop_risk_pips": 8.949910714287057,
-      "prop_buffer_pips": 4.0,
-      "crh": 176.97065,
-      "crl": 176.70084,
-      "mid": 176.835745,
-      "candle_time": "2026-11-06 10:15:00",
-      "c2_time": "2026-11-06 10:00:00",
-      "signal_sent": "2026-11-06T11:03:08.375924+00:00",
-      "session": "London",
-      "c1_tf": "1h",
-      "ltf": "15min",
-      "entry_model": "PLAIN",
-      "candle_key": "3C 1H\u219215m PLAIN|EUR/JPY|2026-11-06 10:00:00|-1|PLAIN",
-      "setup_uid": "EUR/JPY|-1|2026-11-06 10:00|176.97065|176.70084",
-      "status": "TP1_HIT",
-      "tp1_hit": true,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-11-06 12:45:00"
+      "last_checked_time": "2026-11-06 13:00:00"
     }
   ],
   "weekly_report_id": "2026-W44",
@@ -424,7 +383,7 @@
   "yearly_report_id": null,
   "strategy_start": "2026-10-06",
   "last_update_id": 367135296,
-  "last_scan_utc": "2026-11-06T13:13:26.137274+00:00",
+  "last_scan_utc": "2026-11-06T13:18:10.610005+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
