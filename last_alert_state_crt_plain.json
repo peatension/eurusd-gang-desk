@@ -305,7 +305,8 @@
     "fired:CRT 4H\u219215m MSS|XAU/USD|1|2026-11-06 04:00|MSS|entry:4040976": "CRT 4H\u219215m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS|entry:4040976",
     "setup_entry:XAU/USD|1|2026-11-06 04:00|4106.97037|4040.97560|entry:4040976": "CRT 4H\u219230m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS|entry:4040976",
     "setup_core:XAU/USD|1|2026-11-06 04:00|entry:4040976": "CRT 4H\u219230m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS|entry:4040976",
-    "fired:CRT 4H\u219230m MSS|XAU/USD|1|2026-11-06 04:00|MSS|entry:4040976": "CRT 4H\u219230m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS|entry:4040976"
+    "fired:CRT 4H\u219230m MSS|XAU/USD|1|2026-11-06 04:00|MSS|entry:4040976": "CRT 4H\u219230m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS|entry:4040976",
+    "fired:CRT 4H\u219215m PLAIN|XAU/USD|1|2026-11-06 04:00|PLAIN|entry:4040976": "CRT 4H\u219215m PLAIN|XAU/USD|2026-11-06 04:00:00|1|PLAIN|entry:4040976"
   },
   "pending": [
     {
@@ -348,14 +349,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-06 08:45:00"
+      "last_checked_time": "2026-11-06 09:00:00"
     }
   ],
   "weekly_report_id": "2026-W44",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-11-06T09:16:19.835414+00:00",
+  "last_scan_utc": "2026-11-06T09:21:21.217684+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
