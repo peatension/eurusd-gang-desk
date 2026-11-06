@@ -4158,5 +4158,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "3C_CRT",
+    "ticket_id": "#TTD-0093",
+    "stream": "3C 1H\u219215m PLAIN",
+    "pair": "USD/JPY",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 4.823429897071724,
+    "exit_time": "2026-11-06 09:00:00",
+    "entry": 157.7528,
+    "stop": 157.66751214285716,
+    "tp1": 157.95848999999998,
+    "tp2": 158.16418,
+    "rr1": 2.4117149485356952,
+    "rr2": 4.823429897071724,
+    "candle_time": "2026-11-06 07:15:00",
+    "signal_sent": "2026-11-06T08:03:13.059076+00:00",
+    "session": "London",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
