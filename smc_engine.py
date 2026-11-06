@@ -8,7 +8,7 @@ CORE LOGIC UNCHANGED:
   First touch only
   M15 entry @ zone 50%
   SL = zone extreme + 2 pips
-  TP1 1.5R | TP2 2.0R
+  TP2 opposing H1/H4 swing liquidity | TP1 = 50% path to TP2 | min RR2 1.5
   ADV stream = OUT
 
 PAIRS — CRT-style WF lock (Oct 2026):
@@ -131,11 +131,16 @@ ADMIN_ID = os.getenv("ADMIN_ID", "")
 STATE_FILE = "last_alert_state_smc.json"
 SUBSCRIBERS_FILE = "subscribers_smc.json"
 OUTCOMES_FILE = "outcomes_smc.json"
-STATE_VERSION = 10  # multi-edit + outcomes + CRT-parity commands
+STATE_VERSION = 11  # multi-edit + outcomes + CRT-parity commands
 
 PIP_BUF = 2.0
+# Non-fixed TP: structure/liquidity targets (not fixed R multiples)
+# TP2 = nearest opposing swing liquidity on H1 (fallback H4 extreme)
+# TP1 = 50% path entry → TP2 (CRT-style partial)
+MIN_RR_TP2 = 1.5
+# Display fallback only for legacy pending rows
 RR1 = 1.5
-RR2 = 2.0
+RR2 = 2.0   # skip setup if opposing liquidity is too close
 MAX_HOLD_BARS = 180
 M15_LOOKAHEAD = 96  # ~24h of M15 after H1 BOS
 
@@ -242,70 +247,120 @@ def broadcast(text):
 
 
 def edit_telegram(message_id, text, chat_id=None):
+    """Edit one Telegram message. Returns True on success."""
     target = str(chat_id or CHAT_ID or "")
-    if not BOT_TOKEN or not target or not message_id:
+    if not BOT_TOKEN or not target or message_id is None:
+        return False
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        print(f"Telegram edit skip: bad message_id={message_id!r}")
         return False
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
     payload = {
         "chat_id": target,
-        "message_id": message_id,
+        "message_id": mid,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
     try:
         data = requests.post(url, json=payload, timeout=20).json()
-        return bool(data.get("ok"))
+        if data.get("ok"):
+            return True
+        # Retry without parse_mode if HTML rejected
+        desc = str(data.get("description", ""))
+        if "parse" in desc.lower() or "entities" in desc.lower():
+            payload.pop("parse_mode", None)
+            data2 = requests.post(url, json=payload, timeout=20).json()
+            if data2.get("ok"):
+                return True
+            print(f"Telegram edit error ({target}/{mid}):", data2)
+            return False
+        # "message is not modified" counts as success for lifecycle
+        if "not modified" in desc.lower():
+            return True
+        print(f"Telegram edit error ({target}/{mid}):", data)
+        return False
     except Exception as e:
         print("Telegram edit error:", e)
         return False
 
 
 def edit_all_messages(trade, text):
-    """Re-edit signal on every chat that received it (CRT-style)."""
+    """Re-edit original signal on every chat (TP1 / WIN / LOSS). Always try fallbacks."""
     mids = trade.get("message_ids") or {}
+    if isinstance(mids, list):
+        # legacy shape — discard, use single id
+        mids = {}
     if not mids and trade.get("message_id"):
         cid = str(trade.get("edit_chat_id") or CHAT_ID or "")
         if cid:
             mids = {cid: trade["message_id"]}
+    # Normalize keys/ids
+    norm = {}
+    for cid, mid in (mids or {}).items():
+        if cid is None or mid is None:
+            continue
+        norm[str(cid)] = mid
     ok_any = False
-    for cid, mid in mids.items():
+    for cid, mid in norm.items():
         if edit_telegram(mid, text, cid):
             ok_any = True
-        time.sleep(0.03)
+        time.sleep(0.04)
+    if not ok_any:
+        print(
+            f"  edit failed pair={trade.get('pair')} model={trade.get('model')} "
+            f"mids={norm} — will broadcast new message"
+        )
     return ok_any
 
 
+def _write_outcome_file(path, rec, keep=800):
+    rows = []
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                rows = json.load(f) or []
+        except Exception:
+            rows = []
+    rows.append(rec)
+    try:
+        with open(path, "w") as f:
+            json.dump(rows[-keep:], f, indent=2)
+        return True
+    except Exception as e:
+        print(f"outcomes save error ({path}):", e)
+        return False
+
+
 def append_outcome(trade, status, result_r, exit_time):
+    """Persist closed trade for performance metrics (SMC file + shared outcomes.json)."""
     rec = {
         "engine": "SMC",
         "stream": trade.get("stream"),
         "model": trade.get("model"),
         "pair": trade.get("pair"),
         "side": trade.get("side"),
+        "direction": trade.get("direction"),
         "status": status,
         "result_r": float(result_r),
         "entry": trade.get("entry"),
         "stop": trade.get("stop"),
         "tp1": trade.get("tp1"),
         "tp2": trade.get("tp2"),
+        "rr1": trade.get("rr1"),
+        "rr2": trade.get("rr2"),
         "candle_time": trade.get("candle_time"),
         "exit_time": str(exit_time),
         "closed_at": utc_now().isoformat(),
+        "session": trade.get("session"),
+        "tp1_hit": bool(trade.get("tp1_hit", False)),
     }
-    rows = []
-    if os.path.exists(OUTCOMES_FILE):
-        try:
-            with open(OUTCOMES_FILE, "r") as f:
-                rows = json.load(f) or []
-        except Exception:
-            rows = []
-    rows.append(rec)
-    try:
-        with open(OUTCOMES_FILE, "w") as f:
-            json.dump(rows[-500:], f, indent=2)
-    except Exception as e:
-        print("outcomes save error:", e)
+    ok1 = _write_outcome_file(OUTCOMES_FILE, rec)
+    # Shared book so desk-wide metrics can include SMC without a second file
+    ok2 = _write_outcome_file("outcomes.json", rec)
+    print(f"  outcome saved status={status} R={float(result_r):+.2f} smc_file={ok1} shared={ok2}")
     send_to_sheet({"action": "OUTCOME", **rec})
 
 
@@ -618,6 +673,45 @@ def ob_before_impulse(h1, i):
     return None
 
 
+
+def opposing_liquidity_target(h1, h4, bos_i, d, entry, pip):
+    """
+    Non-fixed TP2: nearest opposing structural liquidity.
+    Long  → nearest swing high above entry (H1), else H4 range high
+    Short → nearest swing low below entry (H1), else H4 range low
+    """
+    def _from_df(df, t_cut):
+        if df is None or len(df) < 20:
+            return None
+        w = df[df["datetime"] <= t_cut].tail(100).reset_index(drop=True)
+        if len(w) < 15:
+            return None
+        sh, sl = swings_df(w, 2, 2)
+        if d == 1:
+            cands = [
+                float(w["high"].iloc[j])
+                for j in sh
+                if float(w["high"].iloc[j]) > entry + 5 * pip
+            ]
+            if cands:
+                return min(cands)
+            return float(w["high"].max()) if float(w["high"].max()) > entry + 5 * pip else None
+        cands = [
+            float(w["low"].iloc[j])
+            for j in sl
+            if float(w["low"].iloc[j]) < entry - 5 * pip
+        ]
+        if cands:
+            return max(cands)
+        return float(w["low"].min()) if float(w["low"].min()) < entry - 5 * pip else None
+
+    t_cut = h1["datetime"].iloc[bos_i]
+    tp = _from_df(h1, t_cut)
+    if tp is None:
+        tp = _from_df(h4, t_cut)
+    return tp
+
+
 def analyze_pair(h4, h1, m15, pair, pip, model="PRIMARY"):
     """
     Scan completed H1 bars for BOS setups; return signal if M15 just
@@ -698,8 +792,21 @@ def analyze_pair(h4, h1, m15, pair, pip, model="PRIMARY"):
             if risk < 3 * pip:
                 break
 
-            tp1 = entry + RR1 * risk if d == 1 else entry - RR1 * risk
-            tp2 = entry + RR2 * risk if d == 1 else entry - RR2 * risk
+            # Non-fixed: opposing swing liquidity (not fixed 1.5R/2R)
+            tp2 = opposing_liquidity_target(h1, h4, i, d, entry, pip)
+            if tp2 is None:
+                break
+            if d == 1 and tp2 <= entry:
+                break
+            if d == -1 and tp2 >= entry:
+                break
+            reward2 = abs(tp2 - entry)
+            rr2 = reward2 / risk if risk > 0 else 0.0
+            if rr2 < MIN_RR_TP2:
+                break
+            # TP1 = 50% of path to opposing liquidity
+            tp1 = entry + 0.5 * (tp2 - entry)
+            rr1 = abs(tp1 - entry) / risk if risk > 0 else 0.0
             risk_pips = risk / pip
             candle_time = str(row["datetime"])
             side = "BUY" if d == 1 else "SELL"
@@ -717,8 +824,8 @@ def analyze_pair(h4, h1, m15, pair, pip, model="PRIMARY"):
                 "stop": float(stop),
                 "tp1": float(tp1),
                 "tp2": float(tp2),
-                "rr1": RR1,
-                "rr2": RR2,
+                "rr1": float(rr1),
+                "rr2": float(rr2),
                 "risk_pips": float(risk_pips),
                 "zlo": float(zlo),
                 "zhi": float(zhi),
@@ -736,6 +843,7 @@ def analyze_pair(h4, h1, m15, pair, pip, model="PRIMARY"):
 # ============================================================
 
 def load_state():
+    """Load SMC state. Never wipe pending/keys on version bump — only migrate."""
     default = {
         "version": STATE_VERSION,
         "last_alert_keys": {},
@@ -747,13 +855,33 @@ def load_state():
     try:
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
-        if state.get("version") != STATE_VERSION:
-            print("SMC state version mismatch — reset pending, keep update offset.")
-            default["last_update_id"] = int(state.get("last_update_id", 0))
+        if not isinstance(state, dict):
             return default
+        prev_ver = state.get("version")
         state.setdefault("last_alert_keys", {})
         state.setdefault("pending", [])
         state.setdefault("last_update_id", 0)
+        if not isinstance(state["last_alert_keys"], dict):
+            state["last_alert_keys"] = {}
+        if not isinstance(state["pending"], list):
+            state["pending"] = []
+        # Normalize pending message_ids for edit lifecycle
+        for t in state["pending"]:
+            if not isinstance(t, dict):
+                continue
+            mids = t.get("message_ids")
+            if not mids and t.get("message_id"):
+                cid = str(t.get("edit_chat_id") or CHAT_ID or "")
+                if cid:
+                    t["message_ids"] = {cid: t["message_id"]}
+            elif isinstance(mids, dict):
+                t["message_ids"] = {str(k): v for k, v in mids.items() if v is not None}
+        if prev_ver != STATE_VERSION:
+            print(
+                f"SMC state version {prev_ver} → {STATE_VERSION}: "
+                f"kept pending={len(state['pending'])} keys={len(state['last_alert_keys'])}"
+            )
+            state["version"] = STATE_VERSION
         return state
     except Exception as e:
         print("State load error:", e)
@@ -909,16 +1037,18 @@ def check_pending(state, pair, m15):
                 if not ok:
                     broadcast(text)
                 append_outcome(trade, "LOSS", -1.0, candle_time)
-                print(f"  CLOSE LOSS {trade.get('model')} {pair}")
+                print(f"  CLOSE LOSS {trade.get('model')} {pair} edit_ok={ok}")
                 closed = True
                 break
             if hit_tp2:
+                # If TP1 not marked yet but TP2 hit, still close as full win
                 text = tp2_message(trade, candle_time)
                 ok = edit_all_messages(trade, text)
                 if not ok:
                     broadcast(text)
-                append_outcome(trade, "WIN", float(trade.get("rr2", RR2)), candle_time)
-                print(f"  CLOSE WIN {trade.get('model')} {pair}")
+                r_out = float(trade.get("rr2") or RR2)
+                append_outcome(trade, "WIN", r_out, candle_time)
+                print(f"  CLOSE WIN {trade.get('model')} {pair} edit_ok={ok} R={r_out:+.2f}")
                 closed = True
                 break
             if hit_tp1 and not tp1_hit:
@@ -935,7 +1065,8 @@ def check_pending(state, pair, m15):
                     "pair": pair,
                     "exit_time": candle_time,
                 })
-                print(f"  TP1 HIT {trade.get('model')} {pair}")
+                print(f"  TP1 HIT {trade.get('model')} {pair} edit_ok={ok}")
+                # Persist TP1 flag so next run does not re-fire TP1 edit
                 save_state(state)
             if j - signal_index >= MAX_HOLD_BARS:
                 text = (
@@ -945,14 +1076,19 @@ def check_pending(state, pair, m15):
                     f"<b>{trade['side']} {pair}</b>\n"
                     f"Max hold reached.\n\nBuilt on Data · Driven by Discipline."
                 )
-                edit_all_messages(trade, text)
+                ok = edit_all_messages(trade, text)
+                if not ok:
+                    broadcast(text)
                 append_outcome(trade, "TIME", 0.0, candle_time)
+                print(f"  TIME EXIT {trade.get('model')} {pair} edit_ok={ok}")
                 closed = True
                 break
         if not closed:
             remaining.append(trade)
 
     state["pending"] = remaining
+    # Always persist after managing this pair (TP1 flags + closed removals)
+    save_state(state)
 
 
 # ============================================================
@@ -962,7 +1098,7 @@ def check_pending(state, pair, m15):
 def main():
     print("=" * 70)
     print("SMC ENGINE — PRIMARY + FVG (labeled)")
-    print("H4 bias | displacement BOS | M15 first touch | 1.5R/2.0R")
+    print("H4 bias | displacement BOS | M15 first touch | TP liquidity (non-fixed R)")
     print(f"Models: {list(MODELS)} | AUD/JPY out | ADV = OFF")
     print("=" * 70)
 
@@ -1020,19 +1156,27 @@ def main():
 
             msg = build_signal_message(sig)
             message_id, message_ids = broadcast(msg)
+            # Ensure message_ids is always a dict for later WIN/LOSS edits
+            if not message_ids and message_id and CHAT_ID:
+                message_ids = {str(CHAT_ID): message_id}
+            message_ids = {str(k): v for k, v in (message_ids or {}).items() if v is not None}
             print(
                 f"  SIGNAL {model} {sig['side']} | zone={sig['zone_type']} | "
                 f"{sig['risk_pips']:.1f} pips | msgs={len(message_ids)}"
             )
 
+            # Track even if Telegram partially failed — still need metrics path if mid exists
             if message_id or message_ids:
+                primary_cid = str(CHAT_ID) if CHAT_ID else (
+                    next(iter(message_ids.keys()), None)
+                )
                 state["pending"].append({
                     "stream": sig.get("stream"),
                     "model": model,
                     "pair": pair,
-                    "message_id": message_id,
+                    "message_id": message_id or next(iter(message_ids.values()), None),
                     "message_ids": message_ids,
-                    "edit_chat_id": str(CHAT_ID) if CHAT_ID else None,
+                    "edit_chat_id": primary_cid,
                     "direction": sig["direction"],
                     "side": sig["side"],
                     "entry": sig["entry"],
@@ -1046,9 +1190,13 @@ def main():
                     "candle_key": key,
                     "status": "ACTIVE",
                     "tp1_hit": False,
+                    "session": sig.get("session"),
                     "last_checked_index": len(m15) - 1,
                 })
                 save_state(state)
+                print(f"  pending stored | edit targets={list(message_ids.keys())}")
+            else:
+                print("  WARNING: signal not tracked — no Telegram message_id (edit/metrics skip)")
             send_to_sheet({
                 "action": "NEW_SIGNAL",
                 "stream": sig.get("stream"),
