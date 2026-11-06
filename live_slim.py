@@ -1,11 +1,14 @@
 """
-LIVE SLIM DESK — 4 pairs from CRT KL+POI research lock
+LIVE SLIM DESK — live-book lock (not Colab rank)
 
   CRT (2): XAU/USD · AUD/JPY
   3C  (2): USD/JPY · EUR/JPY
 
-Entry: PLAIN base on core streams.
-Selective MSS/TS only where research showed edge.
+Entries (live outcomes Nov 2026):
+  PRIMARY: MSS + CISD on all core HTF→LTF
+  OUT:     PLAIN (noisy WR), TS, MODEL1 (3C 0/4), plain 4H base (0% WR)
+
+Core CRT rule unchanged: C1 + C2 sweep/close-inside.
 Full crt_plain / 3c_model on disk intact — this file only overrides pairs/streams.
 """
 
@@ -14,57 +17,63 @@ from __future__ import annotations
 import crt_plain
 import importlib
 import traceback
-import os
 
 desk = importlib.import_module("3c_model")
 
-# ---------- CRT live slim set (2 pairs) ----------
+# ---------------------------------------------------------------------------
+# CRT slim — pairs that still print volume; entries MSS + CISD only
+# ---------------------------------------------------------------------------
 CRT_SLIM_PAIRS = ["XAU/USD", "AUD/JPY"]
 
 CRT_SLIM_STREAMS = {
-    # PLAIN base — both live CRT pairs
-    "CRT 1H→15m PLAIN": ("1h", "15min", "PLAIN"),
-    "CRT 1H→5m PLAIN":  ("1h", "5min", "PLAIN"),
-    "CRT 4H→30m PLAIN": ("4h", "30min", "PLAIN"),
-    "CRT 4H→15m PLAIN": ("4h", "15min", "PLAIN"),
-    # Selective MSS on strong 4H cells
-    "CRT 4H→15m MSS":   ("4h", "15min", "MSS"),
-    "CRT 4H→30m MSS":   ("4h", "30min", "MSS"),
-    # Selective TS on 4H where it ranked
-    "CRT 4H→15m TS":    ("4h", "15min", "TS"),
+    # 1H anchors
+    "CRT 1H→15m MSS":  ("1h", "15min", "MSS"),
+    "CRT 1H→15m CISD": ("1h", "15min", "CISD"),
+    "CRT 1H→5m MSS":   ("1h", "5min", "MSS"),
+    "CRT 1H→5m CISD":  ("1h", "5min", "CISD"),
+    # 4H anchors
+    "CRT 4H→15m MSS":  ("4h", "15min", "MSS"),
+    "CRT 4H→15m CISD": ("4h", "15min", "CISD"),
+    "CRT 4H→30m MSS":  ("4h", "30min", "MSS"),
+    "CRT 4H→30m CISD": ("4h", "30min", "CISD"),
 }
 
 CRT_SLIM_STREAM_PAIRS = {
-    "CRT 1H→15m PLAIN": ["XAU/USD", "AUD/JPY"],
-    "CRT 1H→5m PLAIN":  ["XAU/USD", "AUD/JPY"],
-    "CRT 4H→30m PLAIN": ["XAU/USD", "AUD/JPY"],
-    "CRT 4H→15m PLAIN": ["XAU/USD", "AUD/JPY"],
-    "CRT 4H→15m MSS":   ["XAU/USD"],
-    "CRT 4H→30m MSS":   ["XAU/USD"],
-    "CRT 4H→15m TS":    ["XAU/USD"],
+    "CRT 1H→15m MSS":  ["XAU/USD", "AUD/JPY"],
+    "CRT 1H→15m CISD": ["XAU/USD", "AUD/JPY"],
+    "CRT 1H→5m MSS":   ["XAU/USD", "AUD/JPY"],
+    "CRT 1H→5m CISD":  ["XAU/USD", "AUD/JPY"],
+    "CRT 4H→15m MSS":  ["XAU/USD", "AUD/JPY"],
+    "CRT 4H→15m CISD": ["XAU/USD", "AUD/JPY"],
+    "CRT 4H→30m MSS":  ["XAU/USD", "AUD/JPY"],
+    "CRT 4H→30m CISD": ["XAU/USD", "AUD/JPY"],
 }
 
-# ---------- 3C live slim set (2 pairs) ----------
+# ---------------------------------------------------------------------------
+# 3C slim — live carriers only (no GBP/USD, GBP/JPY)
+# ---------------------------------------------------------------------------
 C3_SLIM_PAIRS = ["USD/JPY", "EUR/JPY"]
 
 C3_SLIM_STREAMS = {
-    "3C 1H→15m PLAIN": ("1h", "15min", "PLAIN"),
-    "3C 1H→5m PLAIN":  ("1h", "5min", "PLAIN"),
-    "3C 4H→30m PLAIN": ("4h", "30min", "PLAIN"),
-    "3C 4H→15m PLAIN": ("4h", "15min", "PLAIN"),
-    "3C 4H→15m MSS":   ("4h", "15min", "MSS"),
-    "3C 4H→30m MSS":   ("4h", "30min", "MSS"),
-    "3C 1H→15m MSS":   ("1h", "15min", "MSS"),
+    "3C 1H→15m MSS":  ("1h", "15min", "MSS"),
+    "3C 1H→15m CISD": ("1h", "15min", "CISD"),
+    "3C 1H→5m MSS":   ("1h", "5min", "MSS"),
+    "3C 1H→5m CISD":  ("1h", "5min", "CISD"),
+    "3C 4H→15m MSS":  ("4h", "15min", "MSS"),
+    "3C 4H→15m CISD": ("4h", "15min", "CISD"),
+    "3C 4H→30m MSS":  ("4h", "30min", "MSS"),
+    "3C 4H→30m CISD": ("4h", "30min", "CISD"),
 }
 
 C3_SLIM_STREAM_PAIRS = {
-    "3C 1H→15m PLAIN": ["USD/JPY", "EUR/JPY"],
-    "3C 1H→5m PLAIN":  ["USD/JPY", "EUR/JPY"],
-    "3C 4H→30m PLAIN": ["USD/JPY", "EUR/JPY"],
-    "3C 4H→15m PLAIN": ["USD/JPY", "EUR/JPY"],
-    "3C 4H→15m MSS":   ["USD/JPY", "EUR/JPY"],
-    "3C 4H→30m MSS":   ["USD/JPY", "EUR/JPY"],
-    "3C 1H→15m MSS":   ["USD/JPY"],
+    "3C 1H→15m MSS":  ["USD/JPY", "EUR/JPY"],
+    "3C 1H→15m CISD": ["USD/JPY", "EUR/JPY"],
+    "3C 1H→5m MSS":   ["USD/JPY", "EUR/JPY"],
+    "3C 1H→5m CISD":  ["USD/JPY", "EUR/JPY"],
+    "3C 4H→15m MSS":  ["USD/JPY", "EUR/JPY"],
+    "3C 4H→15m CISD": ["USD/JPY", "EUR/JPY"],
+    "3C 4H→30m MSS":  ["USD/JPY", "EUR/JPY"],
+    "3C 4H→30m CISD": ["USD/JPY", "EUR/JPY"],
 }
 
 
@@ -77,18 +86,30 @@ def apply_slim():
     desk.STREAM_PAIRS = dict(C3_SLIM_STREAM_PAIRS)
 
 
+def _process_commands(when: str):
+    for eng in (crt_plain, desk):
+        fn = getattr(eng, "process_commands", None)
+        if not callable(fn):
+            continue
+        try:
+            st = eng.load_state() if hasattr(eng, "load_state") else {}
+            fn(st)
+            if hasattr(eng, "save_state"):
+                eng.save_state(st)
+        except Exception as e:
+            print(f"[LIVE SLIM] process_commands ({when}) error: {e}")
+
+
 def main():
     print("=" * 70)
-    print("TENSION TRADING DESK — LIVE SLIM (4 pairs)")
-    print("CRT: XAU/USD AUD/JPY")
-    print("3C : USD/JPY EUR/JPY")
-    print("PLAIN base + selective MSS/TS | PDF signal format")
+    print("TENSION TRADING DESK — LIVE SLIM")
+    print("CRT: XAU/USD · AUD/JPY")
+    print("3C : USD/JPY · EUR/JPY")
+    print("Entries: MSS + CISD only | PLAIN/TS/MODEL1 OFF")
     print("=" * 70)
     apply_slim()
-    # Commands at start (fresh updates) — shared bot token.
     _process_commands("start")
 
-    # Isolate the engines: one uncaught engine error must not skip the other.
     for label, engine_main in (("CRT Plain", crt_plain.main), ("3C", desk.main)):
         try:
             print(f"[LIVE SLIM] Starting {label}")
@@ -97,21 +118,8 @@ def main():
             print(f"[LIVE SLIM] {label} crashed; continuing to the other engine:")
             traceback.print_exc()
 
-    # Commands again at end so replies land in this run if user typed mid-scan.
     _process_commands("end")
-
-
-def _process_commands(label):
-    if os.getenv("DISABLE_COMMAND_POLLING", "0").strip() == "1":
-        print(f"[LIVE SLIM] Telegram command polling disabled for market scan ({label})")
-        return
-    try:
-        state = desk.load_state()
-        desk.process_commands(state)
-        desk.save_state(state)
-    except Exception:
-        print(f"[LIVE SLIM] process_commands ({label}) error:")
-        traceback.print_exc()
+    print("[LIVE SLIM] desk run complete")
 
 
 if __name__ == "__main__":
