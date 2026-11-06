@@ -1,10 +1,11 @@
 name: SMC Engine
 
-# External cron → workflow_dispatch only.
-# Secrets (names ending in _SMC for Telegram):
-#   BOT_TOKEN_SMC
-#   CHAT_ID_SMC
-#   TWELVE_DATA_KEYS  (latest multi-key secret)
+# External cron → workflow_dispatch (same idea as CRT desk).
+# Secrets:
+#   BOT_TOKEN_SMC / CHAT_ID_SMC
+#   TWELVE_DATA_KEYS  ← comma-separated; include the 2 new keys
+#   TWELVE_DATA_KEY   ← optional single-key fallback
+#   ADMIN_ID, SHEET_URL optional
 on:
   workflow_dispatch:
 
@@ -45,21 +46,21 @@ jobs:
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
         run: python smc_engine.py
 
-      - name: Commit SMC state
+      - name: Commit SMC state + outcomes
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add \
-            last_alert_state_smc.json \
-            subscribers_smc.json \
-            telegram_offset_smc.json \n            outcomes_smc.json \
-            2>/dev/null || true
+          git add last_alert_state_smc.json || true
+          git add subscribers_smc.json || true
+          git add telegram_offset_smc.json || true
+          git add outcomes_smc.json || true
+          git add outcomes.json || true
 
           if git diff --cached --quiet; then
-            echo "No SMC state changes to commit."
+            echo "No SMC state/outcome changes to commit."
           else
-            git commit -m "chore(smc): persist state [skip ci]"
+            git commit -m "chore(smc): persist state + outcomes [skip ci]"
             git push
           fi
