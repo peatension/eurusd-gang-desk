@@ -345,17 +345,17 @@
       "entry_model": "MSS",
       "candle_key": "CRT 4H\u219215m MSS|XAU/USD|2026-11-06 04:00:00|1|MSS",
       "setup_uid": "XAU/USD|1|2026-11-06 04:00|4106.97037|4040.97560",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-06 08:30:00"
+      "last_checked_time": "2026-11-06 08:45:00"
     }
   ],
   "weekly_report_id": "2026-W44",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-10-05",
-  "last_scan_utc": "2026-11-06T09:02:40.546278+00:00",
+  "last_scan_utc": "2026-11-06T09:06:16.789180+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
