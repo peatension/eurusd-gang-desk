@@ -39,9 +39,6 @@ import importlib
 
 desk = importlib.import_module("3c_model")
 
-# ---------------------------------------------------------------------------
-# ENV / STATE
-# ---------------------------------------------------------------------------
 STATE_FILE = "last_alert_state_crt_guide.json"
 STATE_VERSION = 1
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -55,7 +52,6 @@ PAIRS = {
 }
 CORE_PAIRS = list(PAIRS.keys())
 
-# Stream label → (htf_interval, ltf_interval, model)
 STREAMS = {
     "CRT Guide H1→15m 2C":    ("1h", "15min", "2C"),
     "CRT Guide H1→15m 3C":    ("1h", "15min", "3C"),
@@ -66,13 +62,9 @@ STREAMS = {
 }
 
 PIP_BUF = 2.0
-MAX_HOLD_BARS = 96  # M15 bars \~ 24h
+MAX_HOLD_BARS = 96
 OUTPUT = {"4h": 400, "1h": 600, "15min": 1200}
 
-
-# ---------------------------------------------------------------------------
-# TIME / SESSION (guide: London + NY only)
-# ---------------------------------------------------------------------------
 
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -131,10 +123,6 @@ def format_dual_times(setup_time, signal_time=None):
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# STATE
-# ---------------------------------------------------------------------------
-
 def load_state():
     try:
         with open(STATE_FILE, "r") as f:
@@ -178,10 +166,6 @@ def fire_lock_key(stream, pair, direction, c2_time, model):
     return f"{stream}|{pair}|{direction}|{t}|{model}"
 
 
-# ---------------------------------------------------------------------------
-# CRT GUIDE DETECTORS — body-based validation
-# ---------------------------------------------------------------------------
-
 def _body_high(row):
     return max(float(row["open"]), float(row["close"]))
 
@@ -191,13 +175,11 @@ def _body_low(row):
 
 
 def _closed_inside_body(row, crh, crl):
-    """Guide: close (body) back inside range — not wick-only."""
     c = float(row["close"])
     return crl < c < crh
 
 
 def detect_2c(htf):
-    """Aggressive 2-candle: C2 sweeps wick beyond C1 and closes body inside."""
     if htf is None or len(htf) < 4:
         return None
     c2 = htf.iloc[-2]
@@ -231,7 +213,6 @@ def detect_2c(htf):
 
 
 def detect_3c(htf):
-    """Classic 3-candle: C1 range, C2 purge + body close inside, C3 starts delivery."""
     if htf is None or len(htf) < 5:
         return None
     c3 = htf.iloc[-2]
@@ -270,7 +251,6 @@ def detect_3c(htf):
 
 
 def detect_multi(htf):
-    """Multiple-candle / inside-bar compression (2–4 bars), then raid + body close inside."""
     if htf is None or len(htf) < 8:
         return None
     raid = htf.iloc[-2]
@@ -323,10 +303,7 @@ def m15_entry(ltf, setup):
     if after.empty:
         return None
     row = after.iloc[0]
-    return {
-        "entry": float(row["open"]),
-        "candle_time": row["datetime"],
-    }
+    return {"entry": float(row["open"]), "candle_time": row["datetime"]}
 
 
 def build_levels(setup, entry, pip):
@@ -356,21 +333,16 @@ def build_levels(setup, entry, pip):
         tp2 = crl
         if tp2 >= e:
             return None
-    r1 = abs(tp1 - e) / risk
-    r2 = abs(tp2 - e) / risk
     return {
         "entry": e,
         "sl": sl,
         "tp1": tp1,
         "tp2": tp2,
-        "rr1": r1,
-        "rr2": r2,
+        "rr1": abs(tp1 - e) / risk,
+        "rr2": abs(tp2 - e) / risk,
         "risk": risk,
-                    }
-  
-# ---------------------------------------------------------------------------
-# MESSAGES
-# ---------------------------------------------------------------------------
+    }
+
 
 def _px(pair, v):
     if v is None:
@@ -440,24 +412,28 @@ def tv_keyboard(pair):
 
 
 def send_all(text, reply_markup=None):
+    """desk.load_subscribers() returns list of chat_id strings (not dicts)."""
     subs = []
     try:
-        subs = desk.load_subscribers()
+        subs = desk.load_subscribers() or []
     except Exception:
         pass
     if not subs and CHAT_ID:
-        subs = [{"id": str(CHAT_ID)}]
+        subs = [str(CHAT_ID)]
     mids = []
     for s in subs:
-        cid = str(s.get("id") or s.get("chat_id") or "")
-        if not cid:
+        if isinstance(s, dict):
+            cid = str(s.get("id") or s.get("chat_id") or "").strip()
+        else:
+            cid = str(s).strip()
+        if not cid or cid.startswith("{"):
             continue
         try:
             mid = desk.send_telegram_to(cid, text, reply_markup=reply_markup)
             if mid:
                 mids.append((cid, mid))
         except Exception as e:
-            print(f"Telegram error ({s}): {e}")
+            print(f"Telegram error ({cid}): {e}")
     return mids
 
 
@@ -486,10 +462,6 @@ def edit_all(trade, text):
             print(f"edit fail {cid}/{mid}: {e}")
 
 
-# ---------------------------------------------------------------------------
-# PENDING MANAGEMENT
-# ---------------------------------------------------------------------------
-
 def check_pending(state, pair, ltf):
     if ltf is None or ltf.empty:
         return
@@ -501,7 +473,6 @@ def check_pending(state, pair, ltf):
         if trade.get("status") == "CLOSED":
             continue
         d = int(trade["direction"])
-        entry = float(trade["entry"])
         sl = float(trade["sl"])
         tp1 = float(trade["tp1"])
         tp2 = float(trade["tp2"])
@@ -552,10 +523,6 @@ def check_pending(state, pair, ltf):
     state["pending"] = still
 
 
-# ---------------------------------------------------------------------------
-# SCAN
-# ---------------------------------------------------------------------------
-
 def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
     fn = DETECT.get(model)
     if not fn:
@@ -579,7 +546,6 @@ def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
     lock = fire_lock_key(stream, pair, setup["direction"], setup["c2_time"], model)
     if state.get("fired_locks", {}).get(lock):
         return None
-    sess = forex_session(setup["c2_time"])
     return {
         "stream": stream,
         "model": model,
@@ -591,7 +557,7 @@ def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
         "mid": setup["mid"],
         "c2_time": setup["c2_time"],
         "candle_time": ent["candle_time"],
-        "session": sess,
+        "session": forex_session(setup["c2_time"]),
         "purge_extreme": setup["purge_extreme"],
         "range_key": rk,
         "fire_lock": lock,
