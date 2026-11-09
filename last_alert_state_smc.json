@@ -2,7 +2,9 @@
   "version": 11,
   "last_alert_keys": {
     "fired:SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB": true,
-    "USD/CHF|PRIMARY": "SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB"
+    "USD/CHF|PRIMARY": "SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB",
+    "fired:SMC|USD/CAD|FVG|2026-11-10 07:15:00|1|FVG": true,
+    "USD/CAD|FVG": "SMC|USD/CAD|FVG|2026-11-10 07:15:00|1|FVG"
   },
   "pending": [
     {
@@ -26,6 +28,32 @@
       "risk_pips": 6.599999999998829,
       "candle_time": "2026-11-10 06:30:00",
       "candle_key": "SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "session": "London",
+      "last_checked_index": 499
+    },
+    {
+      "stream": "SMC 1H\u219215m FVG",
+      "model": "FVG",
+      "pair": "USD/CAD",
+      "message_id": 1925,
+      "message_ids": {
+        "-1004423692487": 1925,
+        "7080941387": 75
+      },
+      "edit_chat_id": "8851574244",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 1.41128,
+      "stop": 1.41073,
+      "tp1": 1.411965,
+      "tp2": 1.41265,
+      "rr1": 1.2454545454541124,
+      "rr2": 2.4909090909086284,
+      "risk_pips": 5.5000000000005045,
+      "candle_time": "2026-11-10 07:15:00",
+      "candle_key": "SMC|USD/CAD|FVG|2026-11-10 07:15:00|1|FVG",
       "status": "ACTIVE",
       "tp1_hit": false,
       "session": "London",
