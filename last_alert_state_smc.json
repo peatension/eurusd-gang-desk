@@ -1,6 +1,36 @@
 {
   "version": 11,
-  "last_alert_keys": {},
-  "pending": [],
+  "last_alert_keys": {
+    "fired:SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB": true,
+    "USD/CHF|PRIMARY": "SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB"
+  },
+  "pending": [
+    {
+      "stream": "SMC 4H\u21921H\u219215m PRIMARY",
+      "model": "PRIMARY",
+      "pair": "USD/CHF",
+      "message_id": 1924,
+      "message_ids": {
+        "-1004423692487": 1924,
+        "7080941387": 74
+      },
+      "edit_chat_id": "8851574244",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 0.8189299999999999,
+      "stop": 0.81827,
+      "tp1": 0.81953,
+      "tp2": 0.82013,
+      "rr1": 0.9090909090911384,
+      "rr2": 1.8181818181822769,
+      "risk_pips": 6.599999999998829,
+      "candle_time": "2026-11-10 06:30:00",
+      "candle_key": "SMC|USD/CHF|PRIMARY|2026-11-10 06:30:00|1|OB",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "session": "London",
+      "last_checked_index": 499
+    }
+  ],
   "last_update_id": 933147764
 }
