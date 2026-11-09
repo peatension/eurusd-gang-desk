@@ -39,6 +39,9 @@ import importlib
 
 desk = importlib.import_module("3c_model")
 
+# ---------------------------------------------------------------------------
+# ENV / STATE
+# ---------------------------------------------------------------------------
 STATE_FILE = "last_alert_state_crt_guide.json"
 STATE_VERSION = 1
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -52,6 +55,7 @@ PAIRS = {
 }
 CORE_PAIRS = list(PAIRS.keys())
 
+# Stream label → (htf_interval, ltf_interval, model)
 STREAMS = {
     "CRT Guide H1→15m 2C":    ("1h", "15min", "2C"),
     "CRT Guide H1→15m 3C":    ("1h", "15min", "3C"),
@@ -62,9 +66,16 @@ STREAMS = {
 }
 
 PIP_BUF = 2.0
-MAX_HOLD_BARS = 96
+MAX_HOLD_BARS = 96  # M15 bars ~ 24h
+# Do not alert setups whose C2 closed more than this many hours ago
+# (stops overnight H4 C2 from re-firing every morning cron)
+MAX_SETUP_AGE_HOURS = {"1h": 3.0, "4h": 6.0}
 OUTPUT = {"4h": 400, "1h": 600, "15min": 1200}
 
+
+# ---------------------------------------------------------------------------
+# TIME / SESSION (guide: London + NY only)
+# ---------------------------------------------------------------------------
 
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -123,6 +134,10 @@ def format_dual_times(setup_time, signal_time=None):
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# STATE
+# ---------------------------------------------------------------------------
+
 def load_state():
     try:
         with open(STATE_FILE, "r") as f:
@@ -166,6 +181,10 @@ def fire_lock_key(stream, pair, direction, c2_time, model):
     return f"{stream}|{pair}|{direction}|{t}|{model}"
 
 
+# ---------------------------------------------------------------------------
+# CRT GUIDE DETECTORS — body-based validation
+# ---------------------------------------------------------------------------
+
 def _body_high(row):
     return max(float(row["open"]), float(row["close"]))
 
@@ -175,18 +194,22 @@ def _body_low(row):
 
 
 def _closed_inside_body(row, crh, crl):
+    """Guide: close (body) back inside range — not wick-only."""
     c = float(row["close"])
     return crl < c < crh
 
 
 def detect_2c(htf):
+    """Aggressive 2-candle: C2 sweeps wick beyond C1 and closes body inside."""
     if htf is None or len(htf) < 4:
         return None
+    # latest closed C2 / C1
     c2 = htf.iloc[-2]
     c1 = htf.iloc[-3]
     crh, crl = float(c1["high"]), float(c1["low"])
     if crh <= crl:
         return None
+    # bull: wick below CRL, body close inside
     if float(c2["low"]) < crl and _closed_inside_body(c2, crh, crl):
         return {
             "model": "2C",
@@ -198,6 +221,7 @@ def detect_2c(htf):
             "c2_time": c2["datetime"],
             "purge_extreme": float(c2["low"]),
         }
+    # bear
     if float(c2["high"]) > crh and _closed_inside_body(c2, crh, crl):
         return {
             "model": "2C",
@@ -213,6 +237,7 @@ def detect_2c(htf):
 
 
 def detect_3c(htf):
+    """Classic 3-candle: C1 range, C2 purge + body close inside, C3 starts delivery."""
     if htf is None or len(htf) < 5:
         return None
     c3 = htf.iloc[-2]
@@ -221,7 +246,9 @@ def detect_3c(htf):
     crh, crl = float(c1["high"]), float(c1["low"])
     if crh <= crl:
         return None
+    # C2 must purge and close body inside (guide Model 1)
     if float(c2["low"]) < crl and _closed_inside_body(c2, crh, crl):
+        # C3 should be expanding away from purge (bullish body preference)
         if float(c3["close"]) > float(c3["open"]) or float(c3["close"]) > _body_low(c2):
             return {
                 "model": "3C",
@@ -251,9 +278,15 @@ def detect_3c(htf):
 
 
 def detect_multi(htf):
+    """
+    Multiple-candle / inside-bar compression (2–4 bars), then raid + body close inside.
+    Composite range = high/low of the compression block before the raid bar.
+    """
     if htf is None or len(htf) < 8:
         return None
+    # raid bar = last closed
     raid = htf.iloc[-2]
+    # try compression lengths 2, 3, 4 ending at bar before raid
     for width in (2, 3, 4):
         start = -2 - width
         if len(htf) + start < 0:
@@ -265,6 +298,8 @@ def detect_multi(htf):
         crl = float(block["low"].min())
         if crh <= crl:
             continue
+        # inside-bar flavour: last bar of block inside prior of block (optional soft check)
+        # Raid: wick beyond composite + body close inside
         if float(raid["low"]) < crl and _closed_inside_body(raid, crh, crl):
             return {
                 "model": "MULTI",
@@ -296,6 +331,10 @@ DETECT = {"2C": detect_2c, "3C": detect_3c, "MULTI": detect_multi}
 
 
 def m15_entry(ltf, setup):
+    """
+    Guide Step 2–3: after HTF validation, use M15 interaction.
+    Entry = next M15 open after setup c2_time (first touch of structure).
+    """
     if ltf is None or ltf.empty:
         return None
     t = pd.Timestamp(setup["c2_time"])
@@ -303,7 +342,10 @@ def m15_entry(ltf, setup):
     if after.empty:
         return None
     row = after.iloc[0]
-    return {"entry": float(row["open"]), "candle_time": row["datetime"]}
+    return {
+        "entry": float(row["open"]),
+        "candle_time": row["datetime"],
+    }
 
 
 def build_levels(setup, entry, pip):
@@ -316,10 +358,10 @@ def build_levels(setup, entry, pip):
         if e <= sl:
             return None
         risk = e - sl
-        tp1 = 0.5 * (crh + crl)
+        tp1 = 0.5 * (crh + crl)  # mid (partial)
         if tp1 <= e:
-            tp1 = e + risk
-        tp2 = crh
+            tp1 = e + risk  # at least 1R toward range
+        tp2 = crh  # opposite extremity (guide)
         if tp2 <= e:
             return None
     else:
@@ -333,16 +375,22 @@ def build_levels(setup, entry, pip):
         tp2 = crl
         if tp2 >= e:
             return None
+    r1 = abs(tp1 - e) / risk
+    r2 = abs(tp2 - e) / risk
     return {
         "entry": e,
         "sl": sl,
         "tp1": tp1,
         "tp2": tp2,
-        "rr1": abs(tp1 - e) / risk,
-        "rr2": abs(tp2 - e) / risk,
+        "rr1": r1,
+        "rr2": r2,
         "risk": risk,
     }
 
+
+# ---------------------------------------------------------------------------
+# MESSAGES
+# ---------------------------------------------------------------------------
 
 def _px(pair, v):
     if v is None:
@@ -462,6 +510,10 @@ def edit_all(trade, text):
             print(f"edit fail {cid}/{mid}: {e}")
 
 
+# ---------------------------------------------------------------------------
+# PENDING MANAGEMENT
+# ---------------------------------------------------------------------------
+
 def check_pending(state, pair, ltf):
     if ltf is None or ltf.empty:
         return
@@ -473,6 +525,7 @@ def check_pending(state, pair, ltf):
         if trade.get("status") == "CLOSED":
             continue
         d = int(trade["direction"])
+        entry = float(trade["entry"])
         sl = float(trade["sl"])
         tp1 = float(trade["tp1"])
         tp2 = float(trade["tp2"])
@@ -523,6 +576,10 @@ def check_pending(state, pair, ltf):
     state["pending"] = still
 
 
+# ---------------------------------------------------------------------------
+# SCAN
+# ---------------------------------------------------------------------------
+
 def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
     fn = DETECT.get(model)
     if not fn:
@@ -530,10 +587,19 @@ def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
     setup = fn(htf)
     if not setup:
         return None
+    # session on validation bar
     if not session_allowed(setup["c2_time"]):
         return None
     if is_weekend_utc():
         return None
+    # staleness: reject old C2 still sitting as "latest closed" HTF bar
+    c2_utc = _as_utc(setup["c2_time"])
+    if c2_utc is not None:
+        age_h = (utc_now() - c2_utc).total_seconds() / 3600.0
+        max_age = float(MAX_SETUP_AGE_HOURS.get(htf_name, 4.0))
+        if age_h > max_age:
+            return None
+    # one-touch freshness
     rk = range_key(pair, setup["crh"], setup["crl"], setup["direction"])
     if state.get("range_touches", {}).get(rk):
         return None
@@ -543,9 +609,16 @@ def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
     lv = build_levels(setup, ent, pip)
     if not lv:
         return None
+    # TP path must make sense vs entry (skip entries already past usable range target)
+    d = int(setup["direction"])
+    if d == 1 and not (lv["tp2"] > lv["entry"] and lv["sl"] < lv["entry"]):
+        return None
+    if d == -1 and not (lv["tp2"] < lv["entry"] and lv["sl"] > lv["entry"]):
+        return None
     lock = fire_lock_key(stream, pair, setup["direction"], setup["c2_time"], model)
     if state.get("fired_locks", {}).get(lock):
         return None
+    sess = forex_session(setup["c2_time"])
     return {
         "stream": stream,
         "model": model,
@@ -557,7 +630,7 @@ def analyze(stream, htf_name, model, htf, ltf, pair, pip, state):
         "mid": setup["mid"],
         "c2_time": setup["c2_time"],
         "candle_time": ent["candle_time"],
-        "session": forex_session(setup["c2_time"]),
+        "session": sess,
         "purge_extreme": setup["purge_extreme"],
         "range_key": rk,
         "fire_lock": lock,
@@ -583,6 +656,7 @@ def main():
     if weekend:
         print("Weekend: no new signals | managing open trades only")
 
+    # fetch cache
     cache = {}
     need = set()
     for _, (h, l, _) in STREAMS.items():
@@ -605,6 +679,7 @@ def main():
         if not ok:
             continue
 
+        # manage pending first
         check_pending(state, pair, frames.get("15min"))
         save_state(state)
 
@@ -621,6 +696,7 @@ def main():
                 print(f"  {stream}: no setup")
                 continue
 
+            # claim before send
             state.setdefault("fired_locks", {})[sig["fire_lock"]] = str(utc_now())
             state.setdefault("range_touches", {})[sig["range_key"]] = 1
             sig["ticket_id"] = next_ticket(state)
