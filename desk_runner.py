@@ -1,30 +1,20 @@
 """
 Same Telegram bot. Live entrypoint.
 
-CRT GUIDE ENGINE (guide-locked, no research matrix):
-  Pairs: EUR/USD · GBP/USD · AUD/USD · USD/JPY
-  Models: 2C · 3C · MULTI
-  HTF: H1 | H4 → LTF M15
-  Filters: body close · London/NY only · one-touch range
+LIVE SLIM (pre-guide setup):
+  CRT Plain: XAU/USD · AUD/JPY  — MSS + CISD
+  3C:        USD/JPY · EUR/JPY  — MSS + CISD
 
-Optional: set RUN_SLIM=1 to also run legacy live_slim after guide.
+Guide engine is OFF — not imported.
 
 Run: python desk_runner.py
 """
 
-import os
-
 
 def main():
-    import crt_guide_engine
+    import live_slim
 
-    crt_guide_engine.main()
-
-    if os.getenv("RUN_SLIM", "").strip() in ("1", "true", "TRUE", "yes"):
-        print("\n[desk] RUN_SLIM=1 → legacy live_slim")
-        import live_slim
-
-        live_slim.main()
+    live_slim.main()
 
 
 if __name__ == "__main__":
