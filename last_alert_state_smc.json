@@ -8,7 +8,9 @@
     "fired:SMC|EUR/JPY|FVG|2026-11-10 09:00:00|1|FVG": true,
     "EUR/JPY|FVG": "SMC|EUR/JPY|FVG|2026-11-10 09:00:00|1|FVG",
     "fired:SMC|EUR/USD|PRIMARY|2026-11-10 20:00:00|1|OB": true,
-    "EUR/USD|PRIMARY": "SMC|EUR/USD|PRIMARY|2026-11-10 20:00:00|1|OB"
+    "EUR/USD|PRIMARY": "SMC|EUR/USD|PRIMARY|2026-11-10 20:00:00|1|OB",
+    "fired:SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG": true,
+    "EUR/USD|FVG": "SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG"
   },
   "pending": [
     {
@@ -113,6 +115,32 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "session": "New York",
+      "last_checked_index": 499
+    },
+    {
+      "stream": "SMC 1H\u219215m FVG",
+      "model": "FVG",
+      "pair": "EUR/USD",
+      "message_id": 2106,
+      "message_ids": {
+        "-1004423692487": 2106,
+        "7080941387": 79
+      },
+      "edit_chat_id": "8851574244",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 1.11702,
+      "stop": 1.1181699999999999,
+      "tp1": 1.1160549999999998,
+      "tp2": 1.11509,
+      "rr1": 0.8391304347827111,
+      "rr2": 1.6782608695652292,
+      "risk_pips": 11.499999999999844,
+      "candle_time": "2026-11-11 05:30:00",
+      "candle_key": "SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "session": "Asia",
       "last_checked_index": 499
     }
   ],
