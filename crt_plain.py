@@ -1031,13 +1031,39 @@ def finalize_trade(trade, status, result_r, exit_time, edit_text):
 
 
 def purge_expired_pending(state):
-    """Drop stale ENTRY_PENDING so they stop blocking new signals."""
+    """Drop stale ENTRY_PENDING and zombie ACTIVE/TP1 rows (>72h)."""
     pend = state.get("pending") or []
     kept = []
+    now = utc_now()
     for t in pend:
         if _pending_expired(t):
             print(f"  purge expired ENTRY_PENDING {t.get('stream')} {t.get('pair')}")
             continue
+        # Zombie open trades: signal older than 72h never closed in state
+        if t.get("status") in (None, "ACTIVE", "TP1_HIT", "LATE"):
+            dropped = False
+            for key in ("signal_sent", "candle_time", "c2_time"):
+                raw = t.get(key)
+                if not raw:
+                    continue
+                try:
+                    ts = pd.Timestamp(raw)
+                    if ts.tzinfo is not None:
+                        ts = ts.tz_convert("UTC").tz_localize(None)
+                    n = pd.Timestamp(now)
+                    if n.tzinfo is not None:
+                        n = n.tz_convert("UTC").tz_localize(None)
+                    if (n - ts).total_seconds() / 3600.0 >= 72:
+                        print(
+                            f"  purge zombie {t.get('status')} "
+                            f"{t.get('stream')} {t.get('pair')} ticket={t.get('ticket_id')}"
+                        )
+                        dropped = True
+                        break
+                except Exception:
+                    continue
+            if dropped:
+                continue
         kept.append(t)
     state["pending"] = kept
 
@@ -1503,7 +1529,8 @@ def main():
             # Coarse id: same C2 candle + pair + direction (all streams/models)
             c2_floor = _floor_c2(sig.get("c2_time") or sig.get("candle_time"))
             entry_id = entry_identity(sig.get("entry"), pip)
-            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}|entry:{entry_id}"
+            # Cross-stream lock: same C2 + direction = one message (ignore model/entry noise)
+            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}"
             entry_setup_key = f"setup_entry:{suid}|entry:{entry_id}"
             flk = make_fire_lock(
                 stream_label,
@@ -1576,7 +1603,17 @@ def main():
                 state["last_alert_keys"][setup_core] = alert_key
                 save_state(state)
                 continue
-            already_ignited = not ok_fresh
+            # Stale entry: lock only — never Telegram (no ALREADY IGNITED noise)
+            if not ok_fresh:
+                print(
+                    f"  {stream_label}: STALE age={age_min:.0f}m — lock, no send"
+                )
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
+                state["last_alert_keys"][entry_setup_key] = alert_key
+                state["last_alert_keys"][setup_core] = alert_key
+                save_state(state)
+                continue
 
             # CLAIM + PERSIST before Telegram (shared setup + stream locks)
             state["last_alert_keys"][flk] = alert_key
@@ -1595,7 +1632,6 @@ def main():
                 continue
             save_state(state)  # persist after shared-ledger claim too
 
-            # Stale: send ONCE with ALREADY IGNITED, then lock blocks every later cron
             signal_sent = utc_now().isoformat()
             sig["signal_sent"] = signal_sent
             if not sig.get("ticket_id"):
@@ -1604,7 +1640,7 @@ def main():
             body = build_signal_message(
                 sig,
                 weekend_limit=weekend,
-                already_ignited=already_ignited,
+                already_ignited=False,
                 age_min=age_min,
             )
             msg_ids = desk.broadcast_message_ids(body, pair=sig.get("pair")) or {}
@@ -1615,11 +1651,6 @@ def main():
                     msg_ids[str(desk.CHAT_ID)] = mid
             if msg_ids:
                 published_setups.mark_sent(ledger_key)
-            if already_ignited:
-                print(
-                    f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"(sent once, locked)"
-                )
             try:
                 chart = render_setup_chart(ltf, sig)
                 if chart:
