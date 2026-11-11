@@ -2982,7 +2982,7 @@ def main():
             sig["setup_uid"] = suid
             c2_floor = _floor_c2(sig.get("c2_time") or sig.get("candle_time"))
             entry_id = entry_identity(sig.get("entry"), pip)
-            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}|entry:{entry_id}"
+            setup_core = f"setup_core:{pair}|{int(sig.get('direction') or 0)}|{c2_floor}"
             entry_setup_key = f"setup_entry:{suid}|entry:{entry_id}"
             flk = make_fire_lock(
                 stream_label,
@@ -3054,7 +3054,16 @@ def main():
                 state["last_alert_keys"][setup_core] = alert_key
                 save_state(state)
                 continue
-            already_ignited = not ok_fresh
+            if not ok_fresh:
+                print(
+                    f"  {stream_label}: STALE age={age_min:.0f}m — lock, no send"
+                )
+                state["last_alert_keys"][flk] = alert_key
+                state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
+                state["last_alert_keys"][entry_setup_key] = alert_key
+                state["last_alert_keys"][setup_core] = alert_key
+                save_state(state)
+                continue
 
             # CLAIM + PERSIST before Telegram (shared setup + stream locks)
             state["last_alert_keys"][flk] = alert_key
@@ -3081,7 +3090,7 @@ def main():
             body = build_signal_message(
                 sig,
                 weekend_limit=weekend,
-                already_ignited=already_ignited,
+                already_ignited=False,
                 age_min=age_min,
             )
             msg_ids = broadcast_message_ids(body, pair=sig.get("pair")) or {}
@@ -3093,11 +3102,6 @@ def main():
                     msg_ids[str(CHAT_ID)] = mid
             if msg_ids:
                 published_setups.mark_sent(ledger_key)
-            if already_ignited:
-                print(
-                    f"  {stream_label}: ALREADY IGNITED age={age_min:.0f}m "
-                    f"(sent once, locked)"
-                )
             primary = str(CHAT_ID) if CHAT_ID else (next(iter(msg_ids), None))
             message_id = msg_ids.get(primary) if primary else None
             if not message_id and msg_ids:
