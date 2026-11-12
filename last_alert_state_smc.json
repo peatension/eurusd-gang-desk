@@ -10,7 +10,9 @@
     "fired:SMC|EUR/USD|PRIMARY|2026-11-10 20:00:00|1|OB": true,
     "EUR/USD|PRIMARY": "SMC|EUR/USD|PRIMARY|2026-11-10 20:00:00|1|OB",
     "fired:SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG": true,
-    "EUR/USD|FVG": "SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG"
+    "EUR/USD|FVG": "SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG",
+    "fired:SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB": true,
+    "NZD/USD|PRIMARY": "SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB"
   },
   "pending": [
     {
@@ -141,6 +143,32 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "session": "Asia",
+      "last_checked_index": 499
+    },
+    {
+      "stream": "SMC 1H\u219215m PRIMARY",
+      "model": "PRIMARY",
+      "pair": "NZD/USD",
+      "message_id": 2313,
+      "message_ids": {
+        "-1004423692487": 2313,
+        "7080941387": 80
+      },
+      "edit_chat_id": "8851574244",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 0.5565,
+      "stop": 0.55716,
+      "tp1": 0.555435,
+      "tp2": 0.55437,
+      "rr1": 1.6136363636363522,
+      "rr2": 3.2272727272727044,
+      "risk_pips": 6.599999999999939,
+      "candle_time": "2026-11-12 20:00:00",
+      "candle_key": "SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "session": "New York",
       "last_checked_index": 499
     }
   ],
