@@ -12,7 +12,9 @@
     "fired:SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG": true,
     "EUR/USD|FVG": "SMC|EUR/USD|FVG|2026-11-11 05:30:00|-1|FVG",
     "fired:SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB": true,
-    "NZD/USD|PRIMARY": "SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB"
+    "NZD/USD|PRIMARY": "SMC|NZD/USD|PRIMARY|2026-11-12 20:00:00|-1|OB",
+    "fired:SMC|USD/CHF|FVG|2026-11-12 21:15:00|1|FVG": true,
+    "USD/CHF|FVG": "SMC|USD/CHF|FVG|2026-11-12 21:15:00|1|FVG"
   },
   "pending": [
     {
@@ -169,6 +171,32 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "session": "New York",
+      "last_checked_index": 499
+    },
+    {
+      "stream": "SMC 4H\u21921H\u219215m FVG",
+      "model": "FVG",
+      "pair": "USD/CHF",
+      "message_id": 2323,
+      "message_ids": {
+        "-1004423692487": 2323,
+        "7080941387": 81
+      },
+      "edit_chat_id": "8851574244",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 0.830635,
+      "stop": 0.82968,
+      "tp1": 0.8317875,
+      "tp2": 0.83294,
+      "rr1": 1.2068062827224644,
+      "rr2": 2.4136125654449287,
+      "risk_pips": 9.550000000000392,
+      "candle_time": "2026-11-12 21:15:00",
+      "candle_key": "SMC|USD/CHF|FVG|2026-11-12 21:15:00|1|FVG",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "session": "Off-hours",
       "last_checked_index": 499
     }
   ],
