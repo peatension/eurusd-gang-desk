@@ -1,0 +1,36 @@
+name: Bet Bot
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # Runs daily at 9:00 AM WAT
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Bet Squad Bot
+        env:
+          BET_BOT_KEY: ${{ secrets.BET_BOT_KEY }}
+          BET_API: ${{ secrets.BET_API }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: python bet_squad_bot.py
+
+      - name: Commit Updated Subscriber List
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add subscribers.json || true
+          git commit -m "Auto-update subscriber list [skip ci]" || true
+          git push || true
