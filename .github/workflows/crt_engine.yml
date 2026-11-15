@@ -1,16 +1,12 @@
 name: CRT Engine
 
-# ONLY external cron-job.org → workflow_dispatch every 10 min.
-# No GitHub schedule (overlapping runners caused /start spam).
+# External cron → workflow_dispatch only (no GitHub schedule overlap)
 on:
   workflow_dispatch:
 
-# CRITICAL: do NOT cancel in-progress runs.
-# cancel-in-progress: true was killing jobs before Commit state,
-# so locks/pending never reached GitHub → duplicates every cron.
 concurrency:
-  group: crt-desk
-  cancel-in-progress: false
+  group: tension-crt
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -19,6 +15,9 @@ jobs:
   run-crt:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: tension-crt
 
     steps:
       - name: Checkout
@@ -28,14 +27,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
+          cache: pip
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install requests pandas numpy
 
-      - name: Run CRT + 3C
+      - name: Run CRT (single engine)
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           TWELVE_DATA_KEYS: ${{ secrets.TWELVE_DATA_KEYS }}
@@ -44,32 +43,23 @@ jobs:
           SHEET_URL: ${{ secrets.SHEET_URL }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
-        run: python desk_runner.py
+        run: python crt_engine.py
 
-      # Always attempt persist — even if the scan step had warnings
       - name: Commit state
-        if: always()
+        working-directory: .
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add \
-            last_alert_state_crt.json \
-            last_alert_state_crt_plain.json \
-            last_alert_state_crt_set2.json \
-            last_alert_state_crt_guide.json \
-            last_alert_state_3c.json \
-            last_alert_state_smc.json \
-            subscribers.json \
-            outcomes.json \
-            telegram_offset.json \
-            ticket_seq.json \
-            published_setups.json \
+            tension-crt/last_alert_state_crt.json \
+            tension-crt/subscribers.json \
+            tension-crt/outcomes.json \
+            tension-crt/ticket_seq.json \
+            tension-crt/telegram_offset.json \
             2>/dev/null || true
-
           if git diff --cached --quiet; then
             echo "No state changes to commit."
           else
-            git commit -m "chore: persist CRT+3C state [skip ci]"
+            git commit -m "chore(crt): persist tension-crt state [skip ci]"
             git push
           fi
