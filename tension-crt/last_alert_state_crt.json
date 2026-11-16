@@ -34,14 +34,16 @@
     "CRT 1H\u21925m CISD:USD/JPY": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 08:00:00|1|CISD|entry:159372",
     "setup_entry:USD/JPY|1|2026-11-16 08:00|159.55797|159.37221|entry:159372": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 08:00:00|1|CISD|entry:159372",
     "setup_core:USD/JPY|1|2026-11-16 08:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 08:00:00|1|CISD|entry:159372",
-    "fired:CRT 1H\u21925m MSS|EUR/USD|-1|2026-11-16 08:00|MSS|entry:110244": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 08:00:00|-1|MSS|entry:110244"
+    "fired:CRT 1H\u21925m MSS|EUR/USD|-1|2026-11-16 08:00|MSS|entry:110244": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 08:00:00|-1|MSS|entry:110244",
+    "fired:CRT 1H\u21925m MSS|XAU/USD|-1|2026-11-16 08:00|MSS|entry:3860855": "CRT 1H\u21925m MSS|XAU/USD|2026-11-16 08:00:00|-1|MSS|entry:3860855",
+    "fired:CRT 1H\u21925m MSS|USD/JPY|1|2026-11-16 08:00|MSS|entry:159372": "CRT 1H\u21925m MSS|USD/JPY|2026-11-16 08:00:00|1|MSS|entry:159372"
   },
   "pending": [],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-16T09:37:23.933745+00:00",
+  "last_scan_utc": "2026-11-16T09:48:10.569735+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
