@@ -73,14 +73,15 @@
     "fired:CRT 1H\u21925m MSS|XAU/USD|1|2026-11-16 16:00|MSS|entry:3859365": "CRT 1H\u21925m MSS|XAU/USD|2026-11-16 16:00:00|1|MSS|entry:3859365",
     "setup_entry:XAU/USD|1|2026-11-16 16:00|3885.60771|3859.36475|entry:3859365": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 16:00:00|1|CISD|entry:3859365",
     "setup_core:XAU/USD|1|2026-11-16 16:00": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 16:00:00|1|CISD|entry:3859365",
-    "fired:CRT 1H\u21925m CISD|XAU/USD|1|2026-11-16 16:00|CISD|entry:3859365": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 16:00:00|1|CISD|entry:3859365"
+    "fired:CRT 1H\u21925m CISD|XAU/USD|1|2026-11-16 16:00|CISD|entry:3859365": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 16:00:00|1|CISD|entry:3859365",
+    "fired:CRT 1H\u219215m CISD|XAU/USD|1|2026-11-16 16:00|CISD|entry:3859365": "CRT 1H\u219215m CISD|XAU/USD|2026-11-16 16:00:00|1|CISD|entry:3859365"
   },
   "pending": [],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-16T17:48:19.078719+00:00",
+  "last_scan_utc": "2026-11-16T17:53:15.566559+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
