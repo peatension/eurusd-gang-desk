@@ -1653,11 +1653,17 @@ def main():
             msg_ids = desk.broadcast_message_ids(body, pair=sig.get("pair")) or {}
             # Guarantee at least one editable message_id (edits need this)
             if not msg_ids and desk.CHAT_ID:
-                mid = desk.send_telegram_to(desk.CHAT_ID, body, reply_markup=desk.tv_inline_keyboard(sig.get("pair")))
+                mid = desk.send_telegram_to(
+                    desk.CHAT_ID, body, reply_markup=desk.tv_inline_keyboard(sig.get("pair"))
+                )
                 if mid:
                     msg_ids[str(desk.CHAT_ID)] = mid
-            if msg_ids:
-                published_setups.mark_sent(ledger_key)
+            # Optional ledger only — NEVER crash after Telegram (was killing pending store)
+            if msg_ids and published_setups is not None and ledger_key:
+                try:
+                    published_setups.mark_sent(ledger_key)
+                except Exception as e:
+                    print(f"  published_setups.mark_sent error: {e}")
             try:
                 chart = render_setup_chart(ltf, sig)
                 if chart:
@@ -1667,10 +1673,17 @@ def main():
                     )
             except Exception as e:
                 print("chart send error:", e)
-            primary = str(desk.CHAT_ID) if desk.CHAT_ID else (next(iter(msg_ids), None))
+
+            # Prefer a chat we actually sent to (CHAT_ID may not be in subscribers)
+            primary = None
+            if desk.CHAT_ID and str(desk.CHAT_ID) in msg_ids:
+                primary = str(desk.CHAT_ID)
+            elif msg_ids:
+                primary = next(iter(msg_ids.keys()))
             message_id = msg_ids.get(primary) if primary else None
             if not message_id and msg_ids:
                 message_id = next(iter(msg_ids.values()))
+                primary = next(iter(msg_ids.keys()))
             if not message_id:
                 print(f"  {stream_label}: WARN no message_id — verdict will broadcast-only")
 
@@ -1684,67 +1697,65 @@ def main():
             state["last_alert_keys"][entry_setup_key] = alert_key
             state["last_alert_keys"][setup_core] = alert_key
             state["last_alert_keys"][f"{stream_label}:{pair}"] = alert_key
-            # Always track pending so TP1/SL edits work even if Telegram hiccups
-            if True:
-                try:
-                    et = pd.Timestamp(sig["candle_time"])
-                    if et.tzinfo is not None:
-                        et = et.tz_convert("UTC").tz_localize(None)
-                    dts = pd.to_datetime(ltf["datetime"])
-                    if getattr(dts.dt, "tz", None) is not None:
-                        dts = dts.dt.tz_convert("UTC").dt.tz_localize(None)
-                    m = np.where(dts.values >= np.datetime64(et))[0]
-                    entry_idx = int(m[0]) if len(m) else max(0, len(ltf) - 2)
-                except Exception:
-                    entry_idx = max(0, len(ltf) - 2)
 
-                state["pending"].append(
-                    {
-                        "stream": stream_label,
-                        "pair": pair,
-                        "ticket_id": sig.get("ticket_id"),
-                        "message_id": message_id,
-                        "message_ids": msg_ids,
-                        "edit_chat_id": primary,
-                        "direction": sig["direction"],
-                        "side": sig["side"],
-                        "entry": sig["entry"],
-                        "stop": sig["stop"],
-                        "tp1": sig["tp1"],
-                        "tp2": sig["tp2"],
-                        "rr1": sig["rr1"],
-                        "rr2": sig["rr2"],
-                        "risk_pips": sig["risk_pips"],
-                        "tp1_pips": sig.get("tp1_pips", 0),
-                        "tp2_pips": sig.get("tp2_pips", 0),
-                        "prop_stop": sig.get("prop_stop", sig["stop"]),
-                        "prop_risk_pips": sig.get("prop_risk_pips", sig["risk_pips"]),
-                        "prop_buffer_pips": sig.get("prop_buffer_pips", 0),
-                        "crh": sig["crh"],
-                        "crl": sig["crl"],
-                        "mid": sig["mid"],
-                        "candle_time": sig["candle_time"],
-                        "c2_time": sig.get("c2_time") or sig["candle_time"],
-                        "signal_sent": signal_sent,
-                        "session": sig["session"],
-                        "c1_tf": sig["c1_tf"],
-                        "ltf": sig["ltf"],
-                        "entry_model": sig["entry_model"],
-                        "candle_key": key,
-                        "setup_uid": suid,
-                        "status": status,
-                        "tp1_hit": False,
-                        "last_checked_index": entry_idx,
-                        "last_checked_time": sig["candle_time"],
-                    }
-                )
-                n_pend = len(state["pending"])
-                print(
-                    f"  PENDING stored {stream_label} {pair} "
-                    f"mid={message_id} ids={len(msg_ids)} pending_n={n_pend}"
-                )
-                # Persist pending immediately so TP1/SL + dedup survive mid-scan crash
-                save_state(state)
+            # ALWAYS store pending so next cron can edit TP1 / WIN / LOSS
+            try:
+                et = pd.Timestamp(sig["candle_time"])
+                if et.tzinfo is not None:
+                    et = et.tz_convert("UTC").tz_localize(None)
+                dts = pd.to_datetime(ltf["datetime"])
+                if getattr(dts.dt, "tz", None) is not None:
+                    dts = dts.dt.tz_convert("UTC").dt.tz_localize(None)
+                m = np.where(dts.values >= np.datetime64(et))[0]
+                entry_idx = int(m[0]) if len(m) else max(0, len(ltf) - 2)
+            except Exception:
+                entry_idx = max(0, len(ltf) - 2)
+
+            state["pending"].append(
+                {
+                    "stream": stream_label,
+                    "pair": pair,
+                    "ticket_id": sig.get("ticket_id"),
+                    "message_id": message_id,
+                    "message_ids": dict(msg_ids) if msg_ids else {},
+                    "edit_chat_id": primary,
+                    "direction": sig["direction"],
+                    "side": sig["side"],
+                    "entry": sig["entry"],
+                    "stop": sig["stop"],
+                    "tp1": sig["tp1"],
+                    "tp2": sig["tp2"],
+                    "rr1": sig["rr1"],
+                    "rr2": sig["rr2"],
+                    "risk_pips": sig["risk_pips"],
+                    "tp1_pips": sig.get("tp1_pips", 0),
+                    "tp2_pips": sig.get("tp2_pips", 0),
+                    "prop_stop": sig.get("prop_stop", sig["stop"]),
+                    "prop_risk_pips": sig.get("prop_risk_pips", sig["risk_pips"]),
+                    "prop_buffer_pips": sig.get("prop_buffer_pips", 0),
+                    "crh": sig["crh"],
+                    "crl": sig["crl"],
+                    "mid": sig["mid"],
+                    "candle_time": sig["candle_time"],
+                    "c2_time": sig.get("c2_time") or sig["candle_time"],
+                    "signal_sent": signal_sent,
+                    "session": sig["session"],
+                    "c1_tf": sig["c1_tf"],
+                    "ltf": sig["ltf"],
+                    "entry_model": sig["entry_model"],
+                    "candle_key": key,
+                    "setup_uid": suid,
+                    "status": status,
+                    "tp1_hit": False,
+                    "last_checked_index": entry_idx,
+                    "last_checked_time": sig["candle_time"],
+                }
+            )
+            print(
+                f"  PENDING stored {stream_label} {pair} "
+                f"mid={message_id} ids={len(msg_ids)} pending_n={len(state['pending'])}"
+            )
+            save_state(state)
 
     desk.mark_scan_health(state, ok=True)
     save_state(state)
