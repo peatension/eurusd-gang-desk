@@ -1,9 +1,10 @@
-
 """
 BET SQUAD — data-first Telegram betting research bot.
+
 No fabricated fixtures, odds, probabilities or fallback selections.
 SportyBet is the manual execution venue; comparison odds are not SportyBet prices.
 """
+
 from __future__ import annotations
 
 import os
@@ -17,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+
 API_KEY = os.getenv("BET_API", "").strip()
 BOT_TOKEN = os.getenv("BET_BOT_KEY", "").strip()
 ADMIN_ID = os.getenv("ADMIN_ID", "").strip()
@@ -29,38 +31,72 @@ BOOKMAKER_NAME = os.getenv("BET_BOOKMAKER_NAME", "William Hill")
 TIMEOUT = 25
 MIN_EDGE = float(os.getenv("BET_MIN_EDGE", "0.04"))
 MAX_SELECTIONS = int(os.getenv("BET_MAX_SELECTIONS", "10"))
-API_MIN_INTERVAL = max(0.0, float(os.getenv("BET_API_MIN_INTERVAL", "0.25")))
+
+# Conservative pacing to reduce the chance of hitting API rate limits.
+API_MIN_INTERVAL = max(
+    1.0,
+    float(os.getenv("BET_API_MIN_INTERVAL", "1.25"))
+)
+
 SUPPORTED_SPORTS = ["football"]
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
+
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(message)s",
 )
+
 log = logging.getLogger("bet-squad")
+
 
 class ProviderError(RuntimeError):
     pass
 
+
+class PlanAccessError(ProviderError):
+    """The API subscription does not permit the requested data."""
+    pass
+
+
+class RateLimitError(ProviderError):
+    """The API provider has rate-limited this client."""
+    pass
+
+
 class ApiFootball:
-    """API-Football client with per-scan response caching and request pacing."""
+    """API-Football client with caching, pacing and safe failure handling."""
 
     def __init__(self, key: str):
         if not key:
             raise ProviderError("BET_API is missing.")
 
         self.session = requests.Session()
-        self.session.headers.update({"x-apisports-key": key})
+        self.session.headers.update({
+            "x-apisports-key": key
+        })
 
         self._response_cache = {}
         self._team_form_cache = {}
         self._last_request_at = 0.0
+        self._rate_limited = False
 
     def get(self, endpoint: str, **params) -> list[dict]:
+
+        if self._rate_limited:
+            raise RateLimitError(
+                "API requests stopped because a previous request "
+                "received HTTP 429. Wait for the provider limit to reset."
+            )
+
         url = f"{FOOTBALL_BASE}/{endpoint.lstrip('/')}"
+
         cache_key = (
             endpoint.lstrip("/"),
-            tuple(sorted((str(k), str(v)) for k, v in params.items())),
+            tuple(sorted(
+                (str(k), str(v))
+                for k, v in params.items()
+            )),
         )
 
         if cache_key in self._response_cache:
@@ -69,23 +105,70 @@ class ApiFootball:
 
         elapsed = time.monotonic() - self._last_request_at
         wait = API_MIN_INTERVAL - elapsed
+
         if wait > 0:
             time.sleep(wait)
 
         try:
-            response = self.session.get(url, params=params, timeout=TIMEOUT)
+            response = self.session.get(
+                url,
+                params=params,
+                timeout=TIMEOUT,
+            )
+
             self._last_request_at = time.monotonic()
+
+            if response.status_code == 429:
+                self._rate_limited = True
+                retry_after = response.headers.get("Retry-After", "")
+
+                message = (
+                    "API-Sports returned HTTP 429. "
+                    "The scan has stopped to avoid further requests."
+                )
+
+                if retry_after:
+                    message += f" Retry-After: {retry_after}."
+
+                raise RateLimitError(message)
+
             response.raise_for_status()
             payload = response.json()
+
+        except (RateLimitError, PlanAccessError):
+            raise
+
         except (requests.RequestException, ValueError) as exc:
-            raise ProviderError(f"API request failed: {exc}") from exc
+            raise ProviderError(
+                f"API request failed: {exc}"
+            ) from exc
 
         errors = payload.get("errors")
+
         if errors:
-            raise ProviderError(f"API-Sports returned errors: {errors}")
+            error_text = str(errors)
+            lowered = error_text.lower()
+
+            if (
+                "free plans do not have access" in lowered
+                or "plan access" in lowered
+                or "season access" in lowered
+            ):
+                raise PlanAccessError(
+                    "API subscription does not allow this season/data. "
+                    "No older-season fallback will be used. "
+                    f"Provider response: {error_text}"
+                )
+
+            raise ProviderError(
+                f"API-Sports returned errors: {errors}"
+            )
 
         result = payload.get("response") or []
+
+        # Cache only successful responses.
         self._response_cache[cache_key] = result
+
         return result
 
     def fixtures(self, date_str: str) -> list[dict]:
@@ -96,17 +179,29 @@ class ApiFootball:
         )
 
     def recent_team_fixtures(
-        self, team_id: int, before_date: str, limit: int = 10
+        self,
+        team_id: int,
+        before_date: str,
+        season: int,
+        limit: int = 10,
     ) -> list[dict]:
-        """Retrieve recent completed fixtures from a date range."""
+        """Retrieve recent completed fixtures for a specific season."""
+
         try:
             match_date = datetime.strptime(
-                before_date, "%Y-%m-%d"
+                before_date,
+                "%Y-%m-%d",
             ).date()
+
         except ValueError as exc:
             raise ProviderError(
                 f"Invalid fixture date: {before_date}"
             ) from exc
+
+        if not season:
+            raise ProviderError(
+                "Cannot retrieve team history without a season."
+            )
 
         end_date = match_date - timedelta(days=1)
         start_date = end_date - timedelta(days=120)
@@ -114,6 +209,7 @@ class ApiFootball:
         rows = self.get(
             "fixtures",
             team=team_id,
+            season=int(season),
             **{
                 "from": start_date.isoformat(),
                 "to": end_date.isoformat(),
@@ -123,14 +219,18 @@ class ApiFootball:
 
         completed = [
             row for row in rows
-            if row.get("fixture", {}).get("status", {}).get("short")
-            in ("FT", "AET", "PEN")
+            if row.get("fixture", {})
+            .get("status", {})
+            .get("short") in ("FT", "AET", "PEN")
         ]
 
         completed.sort(
-            key=lambda row: row.get("fixture", {}).get("date", ""),
+            key=lambda row: row.get(
+                "fixture", {}
+            ).get("date", ""),
             reverse=True,
         )
+
         return completed[:limit]
 
     def fixture_odds(self, fixture_id: int) -> list[dict]:
@@ -139,6 +239,7 @@ class ApiFootball:
             fixture=fixture_id,
             bookmaker=BOOKMAKER_ID,
         )
+
 
 def db():
     conn = sqlite3.connect(DB_PATH)
@@ -180,8 +281,10 @@ def db():
     conn.commit()
     return conn
 
+
 def poisson_pmf(k: int, lam: float) -> float:
     return math.exp(-lam) * (lam ** k) / math.factorial(k)
+
 
 def score_matrix(
     home_lambda: float,
@@ -192,6 +295,7 @@ def score_matrix(
         poisson_pmf(i, home_lambda)
         for i in range(max_goals + 1)
     ]
+
     away_probs = [
         poisson_pmf(i, away_lambda)
         for i in range(max_goals + 1)
@@ -203,15 +307,19 @@ def score_matrix(
     ]
 
     total = sum(map(sum, matrix))
+
     return [
         [value / total for value in row]
         for row in matrix
     ]
 
+
 def market_probabilities(matrix):
     size = len(matrix)
+
     home = draw = away = 0.0
-    over25 = under25 = btts_yes = btts_no = 0.0
+    over25 = under25 = 0.0
+    btts_yes = btts_no = 0.0
 
     for hg in range(size):
         for ag in range(size):
@@ -236,20 +344,26 @@ def market_probabilities(matrix):
 
     return {
         "match winner": {
-            "home": home, "draw": draw, "away": away
+            "home": home,
+            "draw": draw,
+            "away": away,
         },
         "1x2": {
-            "home": home, "draw": draw, "away": away
+            "home": home,
+            "draw": draw,
+            "away": away,
         },
         "over/under": {
             "over 2.5": over25,
             "under 2.5": under25,
         },
         "both teams score": {
-            "yes": btts_yes, "no": btts_no
+            "yes": btts_yes,
+            "no": btts_no,
         },
         "btts": {
-            "yes": btts_yes, "no": btts_no
+            "yes": btts_yes,
+            "no": btts_no,
         },
         "goals over/under": {
             "over 2.5": over25,
@@ -257,13 +371,20 @@ def market_probabilities(matrix):
         },
     }
 
+
 def team_goal_rates(
     api: ApiFootball,
     team_id: int,
     before_date: str,
+    season: int,
 ):
-    """Calculate team goal averages and cache the result for this scan."""
-    cache_key = (int(team_id), before_date)
+    """Calculate team goal averages and cache the result."""
+
+    cache_key = (
+        int(team_id),
+        before_date,
+        int(season),
+    )
 
     if cache_key in api._team_form_cache:
         log.debug("Team form cache hit: %s", team_id)
@@ -272,6 +393,7 @@ def team_goal_rates(
     rows = api.recent_team_fixtures(
         team_id,
         before_date,
+        season,
         10,
     )
 
@@ -283,7 +405,9 @@ def team_goal_rates(
         teams = row.get("teams", {})
         goals = row.get("goals", {})
 
-        is_home = teams.get("home", {}).get("id") == team_id
+        is_home = (
+            teams.get("home", {}).get("id") == team_id
+        )
 
         own = goals.get("home" if is_home else "away")
         opponent = goals.get("away" if is_home else "home")
@@ -306,8 +430,10 @@ def team_goal_rates(
     api._team_form_cache[cache_key] = result
     return result
 
+
 def estimate_lambdas(home_rates, away_rates):
     # Simple blended estimate; not league-adjusted or calibrated.
+
     home_rate = (
         home_rates["scored"] + away_rates["conceded"]
     ) / 2
@@ -321,6 +447,7 @@ def estimate_lambdas(home_rates, away_rates):
         max(0.15, min(4.0, away_rate)),
     )
 
+
 def normalize_market_name(name: str) -> str:
     return " ".join(
         str(name)
@@ -331,8 +458,10 @@ def normalize_market_name(name: str) -> str:
         .split()
     )
 
+
 def parse_selection(market: str, value: str):
-    """Map provider outcome labels to the model's canonical labels."""
+    """Map provider outcome labels to canonical labels."""
+
     label = normalize_market_name(value)
     market_key = normalize_market_name(market)
 
@@ -349,8 +478,11 @@ def parse_selection(market: str, value: str):
             "team 2": "away",
             "2nd team": "away",
         }
+
     elif market_key in (
-        "over under", "goals over under", "total goals"
+        "over under",
+        "goals over under",
+        "total goals",
     ):
         aliases = {
             "over 2.5": "over 2.5",
@@ -358,31 +490,38 @@ def parse_selection(market: str, value: str):
             "under 2.5": "under 2.5",
             "under 2 5": "under 2.5",
         }
+
     elif market_key in ("both teams score", "btts"):
         aliases = {
             "yes": "yes",
             "no": "no",
         }
+
     else:
         return None
 
     return aliases.get(label)
+
 
 def extract_odds(odds_payload):
     found = []
 
     for fixture_block in odds_payload:
         for bookmaker in fixture_block.get("bookmakers", []):
+
             if bookmaker.get("id") != BOOKMAKER_ID:
                 continue
 
             for bet in bookmaker.get("bets", []):
+
                 market_name = normalize_market_name(
                     bet.get("name", "")
                 )
 
                 if market_name in (
-                    "match winner", "1x2", "winner"
+                    "match winner",
+                    "1x2",
+                    "winner",
                 ):
                     market = "match winner"
                     required = {"home", "draw", "away"}
@@ -396,7 +535,8 @@ def extract_odds(odds_payload):
                     required = {"over 2.5", "under 2.5"}
 
                 elif market_name in (
-                    "both teams score", "btts"
+                    "both teams score",
+                    "btts",
                 ):
                     market = "both teams score"
                     required = {"yes", "no"}
@@ -422,10 +562,13 @@ def extract_odds(odds_payload):
 
                 if required.issubset(prices):
                     for selection, price in prices.items():
-                        found.append((market, selection, price))
+                        found.append(
+                            (market, selection, price)
+                        )
                 else:
                     log.info(
-                        "Rejecting incomplete %s market; found %s, need %s",
+                        "Rejecting incomplete %s market; "
+                        "found %s, need %s",
                         market,
                         sorted(prices),
                         sorted(required),
@@ -433,7 +576,9 @@ def extract_odds(odds_payload):
 
     return found
 
+
 def analyse_fixture(api: ApiFootball, fixture: dict):
+
     info = fixture.get("fixture", {})
     teams = fixture.get("teams", {})
     league = fixture.get("league", {})
@@ -451,11 +596,27 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
     kickoff = info.get("date", "")
     before_date = kickoff[:10]
 
+    season = league.get("season")
+
+    if not season:
+        log.warning(
+            "Skip fixture %s: season information is missing.",
+            info.get("id"),
+        )
+        return []
+
     home_rates = team_goal_rates(
-        api, home["id"], before_date
+        api,
+        home["id"],
+        before_date,
+        season,
     )
+
     away_rates = team_goal_rates(
-        api, away["id"], before_date
+        api,
+        away["id"],
+        before_date,
+        season,
     )
 
     if not home_rates or not away_rates:
@@ -477,6 +638,10 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
     try:
         odds_data = api.fixture_odds(info["id"])
         odds_data = extract_odds(odds_data)
+
+    except (PlanAccessError, RateLimitError):
+        raise
+
     except ProviderError as exc:
         log.warning(
             "Odds unavailable for fixture %s: %s",
@@ -499,6 +664,7 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
     }
 
     for market, outcomes in grouped.items():
+
         if not required_outcomes[market].issubset(outcomes):
             continue
 
@@ -511,6 +677,7 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
             continue
 
         for selection, price in outcomes.items():
+
             probability = probabilities.get(
                 market, {}
             ).get(selection)
@@ -530,7 +697,8 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
                         f'{away.get("name")}'
                     ),
                     "league": league.get(
-                        "name", "Unknown league"
+                        "name",
+                        "Unknown league",
                     ),
                     "market": market,
                     "selection": selection,
@@ -548,14 +716,18 @@ def analyse_fixture(api: ApiFootball, fixture: dict):
 
     return candidates
 
+
 def scan_today():
+
     api = ApiFootball(API_KEY)
+
     today = datetime.now(LAGOS_TZ).date().isoformat()
 
     fixtures = api.fixtures(today)
     picks = []
 
     for fixture in fixtures:
+
         if (
             fixture.get("fixture", {})
             .get("status", {})
@@ -567,6 +739,11 @@ def scan_today():
             picks.extend(
                 analyse_fixture(api, fixture)
             )
+
+        except (PlanAccessError, RateLimitError):
+            # Account-level failures stop the entire scan.
+            raise
+
         except ProviderError as exc:
             log.warning(
                 "Skipping fixture due to provider error: %s",
@@ -582,6 +759,7 @@ def scan_today():
     used = set()
 
     for pick in picks:
+
         if pick["fixture_id"] in used:
             continue
 
@@ -592,6 +770,7 @@ def scan_today():
             break
 
     conn = db()
+
     scanned_at = datetime.now(timezone.utc).isoformat()
 
     for pick in selected:
@@ -622,12 +801,14 @@ def scan_today():
 
     return selected, len(fixtures)
 
+
 def fmt_report(picks, fixture_count):
+
     if not picks:
         return (
             "🛡️ *BET SQUAD — NO BET SLATE*\n\n"
-            f"Scanned {fixture_count} fixtures. No selection passed "
-            "the current data and edge filters.\n"
+            f"Scanned {fixture_count} fixtures. "
+            "No selection passed the current data and edge filters.\n"
             "No odds or predictions were invented."
         )
 
@@ -639,6 +820,7 @@ def fmt_report(picks, fixture_count):
     ]
 
     for i, pick in enumerate(picks, 1):
+
         lines.append(
             f"*{i}. {pick['fixture']}*\n"
             f"🏆 {pick['league']} | {pick['kickoff']}\n"
@@ -654,14 +836,16 @@ def fmt_report(picks, fixture_count):
         )
 
     lines.append(
-        "⚠️ Comparison odds are NOT SportyBet odds. Verify the exact "
-        "fixture, market, selection and current price on SportyBet. "
-        "Probabilities are estimates, not guarantees."
+        "⚠️ Comparison odds are NOT SportyBet odds. "
+        "Verify the exact fixture, market, selection and current "
+        "price on SportyBet. Probabilities are estimates, not guarantees."
     )
 
     return "\n".join(lines)
 
+
 def tg_call(method, payload=None):
+
     if not BOT_TOKEN:
         raise RuntimeError("BET_BOT_KEY is missing.")
 
@@ -672,6 +856,7 @@ def tg_call(method, payload=None):
     )
 
     response.raise_for_status()
+
     data = response.json()
 
     if not data.get("ok"):
@@ -679,7 +864,9 @@ def tg_call(method, payload=None):
 
     return data["result"]
 
+
 def send_message(chat_id, message):
+
     for start in range(0, len(message), 3900):
         tg_call(
             "sendMessage",
@@ -691,7 +878,9 @@ def send_message(chat_id, message):
             },
         )
 
+
 def subscribe(chat_id):
+
     conn = db()
 
     conn.execute(
@@ -706,7 +895,9 @@ def subscribe(chat_id):
     conn.commit()
     conn.close()
 
+
 def subscriber_ids():
+
     conn = db()
 
     ids = [
@@ -717,12 +908,16 @@ def subscriber_ids():
     ]
 
     conn.close()
+
     return ids
+
 
 def is_admin(chat_id):
     return bool(ADMIN_ID) and str(chat_id) == str(ADMIN_ID)
 
+
 def handle_update(update):
+
     message = (
         update.get("message")
         or update.get("edited_message")
@@ -732,6 +927,7 @@ def handle_update(update):
         return
 
     chat_id = message["chat"]["id"]
+
     command = (
         message["text"]
         .split()[0]
@@ -740,6 +936,7 @@ def handle_update(update):
     )
 
     if command in ("/start", "/join"):
+
         subscribe(chat_id)
 
         send_message(
@@ -753,6 +950,7 @@ def handle_update(update):
         )
 
     elif command == "/help":
+
         send_message(
             chat_id,
             "/today — run today's scan\n"
@@ -761,6 +959,7 @@ def handle_update(update):
         )
 
     elif command == "/status":
+
         send_message(
             chat_id,
             f"API key configured: {'yes' if bool(API_KEY) else 'no'}\n"
@@ -772,6 +971,7 @@ def handle_update(update):
         )
 
     elif command == "/today":
+
         send_message(
             chat_id,
             "Scanning today's fixtures and real bookmaker markets...",
@@ -779,12 +979,15 @@ def handle_update(update):
 
         try:
             picks, count = scan_today()
+
             send_message(
                 chat_id,
                 fmt_report(picks, count),
             )
+
         except Exception as exc:
             log.exception("Scan failed")
+
             send_message(
                 chat_id,
                 f"Scan failed safely: {str(exc)[:500]}\n"
@@ -792,6 +995,7 @@ def handle_update(update):
             )
 
     elif command == "/admin_broadcast" and is_admin(chat_id):
+
         try:
             picks, count = scan_today()
             report = fmt_report(picks, count)
@@ -799,6 +1003,7 @@ def handle_update(update):
             for subscriber in subscriber_ids():
                 try:
                     send_message(subscriber, report)
+
                 except Exception:
                     log.exception(
                         "Broadcast failed for %s",
@@ -811,7 +1016,9 @@ def handle_update(update):
                 f"Broadcast scan failed: {exc}",
             )
 
+
 def run_polling():
+
     if not BOT_TOKEN:
         raise RuntimeError("BET_BOT_KEY is missing.")
 
@@ -821,6 +1028,7 @@ def run_polling():
     log.info("BET SQUAD polling started")
 
     while True:
+
         try:
             params = {"timeout": 50}
 
@@ -830,6 +1038,7 @@ def run_polling():
             updates = tg_call("getUpdates", params)
 
             for update in updates:
+
                 offset = update["update_id"] + 1
 
                 conn = db()
@@ -855,7 +1064,9 @@ def run_polling():
             log.exception("Polling error; retrying")
             time.sleep(5)
 
+
 def main():
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -873,10 +1084,19 @@ def main():
     args = parser.parse_args()
 
     if args.scan:
-        picks, count = scan_today()
-        print(fmt_report(picks, count))
+
+        try:
+            picks, count = scan_today()
+            print(fmt_report(picks, count))
+
+        except ProviderError as exc:
+            log.error("Scan stopped safely: %s", exc)
+            print(f"BET SQUAD scan stopped safely: {exc}")
+            raise SystemExit(2)
+
     else:
         run_polling()
+
 
 if __name__ == "__main__":
     main()
