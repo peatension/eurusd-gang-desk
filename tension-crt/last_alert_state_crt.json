@@ -179,15 +179,15 @@
       "setup_uid": "USD/JPY|-1|2026-11-16 20:00|159.50156|159.36414",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 496,
-      "last_checked_time": "2026-11-16 21:15:00"
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-16 21:25:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-16T21:33:19.306051+00:00",
+  "last_scan_utc": "2026-11-16T21:37:27.141645+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
