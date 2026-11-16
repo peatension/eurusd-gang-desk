@@ -1,0 +1,40 @@
+name: BET SQUAD Historical Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Target history window in days (1-365)"
+        required: true
+        default: "90"
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: bet_squad/requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r bet_squad/requirements.txt
+      - name: Run backtest unit tests
+        run: python -m unittest discover -s bet_squad -p 'test_*.py' -v
+      - name: Run historical backtest
+        env:
+          BET_API: ${{ secrets.BET_API }}
+        run: python bet_squad/backtest.py --days "${{ inputs.days }}"
+      - name: Upload backtest report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bet-squad-backtest-report
+          path: bet_squad/backtest_output/
+          if-no-files-found: error
