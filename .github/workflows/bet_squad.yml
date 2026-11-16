@@ -1,40 +1,28 @@
-
-name: BET SQUAD Scan
+name: BET SQUAD Daily Scan
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 8 * * *" # 09:00 WAT
+    - cron: "0 8 * * *" # 09:00 Africa/Lagos
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: bet-squad-scan
-  cancel-in-progress: false
-
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: bet_squad/requirements.txt
-
       - name: Install dependencies
-        run: python -m pip install -r bet_squad/requirements.txt
-
-      - name: Run BET SQUAD scan
+        run: pip install requests
+      - name: Run data scan
         env:
           BET_API: ${{ secrets.BET_API }}
-          BET_BOOKMAKER_ID: "7"
-          BET_BOOKMAKER_NAME: "William Hill"
-        run: python bet_squad/bet_squad_bot.py --scan
+          BET_DB_PATH: /tmp/bet_squad.sqlite3
+          BET_MIN_EDGE: "0.04"
+          BET_MAX_SELECTIONS: "10"
+        run: python bet_squad_bot.py --scan
