@@ -90,12 +90,13 @@
     "fired:CRT 4H\u219230m CISD|USD/JPY|1|2026-11-16 16:00|CISD|entry:159390": "CRT 4H\u219230m CISD|USD/JPY|2026-11-16 16:00:00|1|CISD|entry:159390",
     "fired:CRT 1H\u219215m CISD|USD/JPY|1|2026-11-16 19:00|CISD|entry:159392": "CRT 1H\u219215m CISD|USD/JPY|2026-11-16 19:00:00|1|CISD|entry:159392",
     "fired:CRT 1H\u21925m MSS|EUR/USD|1|2026-11-16 20:00|MSS|entry:109967": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 20:00:00|1|MSS|entry:109967",
-    "setup_entry:EUR/USD|1|2026-11-16 20:00|1.10100|1.09967|entry:109967": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 20:00:00|1|MSS|entry:109967",
-    "setup_core:EUR/USD|1|2026-11-16 20:00": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 20:00:00|1|MSS|entry:109967",
+    "setup_entry:EUR/USD|1|2026-11-16 20:00|1.10100|1.09967|entry:109967": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 20:00:00|1|CISD|entry:109967",
+    "setup_core:EUR/USD|1|2026-11-16 20:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 20:00:00|1|CISD|entry:109967",
     "fired:CRT 1H\u21925m MSS|USD/JPY|-1|2026-11-16 20:00|MSS|entry:159502": "CRT 1H\u21925m MSS|USD/JPY|2026-11-16 20:00:00|-1|MSS|entry:159502",
     "setup_entry:USD/JPY|-1|2026-11-16 20:00|159.50156|159.36414|entry:159502": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 20:00:00|-1|CISD|entry:159502",
     "setup_core:USD/JPY|-1|2026-11-16 20:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 20:00:00|-1|CISD|entry:159502",
-    "fired:CRT 1H\u21925m CISD|USD/JPY|-1|2026-11-16 20:00|CISD|entry:159502": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 20:00:00|-1|CISD|entry:159502"
+    "fired:CRT 1H\u21925m CISD|USD/JPY|-1|2026-11-16 20:00|CISD|entry:159502": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 20:00:00|-1|CISD|entry:159502",
+    "fired:CRT 1H\u21925m CISD|EUR/USD|1|2026-11-16 20:00|CISD|entry:109967": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 20:00:00|1|CISD|entry:109967"
   },
   "pending": [
     {
@@ -138,7 +139,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-16 21:30:00"
+      "last_checked_time": "2026-11-16 21:35:00"
     },
     {
       "stream": "CRT 1H\u21925m MSS",
@@ -187,7 +188,7 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-16T21:43:15.320731+00:00",
+  "last_scan_utc": "2026-11-16T21:48:11.692011+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
