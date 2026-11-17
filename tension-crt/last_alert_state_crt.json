@@ -27,7 +27,7 @@
     "setup_entry:XAU/USD|-1|2026-11-16 08:00|3860.85479|3847.90815|entry:3860855": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 08:00:00|-1|CISD|entry:3860855",
     "setup_core:XAU/USD|-1|2026-11-16 08:00": "CRT 1H\u21925m CISD|XAU/USD|2026-11-16 08:00:00|-1|CISD|entry:3860855",
     "fired:CRT 1H\u21925m CISD|EUR/USD|-1|2026-11-16 08:00|CISD|entry:110244": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 08:00:00|-1|CISD|entry:110244",
-    "CRT 1H\u21925m CISD:EUR/USD": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 11:00:00|1|CISD|entry:109865",
+    "CRT 1H\u21925m CISD:EUR/USD": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD|entry:110132",
     "setup_entry:EUR/USD|-1|2026-11-16 08:00|1.10244|1.10110|entry:110244": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 08:00:00|-1|CISD|entry:110244",
     "setup_core:EUR/USD|-1|2026-11-16 08:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 08:00:00|-1|CISD|entry:110244",
     "fired:CRT 1H\u21925m CISD|USD/JPY|1|2026-11-16 08:00|CISD|entry:159372": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 08:00:00|1|CISD|entry:159372",
@@ -153,7 +153,10 @@
     "fired:CRT 1H\u219215m CISD|AUD/CHF|1|2026-11-17 17:00|CISD|entry:56472": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 17:00:00|1|CISD|entry:56472",
     "CRT 1H\u219215m CISD:AUD/CHF": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 17:00:00|1|CISD|entry:56472",
     "fired:CRT 1H\u219215m CISD|USD/JPY|1|2026-11-17 17:00|CISD|entry:159215": "CRT 1H\u219215m CISD|USD/JPY|2026-11-17 17:00:00|1|CISD|entry:159215",
-    "CRT 1H\u219215m CISD:USD/JPY": "CRT 1H\u219215m CISD|USD/JPY|2026-11-17 17:00:00|1|CISD|entry:159215"
+    "CRT 1H\u219215m CISD:USD/JPY": "CRT 1H\u219215m CISD|USD/JPY|2026-11-17 17:00:00|1|CISD|entry:159215",
+    "fired:CRT 1H\u21925m CISD|EUR/USD|1|2026-11-17 18:00|CISD|entry:110132": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD|entry:110132",
+    "setup_entry:EUR/USD|1|2026-11-17 18:00|1.10202|1.10132|entry:110132": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD|entry:110132",
+    "setup_core:EUR/USD|1|2026-11-17 18:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD|entry:110132"
   },
   "pending": [
     {
@@ -196,7 +199,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 18:30:00"
+      "last_checked_time": "2026-11-17 18:45:00"
     },
     {
       "stream": "CRT 4H\u219215m MSS",
@@ -238,14 +241,56 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 18:30:00"
+      "last_checked_time": "2026-11-17 18:45:00"
+    },
+    {
+      "stream": "CRT 1H\u21925m CISD",
+      "pair": "EUR/USD",
+      "ticket_id": "#TTD-0007",
+      "message_id": 2462,
+      "message_ids": {
+        "-1004423692487": 2462,
+        "6937879685": 4663,
+        "7080941387": 4664
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 1.10132,
+      "stop": 1.10109,
+      "tp1": 1.10167,
+      "tp2": 1.10202,
+      "rr1": 1.5217391304329777,
+      "rr2": 3.043478260866921,
+      "risk_pips": 2.300000000001745,
+      "tp1_pips": 3.4999999999985043,
+      "tp2_pips": 6.999999999999229,
+      "prop_stop": 1.10079,
+      "prop_risk_pips": 5.300000000001415,
+      "prop_buffer_pips": 3.0,
+      "crh": 1.10202,
+      "crl": 1.10132,
+      "mid": 1.10167,
+      "candle_time": "2026-11-17 18:45:00",
+      "c2_time": "2026-11-17 18:00:00",
+      "signal_sent": "2026-11-17T19:02:12.315410+00:00",
+      "session": "New York",
+      "c1_tf": "1h",
+      "ltf": "5min",
+      "entry_model": "CISD",
+      "candle_key": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD",
+      "setup_uid": "EUR/USD|1|2026-11-17 18:00|1.10202|1.10132",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 496,
+      "last_checked_time": "2026-11-17 18:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T18:57:12.906369+00:00",
+  "last_scan_utc": "2026-11-17T19:03:07.740915+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
