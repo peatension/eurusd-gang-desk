@@ -149,7 +149,9 @@
     "fired:CRT 1H\u21925m CISD|USD/JPY|1|2026-11-17 17:00|CISD|entry:159215": "CRT 1H\u21925m CISD|USD/JPY|2026-11-17 17:00:00|1|CISD|entry:159215",
     "fired:CRT 1H\u21925m CISD|AUD/CHF|1|2026-11-17 17:00|CISD|entry:56472": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 17:00:00|1|CISD|entry:56472",
     "fired:CRT 1H\u21925m MSS|USD/JPY|1|2026-11-17 17:00|MSS|entry:159215": "CRT 1H\u21925m MSS|USD/JPY|2026-11-17 17:00:00|1|MSS|entry:159215",
-    "fired:CRT 1H\u21925m MSS|AUD/CHF|1|2026-11-17 17:00|MSS|entry:56472": "CRT 1H\u21925m MSS|AUD/CHF|2026-11-17 17:00:00|1|MSS|entry:56472"
+    "fired:CRT 1H\u21925m MSS|AUD/CHF|1|2026-11-17 17:00|MSS|entry:56472": "CRT 1H\u21925m MSS|AUD/CHF|2026-11-17 17:00:00|1|MSS|entry:56472",
+    "fired:CRT 1H\u219215m CISD|AUD/CHF|1|2026-11-17 17:00|CISD|entry:56472": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 17:00:00|1|CISD|entry:56472",
+    "CRT 1H\u219215m CISD:AUD/CHF": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 17:00:00|1|CISD|entry:56472"
   },
   "pending": [
     {
@@ -234,14 +236,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 18:15:00"
+      "last_checked_time": "2026-11-17 18:30:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T18:43:11.169374+00:00",
+  "last_scan_utc": "2026-11-17T18:48:13.271004+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
