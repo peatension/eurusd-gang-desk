@@ -185,8 +185,8 @@
       "setup_uid": "USD/JPY|-1|2026-11-17 12:00|159.36954|158.86490",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 397,
-      "last_checked_time": "2026-11-17 15:30:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-17 15:45:00"
     },
     {
       "stream": "CRT 4H\u219215m MSS",
@@ -225,17 +225,17 @@
       "entry_model": "MSS",
       "candle_key": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-17 12:00:00|-1|MSS",
       "setup_uid": "AUD/CHF|-1|2026-11-17 12:00|0.56644|0.56386",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 397,
-      "last_checked_time": "2026-11-17 15:30:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-17 15:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T16:03:18.935322+00:00",
+  "last_scan_utc": "2026-11-17T16:07:09.837994+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
