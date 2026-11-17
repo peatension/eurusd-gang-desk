@@ -199,7 +199,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 18:45:00"
+      "last_checked_time": "2026-11-17 19:00:00"
     },
     {
       "stream": "CRT 4H\u219215m MSS",
@@ -242,55 +242,13 @@
       "tp1_hit": true,
       "last_checked_index": 398,
       "last_checked_time": "2026-11-17 19:00:00"
-    },
-    {
-      "stream": "CRT 1H\u21925m CISD",
-      "pair": "EUR/USD",
-      "ticket_id": "#TTD-0007",
-      "message_id": 2462,
-      "message_ids": {
-        "-1004423692487": 2462,
-        "6937879685": 4663,
-        "7080941387": 4664
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": 1,
-      "side": "BUY",
-      "entry": 1.10132,
-      "stop": 1.10109,
-      "tp1": 1.10167,
-      "tp2": 1.10202,
-      "rr1": 1.5217391304329777,
-      "rr2": 3.043478260866921,
-      "risk_pips": 2.300000000001745,
-      "tp1_pips": 3.4999999999985043,
-      "tp2_pips": 6.999999999999229,
-      "prop_stop": 1.10079,
-      "prop_risk_pips": 5.300000000001415,
-      "prop_buffer_pips": 3.0,
-      "crh": 1.10202,
-      "crl": 1.10132,
-      "mid": 1.10167,
-      "candle_time": "2026-11-17 18:45:00",
-      "c2_time": "2026-11-17 18:00:00",
-      "signal_sent": "2026-11-17T19:02:12.315410+00:00",
-      "session": "New York",
-      "c1_tf": "1h",
-      "ltf": "5min",
-      "entry_model": "CISD",
-      "candle_key": "CRT 1H\u21925m CISD|EUR/USD|2026-11-17 18:00:00|1|CISD",
-      "setup_uid": "EUR/USD|1|2026-11-17 18:00|1.10202|1.10132",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 498,
-      "last_checked_time": "2026-11-17 19:05:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T19:18:10.814655+00:00",
+  "last_scan_utc": "2026-11-17T19:23:27.765624+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
