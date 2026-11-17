@@ -11,7 +11,7 @@
     "setup_core:EUR/USD|1|2026-11-16 07:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 07:00:00|1|CISD|entry:110114",
     "fired:CRT 1H\u21925m CISD|EUR/USD|1|2026-11-16 07:00|CISD|entry:110114": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 07:00:00|1|CISD|entry:110114",
     "fired:CRT 1H\u21925m MSS|USD/JPY|1|2026-11-16 07:00|MSS|entry:159377": "CRT 1H\u21925m MSS|USD/JPY|2026-11-16 07:00:00|1|MSS|entry:159377",
-    "CRT 1H\u21925m MSS:USD/JPY": "CRT 1H\u21925m MSS|USD/JPY|2026-11-17 17:00:00|1|MSS|entry:159215",
+    "CRT 1H\u21925m MSS:USD/JPY": "CRT 1H\u21925m MSS|USD/JPY|2026-11-17 20:00:00|-1|MSS|entry:159378",
     "setup_entry:USD/JPY|1|2026-11-16 07:00|159.60684|159.37701|entry:159377": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 07:00:00|1|CISD|entry:159377",
     "setup_core:USD/JPY|1|2026-11-16 07:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 07:00:00|1|CISD|entry:159377",
     "fired:CRT 1H\u21925m CISD|USD/JPY|1|2026-11-16 07:00|CISD|entry:159377": "CRT 1H\u21925m CISD|USD/JPY|2026-11-16 07:00:00|1|CISD|entry:159377",
@@ -161,7 +161,11 @@
     "setup_entry:AUD/CHF|-1|2026-11-17 18:00|0.56586|0.56456|entry:56586": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 18:00:00|-1|CISD|entry:56586",
     "setup_core:AUD/CHF|-1|2026-11-17 18:00": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 18:00:00|-1|CISD|entry:56586",
     "fired:CRT 1H\u219215m CISD|AUD/CHF|-1|2026-11-17 18:00|CISD|entry:56586": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 18:00:00|-1|CISD|entry:56586",
-    "fired:CRT 1H\u21925m MSS|AUD/CHF|-1|2026-11-17 18:00|MSS|entry:56586": "CRT 1H\u21925m MSS|AUD/CHF|2026-11-17 18:00:00|-1|MSS|entry:56586"
+    "fired:CRT 1H\u21925m MSS|AUD/CHF|-1|2026-11-17 18:00|MSS|entry:56586": "CRT 1H\u21925m MSS|AUD/CHF|2026-11-17 18:00:00|-1|MSS|entry:56586",
+    "fired:CRT 1H\u21925m MSS|USD/JPY|-1|2026-11-17 20:00|MSS|entry:159378": "CRT 1H\u21925m MSS|USD/JPY|2026-11-17 20:00:00|-1|MSS|entry:159378",
+    "setup_entry:USD/JPY|-1|2026-11-17 20:00|159.37783|159.29915|entry:159378": "CRT 1H\u21925m CISD|USD/JPY|2026-11-17 20:00:00|-1|CISD|entry:159378",
+    "setup_core:USD/JPY|-1|2026-11-17 20:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-17 20:00:00|-1|CISD|entry:159378",
+    "fired:CRT 1H\u21925m CISD|USD/JPY|-1|2026-11-17 20:00|CISD|entry:159378": "CRT 1H\u21925m CISD|USD/JPY|2026-11-17 20:00:00|-1|CISD|entry:159378"
   },
   "pending": [
     {
@@ -204,7 +208,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 20:30:00"
+      "last_checked_time": "2026-11-17 20:45:00"
     },
     {
       "stream": "CRT 4H\u219215m MSS",
@@ -246,7 +250,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 20:30:00"
+      "last_checked_time": "2026-11-17 20:45:00"
     },
     {
       "stream": "CRT 1H\u21925m CISD",
@@ -288,14 +292,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-17 20:45:00"
+      "last_checked_time": "2026-11-17 20:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T20:57:25.810112+00:00",
+  "last_scan_utc": "2026-11-17T21:03:10.852913+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
