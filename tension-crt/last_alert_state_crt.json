@@ -204,7 +204,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 20:15:00"
+      "last_checked_time": "2026-11-17 20:30:00"
     },
     {
       "stream": "CRT 4H\u219215m MSS",
@@ -288,14 +288,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-17 20:40:00"
+      "last_checked_time": "2026-11-17 20:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T20:48:11.742136+00:00",
+  "last_scan_utc": "2026-11-17T20:53:15.121498+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
