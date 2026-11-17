@@ -2,7 +2,7 @@
   "version": 7,
   "last_alert_keys": {
     "fired:CRT 1H\u21925m CISD|AUD/CHF|-1|2026-11-16 06:00|CISD|entry:56734": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
-    "CRT 1H\u21925m CISD:AUD/CHF": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 12:00:00|1|CISD|entry:56552",
+    "CRT 1H\u21925m CISD:AUD/CHF": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 13:00:00|1|CISD|entry:56541",
     "setup_entry:AUD/CHF|-1|2026-11-16 06:00|0.56734|0.56599|entry:56734": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
     "setup_core:AUD/CHF|-1|2026-11-16 06:00": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
     "fired:CRT 1H\u21925m MSS|EUR/USD|1|2026-11-16 07:00|MSS|entry:110114": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 07:00:00|1|MSS|entry:110114",
@@ -126,7 +126,10 @@
     "setup_entry:AUD/CHF|1|2026-11-17 12:00|0.56644|0.56552|entry:56552": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 12:00:00|1|CISD|entry:56552",
     "setup_core:AUD/CHF|1|2026-11-17 12:00": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 12:00:00|1|CISD|entry:56552",
     "fired:CRT 1H\u21925m MSS|AUD/CHF|1|2026-11-17 12:00|MSS|entry:56552": "CRT 1H\u21925m MSS|AUD/CHF|2026-11-17 12:00:00|1|MSS|entry:56552",
-    "fired:CRT 1H\u219215m CISD|AUD/CHF|1|2026-11-17 12:00|CISD|entry:56552": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 12:00:00|1|CISD|entry:56552"
+    "fired:CRT 1H\u219215m CISD|AUD/CHF|1|2026-11-17 12:00|CISD|entry:56552": "CRT 1H\u219215m CISD|AUD/CHF|2026-11-17 12:00:00|1|CISD|entry:56552",
+    "fired:CRT 1H\u21925m CISD|AUD/CHF|1|2026-11-17 13:00|CISD|entry:56541": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 13:00:00|1|CISD|entry:56541",
+    "setup_entry:AUD/CHF|1|2026-11-17 13:00|0.56645|0.56541|entry:56541": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 13:00:00|1|CISD|entry:56541",
+    "setup_core:AUD/CHF|1|2026-11-17 13:00": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-17 13:00:00|1|CISD|entry:56541"
   },
   "pending": [
     {
@@ -169,14 +172,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-17 13:45:00"
+      "last_checked_time": "2026-11-17 13:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T13:57:27.746163+00:00",
+  "last_scan_utc": "2026-11-17T14:02:19.141730+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
