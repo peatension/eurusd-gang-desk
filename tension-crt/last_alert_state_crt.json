@@ -129,48 +129,6 @@
   },
   "pending": [
     {
-      "stream": "CRT 4H\u219215m MSS",
-      "pair": "EUR/USD",
-      "ticket_id": "#TTD-0003",
-      "message_id": 2456,
-      "message_ids": {
-        "-1004423692487": 2456,
-        "6937879685": 4650,
-        "7080941387": 4651
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": -1,
-      "side": "SELL",
-      "entry": 1.10084,
-      "stop": 1.10148,
-      "tp1": 1.09969,
-      "tp2": 1.09854,
-      "rr1": 1.7968750000000488,
-      "rr2": 3.5937500000000977,
-      "risk_pips": 6.399999999999739,
-      "tp1_pips": 11.499999999999844,
-      "tp2_pips": 22.999999999999687,
-      "prop_stop": 1.10178,
-      "prop_risk_pips": 9.399999999999409,
-      "prop_buffer_pips": 3.0,
-      "crh": 1.10084,
-      "crl": 1.09854,
-      "mid": 1.09969,
-      "candle_time": "2026-11-17 07:30:00",
-      "c2_time": "2026-11-17 04:00:00",
-      "signal_sent": "2026-11-17T08:02:13.290415+00:00",
-      "session": "London",
-      "c1_tf": "4h",
-      "ltf": "15min",
-      "entry_model": "MSS",
-      "candle_key": "CRT 4H\u219215m MSS|EUR/USD|2026-11-17 04:00:00|-1|MSS",
-      "setup_uid": "EUR/USD|-1|2026-11-17 04:00|1.10084|1.09854",
-      "status": "TP1_HIT",
-      "tp1_hit": true,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-11-17 13:00:00"
-    },
-    {
       "stream": "CRT 1H\u21925m CISD",
       "pair": "AUD/CHF",
       "ticket_id": "#TTD-0004",
@@ -210,14 +168,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-17 13:15:00"
+      "last_checked_time": "2026-11-17 13:25:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T13:27:22.557045+00:00",
+  "last_scan_utc": "2026-11-17T13:33:16.038974+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
