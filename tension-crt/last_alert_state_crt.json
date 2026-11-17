@@ -208,15 +208,15 @@
       "setup_uid": "AUD/CHF|1|2026-11-17 12:00|0.56644|0.56552",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 496,
-      "last_checked_time": "2026-11-17 12:45:00"
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-17 12:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-17T13:03:18.142937+00:00",
+  "last_scan_utc": "2026-11-17T13:07:26.413361+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
