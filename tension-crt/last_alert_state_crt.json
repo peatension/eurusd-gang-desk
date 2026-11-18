@@ -260,7 +260,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 16:55:00"
+      "last_checked_time": "2026-11-18 17:05:00"
     },
     {
       "stream": "CRT 1H\u21925m MSS",
@@ -299,17 +299,17 @@
       "entry_model": "MSS",
       "candle_key": "CRT 1H\u21925m MSS|EUR/USD|2026-11-18 16:00:00|1|MSS",
       "setup_uid": "EUR/USD|1|2026-11-18 16:00|1.09777|1.09625",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 16:55:00"
+      "last_checked_time": "2026-11-18 17:00:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T17:07:10.374383+00:00",
+  "last_scan_utc": "2026-11-18T17:13:16.885437+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
