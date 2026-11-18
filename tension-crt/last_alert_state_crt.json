@@ -294,15 +294,15 @@
       "setup_uid": "AUD/CHF|1|2026-11-18 15:00|0.56745|0.56593",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 497,
-      "last_checked_time": "2026-11-18 15:50:00"
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-18 15:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T16:03:22.077576+00:00",
+  "last_scan_utc": "2026-11-18T16:07:11.009557+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
