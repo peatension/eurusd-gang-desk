@@ -258,10 +258,10 @@
       "entry_model": "CISD",
       "candle_key": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-18 15:00:00|1|CISD",
       "setup_uid": "AUD/CHF|1|2026-11-18 15:00|0.56745|0.56593",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 17:25:00"
+      "last_checked_time": "2026-11-18 17:35:00"
     },
     {
       "stream": "CRT 1H\u21925m MSS",
@@ -303,14 +303,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 17:25:00"
+      "last_checked_time": "2026-11-18 17:35:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T17:37:25.498752+00:00",
+  "last_scan_utc": "2026-11-18T17:43:30.087039+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
