@@ -199,14 +199,15 @@
     "fired:CRT 1H\u219215m CISD|EUR/USD|-1|2026-11-18 10:00|CISD|entry:109762": "CRT 1H\u219215m CISD|EUR/USD|2026-11-18 10:00:00|-1|CISD|entry:109762",
     "fired:CRT 1H\u21925m CISD|USD/JPY|1|2026-11-18 13:00|CISD|entry:159346": "CRT 1H\u21925m CISD|USD/JPY|2026-11-18 13:00:00|1|CISD|entry:159346",
     "setup_entry:USD/JPY|1|2026-11-18 13:00|159.47975|159.34628|entry:159346": "CRT 1H\u21925m CISD|USD/JPY|2026-11-18 13:00:00|1|CISD|entry:159346",
-    "setup_core:USD/JPY|1|2026-11-18 13:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-18 13:00:00|1|CISD|entry:159346"
+    "setup_core:USD/JPY|1|2026-11-18 13:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-18 13:00:00|1|CISD|entry:159346",
+    "fired:CRT 1H\u219215m CISD|USD/JPY|1|2026-11-18 13:00|CISD|entry:159346": "CRT 1H\u219215m CISD|USD/JPY|2026-11-18 13:00:00|1|CISD|entry:159346"
   },
   "pending": [],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T14:48:12.167768+00:00",
+  "last_scan_utc": "2026-11-18T14:53:15.044231+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
