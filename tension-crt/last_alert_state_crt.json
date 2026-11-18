@@ -215,48 +215,6 @@
   "pending": [
     {
       "stream": "CRT 1H\u21925m CISD",
-      "pair": "EUR/USD",
-      "ticket_id": "#TTD-0012",
-      "message_id": 2474,
-      "message_ids": {
-        "-1004423692487": 2474,
-        "6937879685": 4687,
-        "7080941387": 4688
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": 1,
-      "side": "BUY",
-      "entry": 1.0966,
-      "stop": 1.0960999999999999,
-      "tp1": 1.09738,
-      "tp2": 1.09816,
-      "rr1": 1.559999999999485,
-      "rr2": 3.11999999999897,
-      "risk_pips": 5.00000000000167,
-      "tp1_pips": 7.800000000000029,
-      "tp2_pips": 15.600000000000058,
-      "prop_stop": 1.0957999999999999,
-      "prop_risk_pips": 8.00000000000134,
-      "prop_buffer_pips": 3.0,
-      "crh": 1.09816,
-      "crl": 1.0966,
-      "mid": 1.09738,
-      "candle_time": "2026-11-18 15:55:00",
-      "c2_time": "2026-11-18 15:00:00",
-      "signal_sent": "2026-11-18T16:02:15.447011+00:00",
-      "session": "London/NY Overlap",
-      "c1_tf": "1h",
-      "ltf": "5min",
-      "entry_model": "CISD",
-      "candle_key": "CRT 1H\u21925m CISD|EUR/USD|2026-11-18 15:00:00|1|CISD",
-      "setup_uid": "EUR/USD|1|2026-11-18 15:00|1.09816|1.09660",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 16:35:00"
-    },
-    {
-      "stream": "CRT 1H\u21925m CISD",
       "pair": "AUD/CHF",
       "ticket_id": "#TTD-0013",
       "message_id": 2475,
@@ -295,14 +253,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 16:40:00"
+      "last_checked_time": "2026-11-18 16:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T16:48:10.955586+00:00",
+  "last_scan_utc": "2026-11-18T16:53:18.517323+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
