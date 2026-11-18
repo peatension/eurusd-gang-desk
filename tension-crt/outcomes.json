@@ -286,5 +286,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0014",
+    "stream": "CRT 1H\u21925m MSS",
+    "pair": "EUR/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 4.342857142856146,
+    "exit_time": "2026-11-18 18:05:00",
+    "entry": 1.09625,
+    "stop": 1.0958999999999999,
+    "tp1": 1.09701,
+    "tp2": 1.09777,
+    "rr1": 2.17142857142839,
+    "rr2": 4.342857142856146,
+    "candle_time": "2026-11-18 16:50:00",
+    "signal_sent": "2026-11-18T17:02:19.804958+00:00",
+    "session": "New York",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MSS"
   }
 ]
