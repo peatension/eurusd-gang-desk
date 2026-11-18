@@ -261,17 +261,17 @@
       "entry_model": "MSS",
       "candle_key": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-18 04:00:00|1|MSS",
       "setup_uid": "AUD/CHF|1|2026-11-18 04:00|0.56718|0.56458",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-18 07:45:00"
+      "last_checked_time": "2026-11-18 08:00:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T08:13:17.659157+00:00",
+  "last_scan_utc": "2026-11-18T08:18:08.658313+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
