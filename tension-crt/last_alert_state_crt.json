@@ -274,7 +274,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-18 10:15:00"
+      "last_checked_time": "2026-11-18 10:30:00"
     },
     {
       "stream": "CRT 1H\u21925m CISD",
@@ -316,14 +316,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-18 10:35:00"
+      "last_checked_time": "2026-11-18 10:40:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T10:43:13.657583+00:00",
+  "last_scan_utc": "2026-11-18T10:48:25.877823+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
