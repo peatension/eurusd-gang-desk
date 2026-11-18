@@ -139,7 +139,7 @@
     "fired:CRT 4H\u219215m CISD|USD/JPY|-1|2026-11-17 12:00|CISD|entry:159370": "CRT 4H\u219215m CISD|USD/JPY|2026-11-17 12:00:00|-1|CISD|entry:159370",
     "fired:CRT 4H\u219230m CISD|USD/JPY|-1|2026-11-17 12:00|CISD|entry:159370": "CRT 4H\u219230m CISD|USD/JPY|2026-11-17 12:00:00|-1|CISD|entry:159370",
     "fired:CRT 4H\u219215m MSS|AUD/CHF|-1|2026-11-17 12:00|MSS|entry:56644": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-17 12:00:00|-1|MSS|entry:56644",
-    "CRT 4H\u219215m MSS:AUD/CHF": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-17 12:00:00|-1|MSS|entry:56644",
+    "CRT 4H\u219215m MSS:AUD/CHF": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-18 04:00:00|1|MSS|entry:56458",
     "setup_entry:AUD/CHF|-1|2026-11-17 12:00|0.56644|0.56386|entry:56644": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-17 12:00:00|-1|CISD|entry:56644",
     "setup_core:AUD/CHF|-1|2026-11-17 12:00": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-17 12:00:00|-1|CISD|entry:56644",
     "fired:CRT 4H\u219215m CISD|AUD/CHF|-1|2026-11-17 12:00|CISD|entry:56644": "CRT 4H\u219215m CISD|AUD/CHF|2026-11-17 12:00:00|-1|CISD|entry:56644",
@@ -175,7 +175,11 @@
     "setup_entry:AUD/CHF|1|2026-11-18 00:00|0.56742|0.56513|entry:56513": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-18 00:00:00|1|CISD|entry:56513",
     "setup_core:AUD/CHF|1|2026-11-18 00:00": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-18 00:00:00|1|CISD|entry:56513",
     "fired:CRT 1H\u21925m MSS|USD/JPY|-1|2026-11-18 06:00|MSS|entry:159337": "CRT 1H\u21925m MSS|USD/JPY|2026-11-18 06:00:00|-1|MSS|entry:159337",
-    "fired:CRT 1H\u219215m CISD|USD/JPY|-1|2026-11-18 06:00|CISD|entry:159337": "CRT 1H\u219215m CISD|USD/JPY|2026-11-18 06:00:00|-1|CISD|entry:159337"
+    "fired:CRT 1H\u219215m CISD|USD/JPY|-1|2026-11-18 06:00|CISD|entry:159337": "CRT 1H\u219215m CISD|USD/JPY|2026-11-18 06:00:00|-1|CISD|entry:159337",
+    "fired:CRT 4H\u219215m MSS|AUD/CHF|1|2026-11-18 04:00|MSS|entry:56458": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-18 04:00:00|1|MSS|entry:56458",
+    "setup_entry:AUD/CHF|1|2026-11-18 04:00|0.56718|0.56458|entry:56458": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-18 04:00:00|1|CISD|entry:56458",
+    "setup_core:AUD/CHF|1|2026-11-18 04:00": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-18 04:00:00|1|CISD|entry:56458",
+    "fired:CRT 4H\u219230m CISD|AUD/CHF|1|2026-11-18 04:00|CISD|entry:56458": "CRT 4H\u219230m CISD|AUD/CHF|2026-11-18 04:00:00|1|CISD|entry:56458"
   },
   "pending": [
     {
@@ -218,14 +222,56 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-18 07:00:00"
+      "last_checked_time": "2026-11-18 07:30:00"
+    },
+    {
+      "stream": "CRT 4H\u219215m MSS",
+      "pair": "AUD/CHF",
+      "ticket_id": "#TTD-0010",
+      "message_id": 2469,
+      "message_ids": {
+        "-1004423692487": 2469,
+        "6937879685": 4677,
+        "7080941387": 4678
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 0.56458,
+      "stop": 0.56437,
+      "tp1": 0.5658799999999999,
+      "tp2": 0.56718,
+      "rr1": 6.190476190478028,
+      "rr2": 12.380952380956586,
+      "risk_pips": 2.0999999999993246,
+      "tp1_pips": 12.999999999999678,
+      "tp2_pips": 26.000000000000465,
+      "prop_stop": 0.5640700000000001,
+      "prop_risk_pips": 5.099999999998994,
+      "prop_buffer_pips": 3.0,
+      "crh": 0.56718,
+      "crl": 0.56458,
+      "mid": 0.5658799999999999,
+      "candle_time": "2026-11-18 07:45:00",
+      "c2_time": "2026-11-18 04:00:00",
+      "signal_sent": "2026-11-18T08:03:22.933260+00:00",
+      "session": "London",
+      "c1_tf": "4h",
+      "ltf": "15min",
+      "entry_model": "MSS",
+      "candle_key": "CRT 4H\u219215m MSS|AUD/CHF|2026-11-18 04:00:00|1|MSS",
+      "setup_uid": "AUD/CHF|1|2026-11-18 04:00|0.56718|0.56458",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-18 07:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-18T07:57:23.024363+00:00",
+  "last_scan_utc": "2026-11-18T08:03:25.134936+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
