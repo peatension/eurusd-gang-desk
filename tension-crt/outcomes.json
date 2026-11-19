@@ -334,5 +334,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0015",
+    "stream": "CRT 1H\u21925m MSS",
+    "pair": "XAU/USD",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 8.615446083271902,
+    "exit_time": "2026-11-19 09:20:00",
+    "entry": 3741.26371,
+    "stop": 3742.64028875,
+    "tp1": 3735.33379,
+    "tp2": 3729.40387,
+    "rr1": 4.307723041635951,
+    "rr2": 8.615446083271902,
+    "candle_time": "2026-11-19 08:40:00",
+    "signal_sent": "2026-11-19T09:02:10.514428+00:00",
+    "session": "London",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MSS"
   }
 ]
