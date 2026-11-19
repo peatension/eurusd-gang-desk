@@ -6,7 +6,7 @@
     "setup_entry:AUD/CHF|-1|2026-11-16 06:00|0.56734|0.56599|entry:56734": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
     "setup_core:AUD/CHF|-1|2026-11-16 06:00": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
     "fired:CRT 1H\u21925m MSS|EUR/USD|1|2026-11-16 07:00|MSS|entry:110114": "CRT 1H\u21925m MSS|EUR/USD|2026-11-16 07:00:00|1|MSS|entry:110114",
-    "CRT 1H\u21925m MSS:EUR/USD": "CRT 1H\u21925m MSS|EUR/USD|2026-11-19 16:00:00|1|MSS|entry:109748",
+    "CRT 1H\u21925m MSS:EUR/USD": "CRT 1H\u21925m MSS|EUR/USD|2026-11-19 18:00:00|-1|MSS|entry:109829",
     "setup_entry:EUR/USD|1|2026-11-16 07:00|1.10244|1.10114|entry:110114": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 07:00:00|1|CISD|entry:110114",
     "setup_core:EUR/USD|1|2026-11-16 07:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 07:00:00|1|CISD|entry:110114",
     "fired:CRT 1H\u21925m CISD|EUR/USD|1|2026-11-16 07:00|CISD|entry:110114": "CRT 1H\u21925m CISD|EUR/USD|2026-11-16 07:00:00|1|CISD|entry:110114",
@@ -282,7 +282,8 @@
     "fired:CRT 1H\u21925m CISD|EUR/USD|-1|2026-11-19 18:00|CISD|entry:109829": "CRT 1H\u21925m CISD|EUR/USD|2026-11-19 18:00:00|-1|CISD|entry:109829",
     "fired:CRT 1H\u21925m CISD|USD/JPY|-1|2026-11-19 18:00|CISD|entry:159850": "CRT 1H\u21925m CISD|USD/JPY|2026-11-19 18:00:00|-1|CISD|entry:159850",
     "setup_entry:USD/JPY|-1|2026-11-19 18:00|159.85047|159.64522|entry:159850": "CRT 1H\u21925m CISD|USD/JPY|2026-11-19 18:00:00|-1|CISD|entry:159850",
-    "setup_core:USD/JPY|-1|2026-11-19 18:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-19 18:00:00|-1|CISD|entry:159850"
+    "setup_core:USD/JPY|-1|2026-11-19 18:00": "CRT 1H\u21925m CISD|USD/JPY|2026-11-19 18:00:00|-1|CISD|entry:159850",
+    "fired:CRT 1H\u21925m MSS|EUR/USD|-1|2026-11-19 18:00|MSS|entry:109829": "CRT 1H\u21925m MSS|EUR/USD|2026-11-19 18:00:00|-1|MSS|entry:109829"
   },
   "pending": [
     {
@@ -325,14 +326,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-19 19:00:00"
+      "last_checked_time": "2026-11-19 19:05:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-19T19:13:18.240426+00:00",
+  "last_scan_utc": "2026-11-19T19:18:13.852651+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
