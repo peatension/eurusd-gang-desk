@@ -310,5 +310,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "MSS"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0013",
+    "stream": "CRT 1H\u21925m CISD",
+    "pair": "AUD/CHF",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-19 00:30:00",
+    "entry": 0.56593,
+    "stop": 0.56545,
+    "tp1": 0.56669,
+    "tp2": 0.56745,
+    "rr1": 1.5833333333331792,
+    "rr2": 3.1666666666663583,
+    "candle_time": "2026-11-18 15:50:00",
+    "signal_sent": "2026-11-18T16:03:19.514029+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "CISD"
   }
 ]
