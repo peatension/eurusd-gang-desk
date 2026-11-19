@@ -312,14 +312,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-19 17:40:00"
+      "last_checked_time": "2026-11-19 17:45:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-19T17:53:15.758216+00:00",
+  "last_scan_utc": "2026-11-19T17:57:27.427844+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
