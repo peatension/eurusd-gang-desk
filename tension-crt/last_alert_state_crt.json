@@ -309,15 +309,15 @@
       "setup_uid": "EUR/USD|1|2026-11-19 16:00|1.09946|1.09748",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 495,
-      "last_checked_time": "2026-11-19 16:40:00"
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-19 16:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-19T17:03:17.770772+00:00",
+  "last_scan_utc": "2026-11-19T17:07:26.628814+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
