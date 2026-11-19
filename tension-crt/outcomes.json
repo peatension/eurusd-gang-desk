@@ -358,5 +358,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "MSS"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0017",
+    "stream": "CRT 1H\u21925m MSS",
+    "pair": "USD/JPY",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 4.79037610619415,
+    "exit_time": "2026-11-19 14:15:00",
+    "entry": 159.97561,
+    "stop": 159.99369,
+    "tp1": 159.93230499999999,
+    "tp2": 159.889,
+    "rr1": 2.395188053097861,
+    "rr2": 4.79037610619415,
+    "candle_time": "2026-11-19 13:50:00",
+    "signal_sent": "2026-11-19T14:03:15.870362+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MSS"
   }
 ]
