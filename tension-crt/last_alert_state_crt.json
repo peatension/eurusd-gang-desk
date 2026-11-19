@@ -277,7 +277,8 @@
     "setup_entry:EUR/USD|1|2026-11-19 17:00|1.09843|1.09734|entry:109734": "CRT 1H\u21925m CISD|EUR/USD|2026-11-19 17:00:00|1|CISD|entry:109734",
     "setup_core:EUR/USD|1|2026-11-19 17:00": "CRT 1H\u21925m CISD|EUR/USD|2026-11-19 17:00:00|1|CISD|entry:109734",
     "fired:CRT 1H\u21925m MSS|XAU/USD|1|2026-11-19 17:00|MSS|entry:3672420": "CRT 1H\u21925m MSS|XAU/USD|2026-11-19 17:00:00|1|MSS|entry:3672420",
-    "fired:CRT 1H\u21925m MSS|EUR/USD|1|2026-11-19 17:00|MSS|entry:109734": "CRT 1H\u21925m MSS|EUR/USD|2026-11-19 17:00:00|1|MSS|entry:109734"
+    "fired:CRT 1H\u21925m MSS|EUR/USD|1|2026-11-19 17:00|MSS|entry:109734": "CRT 1H\u21925m MSS|EUR/USD|2026-11-19 17:00:00|1|MSS|entry:109734",
+    "fired:CRT 1H\u219215m CISD|EUR/USD|1|2026-11-19 17:00|CISD|entry:109734": "CRT 1H\u219215m CISD|EUR/USD|2026-11-19 17:00:00|1|CISD|entry:109734"
   },
   "pending": [
     {
@@ -320,14 +321,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-19 18:35:00"
+      "last_checked_time": "2026-11-19 18:40:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-19T18:48:28.544888+00:00",
+  "last_scan_utc": "2026-11-19T18:53:17.724429+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
