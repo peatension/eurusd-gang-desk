@@ -329,17 +329,17 @@
       "entry_model": "MSS",
       "candle_key": "CRT 1H\u21925m MSS|USD/JPY|2026-11-19 13:00:00|-1|MSS",
       "setup_uid": "USD/JPY|-1|2026-11-19 13:00|159.97561|159.88900",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 497,
-      "last_checked_time": "2026-11-19 13:50:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-19 13:55:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-19T14:03:20.119680+00:00",
+  "last_scan_utc": "2026-11-19T14:07:08.058837+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
