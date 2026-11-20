@@ -1,27 +1,12 @@
 """
 TENSION CRT — single engine (no 3C, no desk_runner, no live_slim)
 
-Pairs: XAU/USD | EUR/USD | USD/JPY | AUD/CHF
-Streams: MSS + CISD on 1H→15m/5m and 4H→15m/30m
-Core: C1 + C2 sweep/close-inside | TP1=50% | TP2=opposite | no BE
+Six-type research lock (2026-11-20):
+  WR >= 45% | +W 3/3 | n >= 15 | MULTIPLE removed
+  Types: CLASSIC | TWO_CANDLE | DOUBLE_PURGE | INSIDE_BAR | CONTINUATION
+  Entries: PLAIN | TS | MODEL1 | MSS | CISD (cell-locked)
+Core: range + one-sided reclaim | TP1=50% | TP2=opposite | no BE
 State: tension-crt/last_alert_state_crt.json
-"""
-"""
-TENSION TRADING DESK — CRT PLAIN (set 1)
-=======================================
-Pairs: EUR/USD | AUD/USD | USD/CHF | EUR/JPY
-
-Streams (Telegram: CRT …):
-  PLAIN + TS + MSS on all 5 HTF→LTF
-  MODEL1 on 1H→15m, 1H→5m, 30MIN→5m, 4H→15m
-
-Core: C1 + C2 close inside | LTF entry | TP1 mid | TP2 opposite | no BE
-
-Features:
-  Dual times (setup candle + signal sent, WAT+UTC)
-  Same-message edit ACTIVE → TP1 HIT → WIN/LOSS (+ fallback broadcast)
-  Multi-chat message_ids | Weekend LIMIT / ENTRY PENDING
-  WAT reports once | Infra from 3c_model.py
 """
 
 import os
@@ -55,41 +40,69 @@ STATE_FILE = str(_HERE / "last_alert_state_crt.json")
 
 
 # STATE_FILE set relative to engine dir after desk import
-STATE_VERSION = 7
+STATE_VERSION = 9  # six-type WR>=45% 3/3 n>=15 lock (2026-11-20)
 MIN_RR = 1.5
 OUTCOMES_ENGINE = "CRT_PLAIN"
 REPORT_WINDOW_MIN = 12
 
 PAIRS = desk.PAIRS
 
-# Full engine (kept intact). Live credit budget uses live_slim.py override.
-CORE_PAIRS = ["XAU/USD", "EUR/USD", "USD/JPY", "AUD/CHF"]
+CORE_PAIRS = ["XAU/USD", "EUR/USD", "USD/JPY", "AUD/CHF", "GBP/USD"]
 
-# Entry models on HTF anchors: MSS + CISD preferred (PLAIN weak live).
-# Daily / Weekly / Monthly HTF added (MSS+CISD only).
+# --- Six-type lock: WR>=45% | 3/3 | n>=15 | MULTIPLE out ---
+# tuple: (htf, ltf, entry_model, crt_type)
 STREAMS = {
-    "CRT 1H→15m MSS":  ("1h", "15min", "MSS"),
-    "CRT 1H→15m CISD": ("1h", "15min", "CISD"),
-    "CRT 1H→5m MSS":   ("1h", "5min", "MSS"),
-    "CRT 1H→5m CISD":  ("1h", "5min", "CISD"),
-    "CRT 4H→15m MSS":  ("4h", "15min", "MSS"),
-    "CRT 4H→15m CISD": ("4h", "15min", "CISD"),
-    "CRT 4H→30m MSS":  ("4h", "30min", "MSS"),
-    "CRT 4H→30m CISD": ("4h", "30min", "CISD"),
+    "CRT 4H→5m DOUBLE_PURGE MODEL1": ("4h", "5min", "MODEL1", "DOUBLE_PURGE"),
+    "CRT 1H→15m DOUBLE_PURGE CISD": ("1h", "15min", "CISD", "DOUBLE_PURGE"),
+    "CRT 1H→5m DOUBLE_PURGE CISD": ("1h", "5min", "CISD", "DOUBLE_PURGE"),
+    "CRT 4H→5m TWO_CANDLE MSS": ("4h", "5min", "MSS", "TWO_CANDLE"),
+    "CRT 4H→15m DOUBLE_PURGE CISD": ("4h", "15min", "CISD", "DOUBLE_PURGE"),
+    "CRT 1H→5m CONTINUATION PLAIN": ("1h", "5min", "PLAIN", "CONTINUATION"),
+    "CRT 1H→15m DOUBLE_PURGE PLAIN": ("1h", "15min", "PLAIN", "DOUBLE_PURGE"),
+    "CRT 1H→5m DOUBLE_PURGE MODEL1": ("1h", "5min", "MODEL1", "DOUBLE_PURGE"),
+    "CRT 1H→5m DOUBLE_PURGE TS": ("1h", "5min", "TS", "DOUBLE_PURGE"),
+    "CRT 4H→15m DOUBLE_PURGE PLAIN": ("4h", "15min", "PLAIN", "DOUBLE_PURGE"),
+    "CRT 1H→15m CONTINUATION MODEL1": ("1h", "15min", "MODEL1", "CONTINUATION"),
+    "CRT 1H→5m INSIDE_BAR MODEL1": ("1h", "5min", "MODEL1", "INSIDE_BAR"),
+    "CRT 1H→15m INSIDE_BAR CISD": ("1h", "15min", "CISD", "INSIDE_BAR"),
+    "CRT 1H→5m DOUBLE_PURGE PLAIN": ("1h", "5min", "PLAIN", "DOUBLE_PURGE"),
+    "CRT 4H→15m CONTINUATION PLAIN": ("4h", "15min", "PLAIN", "CONTINUATION"),
+    "CRT 1H→15m CONTINUATION PLAIN": ("1h", "15min", "PLAIN", "CONTINUATION"),
+    "CRT 1H→15m INSIDE_BAR MSS": ("1h", "15min", "MSS", "INSIDE_BAR"),
+    "CRT 1H→15m CLASSIC MSS": ("1h", "15min", "MSS", "CLASSIC"),
+    "CRT 1H→5m CONTINUATION CISD": ("1h", "5min", "CISD", "CONTINUATION"),
+    "CRT 1H→5m CLASSIC PLAIN": ("1h", "5min", "PLAIN", "CLASSIC"),
+    "CRT 1H→5m TWO_CANDLE CISD": ("1h", "5min", "CISD", "TWO_CANDLE"),
+    "CRT 1H→15m INSIDE_BAR PLAIN": ("1h", "15min", "PLAIN", "INSIDE_BAR"),
+    "CRT 1H→5m CONTINUATION TS": ("1h", "5min", "TS", "CONTINUATION"),
+    "CRT 4H→15m CLASSIC PLAIN": ("4h", "15min", "PLAIN", "CLASSIC"),
 }
 
-
-FX4 = ["EUR/USD", "AUD/USD", "USD/CHF", "EUR/JPY"]
-FX6 = FX4 + ["AUD/JPY", "XAU/USD"]
 STREAM_PAIRS = {
-    "CRT 1H→15m MSS":  CORE_PAIRS,
-    "CRT 1H→15m CISD": CORE_PAIRS,
-    "CRT 1H→5m MSS":   CORE_PAIRS,
-    "CRT 1H→5m CISD":  CORE_PAIRS,
-    "CRT 4H→15m MSS":  CORE_PAIRS,
-    "CRT 4H→15m CISD": CORE_PAIRS,
-    "CRT 4H→30m MSS":  CORE_PAIRS,
-    "CRT 4H→30m CISD": CORE_PAIRS,
+    "CRT 4H→5m DOUBLE_PURGE MODEL1": ["USD/JPY"],
+    "CRT 1H→15m DOUBLE_PURGE CISD": ["EUR/USD"],
+    "CRT 1H→5m DOUBLE_PURGE CISD": ["USD/JPY"],
+    "CRT 4H→5m TWO_CANDLE MSS": ["XAU/USD"],
+    "CRT 4H→15m DOUBLE_PURGE CISD": ["EUR/USD", "GBP/USD", "USD/JPY"],
+    "CRT 1H→5m CONTINUATION PLAIN": ["GBP/USD"],
+    "CRT 1H→15m DOUBLE_PURGE PLAIN": ["AUD/CHF", "EUR/USD", "GBP/USD", "USD/JPY", "XAU/USD"],
+    "CRT 1H→5m DOUBLE_PURGE MODEL1": ["USD/JPY"],
+    "CRT 1H→5m DOUBLE_PURGE TS": ["GBP/USD", "USD/JPY"],
+    "CRT 4H→15m DOUBLE_PURGE PLAIN": ["EUR/USD"],
+    "CRT 1H→15m CONTINUATION MODEL1": ["GBP/USD"],
+    "CRT 1H→5m INSIDE_BAR MODEL1": ["USD/JPY"],
+    "CRT 1H→15m INSIDE_BAR CISD": ["EUR/USD"],
+    "CRT 1H→5m DOUBLE_PURGE PLAIN": ["GBP/USD", "USD/JPY"],
+    "CRT 4H→15m CONTINUATION PLAIN": ["USD/JPY"],
+    "CRT 1H→15m CONTINUATION PLAIN": ["GBP/USD"],
+    "CRT 1H→15m INSIDE_BAR MSS": ["EUR/USD"],
+    "CRT 1H→15m CLASSIC MSS": ["AUD/CHF"],
+    "CRT 1H→5m CONTINUATION CISD": ["GBP/USD"],
+    "CRT 1H→5m CLASSIC PLAIN": ["XAU/USD"],
+    "CRT 1H→5m TWO_CANDLE CISD": ["AUD/CHF"],
+    "CRT 1H→15m INSIDE_BAR PLAIN": ["EUR/USD"],
+    "CRT 1H→5m CONTINUATION TS": ["GBP/USD"],
+    "CRT 4H→15m CLASSIC PLAIN": ["USD/JPY"],
 }
 
 
@@ -484,32 +497,194 @@ def in_wat_send_window(hour, minute, width_min=REPORT_WINDOW_MIN):
 # CRT STRATEGY
 # ============================================================
 
-def find_setup(htf, pip):
-    """Latest closed C2: sweep C1 + close back inside. C2 must be closed.
-    Expects drop_forming_bar already applied (last row = last closed candle).
-    """
+def _one_sided_reclaim(bar, crh, crl):
+    """One-sided sweep + close back inside. Both-side sweeps invalid."""
+    hi, lo, cl = float(bar["high"]), float(bar["low"]), float(bar["close"])
+    inside = crl < cl < crh
+    if not inside:
+        return None, None
+    low_s, high_s = lo < crl, hi > crh
+    if low_s and not high_s:
+        return 1, lo
+    if high_s and not low_s:
+        return -1, hi
+    return None, None
+
+
+def _pack_setup(d, crh, crl, extreme, c2_time, ctype):
+    return {
+        "crh": float(crh), "crl": float(crl), "mid": 0.5 * (float(crh) + float(crl)),
+        "extreme": float(extreme), "direction": int(d),
+        "c2_time": str(c2_time), "crt_type": ctype,
+    }
+
+
+def find_setup_classic(htf, pip):
+    """Classic: C1 range, C2 one-sided sweep + close inside (latest closed only)."""
     if htf is None or len(htf) < 5:
         return None
-    c2 = htf.iloc[-1]
-    c1 = htf.iloc[-2]
-    crh = float(c1["high"])
-    crl = float(c1["low"])
-    mid = (crh + crl) / 2.0
+    c2, c1 = htf.iloc[-1], htf.iloc[-2]
+    crh, crl = float(c1["high"]), float(c1["low"])
     if crh - crl < 5 * pip:
         return None
-    if float(c2["low"]) < crl and crl < float(c2["close"]) < crh:
-        return {
-            "crh": crh, "crl": crl, "mid": mid,
-            "extreme": float(c2["low"]), "direction": 1,
-            "c2_time": str(c2["datetime"]),
-        }
-    if float(c2["high"]) > crh and crl < float(c2["close"]) < crh:
-        return {
-            "crh": crh, "crl": crl, "mid": mid,
-            "extreme": float(c2["high"]), "direction": -1,
-            "c2_time": str(c2["datetime"]),
-        }
+    d, ext = _one_sided_reclaim(c2, crh, crl)
+    if d is None:
+        return None
+    return _pack_setup(d, crh, crl, ext, c2["datetime"], "CLASSIC")
+
+
+def find_setup_two_candle(htf, pip):
+    """Two consecutive closed candles form range; next bar reclaim."""
+    if htf is None or len(htf) < 6:
+        return None
+    a, b, c = htf.iloc[-3], htf.iloc[-2], htf.iloc[-1]
+    crh = max(float(a["high"]), float(b["high"]))
+    crl = min(float(a["low"]), float(b["low"]))
+    if crh - crl < 5 * pip:
+        return None
+    d, ext = _one_sided_reclaim(c, crh, crl)
+    if d is None:
+        return None
+    return _pack_setup(d, crh, crl, ext, c["datetime"], "TWO_CANDLE")
+
+
+def find_setup_double_purge(htf, pip, max_gap=4):
+    """C1 range; both sides purged within max_gap; close back inside."""
+    if htf is None or len(htf) < 8:
+        return None
+    n = len(htf)
+    # scan recent window for latest valid double-purge ending at last closed bar
+    for i in range(max(0, n - 12), n - 2):
+        c1 = htf.iloc[i]
+        crh, crl = float(c1["high"]), float(c1["low"])
+        if crh - crl < 5 * pip:
+            continue
+        mid = 0.5 * (crh + crl)
+        saw_h = saw_l = False
+        second_i = None
+        for j in range(i + 1, min(i + 1 + max_gap, n)):
+            bar = htf.iloc[j]
+            if float(bar["high"]) > crh:
+                saw_h = True
+            if float(bar["low"]) < crl:
+                saw_l = True
+            if saw_h and saw_l:
+                second_i = j
+                break
+        if second_i is None:
+            continue
+        valid_i = None
+        for k in (second_i, second_i + 1):
+            if k >= n:
+                break
+            cl = float(htf.iloc[k]["close"])
+            if crl < cl < crh:
+                valid_i = k
+                break
+        if valid_i is None or valid_i != n - 1:
+            continue  # only fire on latest closed confirmation
+        last = htf.iloc[second_i]
+        last_h = float(last["high"]) > crh
+        last_l = float(last["low"]) < crl
+        if last_l and not last_h:
+            d, ext = 1, float(last["low"])
+        elif last_h and not last_l:
+            d, ext = -1, float(last["high"])
+        else:
+            cl = float(htf.iloc[valid_i]["close"])
+            d = 1 if cl >= mid else -1
+            ext = crl if d == 1 else crh
+        return _pack_setup(d, crh, crl, ext, htf.iloc[valid_i]["datetime"], "DOUBLE_PURGE")
     return None
+
+
+def find_setup_inside_bar(htf, pip):
+    """Mother + ≥1 inside; then one-sided sweep of mother on latest closed."""
+    if htf is None or len(htf) < 7:
+        return None
+    n = len(htf)
+    for i in range(max(0, n - 10), n - 2):
+        mother = htf.iloc[i]
+        crh, crl = float(mother["high"]), float(mother["low"])
+        if crh - crl < 5 * pip:
+            continue
+        inside_count, j = 0, i + 1
+        while j < n:
+            bar = htf.iloc[j]
+            if float(bar["high"]) <= crh and float(bar["low"]) >= crl:
+                inside_count += 1
+                j += 1
+            else:
+                break
+        if inside_count < 1 or j >= n:
+            continue
+        if j != n - 1:
+            continue
+        sweep = htf.iloc[j]
+        d, ext = _one_sided_reclaim(sweep, crh, crl)
+        if d is None:
+            continue
+        return _pack_setup(d, crh, crl, ext, sweep["datetime"], "INSIDE_BAR")
+    return None
+
+
+def _bos_trend_live(htf, i, lookback=20):
+    if i < 5:
+        return 0
+    start = max(0, i - lookback)
+    seg = htf.iloc[start:i]
+    if len(seg) < 5:
+        return 0
+    hh = hl = None
+    for k in range(2, len(seg) - 2):
+        h, l = float(seg.iloc[k]["high"]), float(seg.iloc[k]["low"])
+        if h > float(seg.iloc[k - 1]["high"]) and h > float(seg.iloc[k + 1]["high"]):
+            hh = h
+        if l < float(seg.iloc[k - 1]["low"]) and l < float(seg.iloc[k + 1]["low"]):
+            hl = l
+    c = float(htf.iloc[i]["close"])
+    if hh is not None and c > hh:
+        return 1
+    if hl is not None and c < hl:
+        return -1
+    slope = float(seg["close"].iloc[-1]) - float(seg["close"].iloc[0])
+    if slope > 0:
+        return 1
+    if slope < 0:
+        return -1
+    return 0
+
+
+def find_setup_continuation(htf, pip):
+    """Classic reclaim aligned with trend (continuation only)."""
+    if htf is None or len(htf) < 10:
+        return None
+    i = len(htf) - 2  # C1 index
+    trend = _bos_trend_live(htf, i)
+    if trend == 0:
+        return None
+    c1, c2 = htf.iloc[i], htf.iloc[i + 1]
+    crh, crl = float(c1["high"]), float(c1["low"])
+    if crh - crl < 5 * pip:
+        return None
+    d, ext = _one_sided_reclaim(c2, crh, crl)
+    if d is None or d != trend:
+        return None
+    return _pack_setup(d, crh, crl, ext, c2["datetime"], "CONTINUATION")
+
+
+def find_setup(htf, pip, ctype="CLASSIC"):
+    """Dispatch by CRT type (latest closed structure only)."""
+    ctype = (ctype or "CLASSIC").upper()
+    if ctype == "TWO_CANDLE":
+        return find_setup_two_candle(htf, pip)
+    if ctype == "DOUBLE_PURGE":
+        return find_setup_double_purge(htf, pip)
+    if ctype == "INSIDE_BAR":
+        return find_setup_inside_bar(htf, pip)
+    if ctype == "CONTINUATION":
+        return find_setup_continuation(htf, pip)
+    return find_setup_classic(htf, pip)
 
 
 def _ltf_after(ltf, setup, n=24):
@@ -550,22 +725,146 @@ def ltf_entry_ts(ltf, setup, pip):
 
 
 def ltf_entry_model1(ltf, setup, pip):
-    """Model #1: opposing candle engulfed (close beyond it)."""
-    w = _ltf_after(ltf, setup, 24)
+    """True Model #1: purge beyond extreme then next candle engulfs (research lock)."""
+    w = _ltf_after(ltf, setup, 36)
     if w is None or len(w) < 3:
         return None
-    d = setup["direction"]
-    for i in range(1, len(w) - 1):
-        prev, cur, nxt = w.iloc[i - 1], w.iloc[i], w.iloc[i + 1]
-        if d == 1 and float(cur["close"]) < float(prev["low"]) and float(nxt["close"]) > float(cur["high"]):
-            return nxt
-        if d == -1 and float(cur["close"]) > float(prev["high"]) and float(nxt["close"]) < float(cur["low"]):
-            return nxt
+    d, ext = setup["direction"], float(setup["extreme"])
+    for i in range(len(w) - 1):
+        pur, eng = w.iloc[i], w.iloc[i + 1]
+        ph, pl = float(pur["high"]), float(pur["low"])
+        po, pc = float(pur["open"]), float(pur["close"])
+        ec = float(eng["close"])
+        if d == 1:
+            if pl <= ext + pip and pc <= po and ec > ph and ec > setup["crl"]:
+                return eng
+        else:
+            if ph >= ext - pip and pc >= po and ec < pl and ec < setup["crh"]:
+                return eng
     return None
 
 
+def _ts_index(w, setup, pip):
+    """Return index of first TS bar in window, or None."""
+    d, ext = setup["direction"], float(setup["extreme"])
+    for i in range(len(w)):
+        row = w.iloc[i]
+        h, l, c = float(row["high"]), float(row["low"]), float(row["close"])
+        if d == 1 and l <= ext + pip and setup["crl"] < c < setup["crh"]:
+            return i
+        if d == -1 and h >= ext - pip and setup["crl"] < c < setup["crh"]:
+            return i
+    return None
+
+
+def ltf_entry_ts_m1(ltf, setup, pip):
+    """TS then true Model-1 (purge→engulf) — AUD/CHF 1H→5m thin lock."""
+    w = _ltf_after(ltf, setup, 48)
+    if w is None or len(w) < 4:
+        return None
+    ts_i = _ts_index(w, setup, pip)
+    if ts_i is None:
+        return None
+    d, ext = setup["direction"], float(setup["extreme"])
+    for i in range(ts_i, len(w) - 1):
+        pur, eng = w.iloc[i], w.iloc[i + 1]
+        ph, pl = float(pur["high"]), float(pur["low"])
+        po, pc = float(pur["open"]), float(pur["close"])
+        ec = float(eng["close"])
+        if d == 1:
+            if pl <= ext + pip and pc <= po and ec > ph and ec > setup["crl"]:
+                return eng
+        else:
+            if ph >= ext - pip and pc >= po and ec < pl and ec < setup["crh"]:
+                return eng
+    return None
+
+
+def ltf_entry_ts_m1_brk(ltf, setup, pip):
+    """TS → M1 → BRK (body beyond TS→M1 swing) — AUD/CHF thin locks only."""
+    w = _ltf_after(ltf, setup, 60)
+    if w is None or len(w) < 6:
+        return None
+    ts_i = _ts_index(w, setup, pip)
+    if ts_i is None:
+        return None
+    d, ext = setup["direction"], float(setup["extreme"])
+    m1_i = None
+    for i in range(ts_i, len(w) - 1):
+        pur, eng = w.iloc[i], w.iloc[i + 1]
+        ph, pl = float(pur["high"]), float(pur["low"])
+        po, pc = float(pur["open"]), float(pur["close"])
+        ec = float(eng["close"])
+        if d == 1 and pl <= ext + pip and pc <= po and ec > ph:
+            m1_i = i + 1
+            break
+        if d == -1 and ph >= ext - pip and pc >= po and ec < pl:
+            m1_i = i + 1
+            break
+    if m1_i is None:
+        return None
+    seg = w.iloc[ts_i : m1_i + 1]
+    swing = float(seg["high"].max()) if d == 1 else float(seg["low"].min())
+    for i in range(m1_i + 1, len(w)):
+        row = w.iloc[i]
+        c = float(row["close"])
+        if d == 1 and c > swing:
+            return row
+        if d == -1 and c < swing:
+            return row
+    return None
+
+
+def ltf_entry_ote(ltf, setup, pip):
+    """OTE proxy: after TS impulse, retrace 61.8–79% then continuation close.
+    Thin lock: XAU 1H→15m only (research 3/3, n=13)."""
+    w = _ltf_after(ltf, setup, 48)
+    if w is None or len(w) < 8:
+        return None
+    ts_i = _ts_index(w, setup, pip)
+    if ts_i is None:
+        return None
+    d = setup["direction"]
+    # Impulse leg: TS extreme → short expansion high/low
+    if d == 1:
+        ts_px = float(w.iloc[ts_i]["low"])
+        exp_i = ts_i
+        exp_px = ts_px
+        for i in range(ts_i + 1, min(ts_i + 12, len(w))):
+            h = float(w.iloc[i]["high"])
+            if h > exp_px:
+                exp_px, exp_i = h, i
+        impulse = exp_px - ts_px
+        if impulse <= 0:
+            return None
+        for i in range(exp_i + 1, len(w)):
+            row = w.iloc[i]
+            l, c = float(row["low"]), float(row["close"])
+            retr = (exp_px - l) / impulse
+            if 0.618 <= retr <= 0.84 and c > float(row["open"]) and c > setup["crl"]:
+                return row
+    else:
+        ts_px = float(w.iloc[ts_i]["high"])
+        exp_i = ts_i
+        exp_px = ts_px
+        for i in range(ts_i + 1, min(ts_i + 12, len(w))):
+            lo = float(w.iloc[i]["low"])
+            if lo < exp_px:
+                exp_px, exp_i = lo, i
+        impulse = ts_px - exp_px
+        if impulse <= 0:
+            return None
+        for i in range(exp_i + 1, len(w)):
+            row = w.iloc[i]
+            h, c = float(row["high"]), float(row["close"])
+            retr = (h - exp_px) / impulse
+            if 0.618 <= retr <= 0.84 and c < float(row["open"]) and c < setup["crh"]:
+                return row
+    return None
+
+
+# MSS / CISD / FVG kept callable but not in live STREAMS (3/3 lock)
 def ltf_entry_mss(ltf, setup, pip):
-    """MSS: break recent LTF swing in trade direction after C2."""
     w = _ltf_after(ltf, setup, 30)
     if w is None or len(w) < 8:
         return None
@@ -581,7 +880,6 @@ def ltf_entry_mss(ltf, setup, pip):
 
 
 def ltf_entry_cisd(ltf, setup, pip):
-    """CISD: break open of last opposing leg candle."""
     w = _ltf_after(ltf, setup, 24)
     if w is None or len(w) < 6:
         return None
@@ -593,41 +891,14 @@ def ltf_entry_cisd(ltf, setup, pip):
             bears = leg[leg["close"] < leg["open"]]
             if bears.empty:
                 continue
-            level = float(bears.iloc[-1]["open"])
-            if float(row["close"]) > level and float(row["close"]) > setup["crl"]:
+            if float(row["close"]) > float(bears.iloc[-1]["open"]) and float(row["close"]) > setup["crl"]:
                 return row
         else:
             bulls = leg[leg["close"] > leg["open"]]
             if bulls.empty:
                 continue
-            level = float(bulls.iloc[-1]["open"])
-            if float(row["close"]) < level and float(row["close"]) < setup["crh"]:
+            if float(row["close"]) < float(bulls.iloc[-1]["open"]) and float(row["close"]) < setup["crh"]:
                 return row
-    return None
-
-
-def ltf_entry_fvg(ltf, setup, pip):
-    """FVG: displacement gap then first revisit."""
-    w = _ltf_after(ltf, setup, 30)
-    if w is None or len(w) < 6:
-        return None
-    d = setup["direction"]
-    for i in range(2, len(w) - 1):
-        a, c = w.iloc[i - 2], w.iloc[i]
-        if d == 1 and float(a["high"]) < float(c["low"]):
-            gap_lo, gap_hi = float(a["high"]), float(c["low"])
-            for j in range(i + 1, min(i + 12, len(w))):
-                row = w.iloc[j]
-                if float(row["low"]) <= gap_hi and float(row["high"]) >= gap_lo:
-                    if float(row["close"]) > setup["crl"]:
-                        return row
-        if d == -1 and float(a["low"]) > float(c["high"]):
-            gap_lo, gap_hi = float(c["high"]), float(a["low"])
-            for j in range(i + 1, min(i + 12, len(w))):
-                row = w.iloc[j]
-                if float(row["low"]) <= gap_hi and float(row["high"]) >= gap_lo:
-                    if float(row["close"]) < setup["crh"]:
-                        return row
     return None
 
 
@@ -635,14 +906,16 @@ ENTRY_FN = {
     "PLAIN": lambda ltf, setup, pip: ltf_entry_plain(ltf, setup),
     "TS": ltf_entry_ts,
     "MODEL1": ltf_entry_model1,
+    "TS_M1": ltf_entry_ts_m1,
+    "TS_M1_BRK": ltf_entry_ts_m1_brk,
+    "OTE": ltf_entry_ote,
     "MSS": ltf_entry_mss,
     "CISD": ltf_entry_cisd,
-    "FVG": ltf_entry_fvg,
 }
 
 
-def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip):
-    setup = find_setup(htf, pip)
+def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip, ctype="CLASSIC"):
+    setup = find_setup(htf, pip, ctype=ctype)
     if setup is None:
         return None
     fn = ENTRY_FN.get(entry_model, ENTRY_FN["PLAIN"])
@@ -1402,10 +1675,12 @@ def _pair_allowed(stream_label, pair):
 def main():
     print("=" * 70)
     print("TENSION CRT — single engine (no 3C)")
-    print("Pairs: XAU/USD EUR/USD USD/JPY AUD/CHF")
-    print("MSS+CISD | dual times | TP1/WIN/LOSS edit | fire-lock")
+    print("Pairs:", " ".join(CORE_PAIRS))
+    print("Lock: WR>=45% | 3/3 | n>=15 | MULTIPLE out | six-type cells")
     print("Weekend: no new signals | open trades still managed")
     print(f"Streams loaded: {len(STREAMS)}")
+    for _sl, _allowed in STREAM_PAIRS.items():
+        print(f"  {_sl}: {', '.join(_allowed)}")
     print("=" * 70)
 
     if not (getattr(desk, "TWELVE_DATA_KEYS", None) or desk.TWELVE_DATA_KEY):
@@ -1416,6 +1691,15 @@ def main():
     if not state.get("strategy_start"):
         state["strategy_start"] = utc_now().date().isoformat()
         print("strategy_start set:", state["strategy_start"])
+
+    # Telegram commands (/start /help /risk /performance …)
+    # Must run here — command workflow alone was still on old 3c_model path.
+    try:
+        desk.process_commands(state)
+        save_state(state)
+        print("process_commands (start) OK")
+    except Exception as e:
+        print("process_commands (start) error:", e)
 
     purge_expired_pending(state)
     maybe_send_reports(state)
@@ -1460,8 +1744,8 @@ def main():
             if t.get("pair") == pair and t.get("ltf"):
                 needed_ltf.add(str(t["ltf"]))
         if pair in scan_pairs:
-            for _h, ltf_name, _m in STREAMS.values():
-                needed_ltf.add(ltf_name)
+            for _tup in STREAMS.values():
+                needed_ltf.add(_tup[1])
         if not needed_ltf:
             needed_ltf.add("15min")
         frames_ltf = {}
@@ -1481,10 +1765,10 @@ def main():
         print(f"\n--- scan {pair} ---")
 
         needed = set()
-        for stream_label, (htf_name, ltf_name, _) in STREAMS.items():
+        for stream_label, tup in STREAMS.items():
             if _pair_allowed(stream_label, pair):
-                needed.add(htf_name)
-                needed.add(ltf_name)
+                needed.add(tup[0])
+                needed.add(tup[1])
 
         frames = {}
         ok = True
@@ -1500,14 +1784,16 @@ def main():
         if weekend:
             continue
 
-        for stream_label, (htf_name, ltf_name, entry_model) in STREAMS.items():
+        for stream_label, tup in STREAMS.items():
+            htf_name, ltf_name, entry_model = tup[0], tup[1], tup[2]
+            ctype = tup[3] if len(tup) > 3 else "CLASSIC"
             if not _pair_allowed(stream_label, pair):
                 continue
             ltf = frames[ltf_name]
 
             sig = analyze(
                 stream_label, htf_name, ltf_name, entry_model,
-                frames[htf_name], ltf, pair, pip,
+                frames[htf_name], ltf, pair, pip, ctype=ctype,
             )
             if sig is None:
                 print(f"  {stream_label}: no setup")
@@ -1758,6 +2044,14 @@ def main():
             save_state(state)
 
     desk.mark_scan_health(state, ok=True)
+
+    # Drain any commands that arrived during the scan
+    try:
+        desk.process_commands(state)
+        print("process_commands (end) OK")
+    except Exception as e:
+        print("process_commands (end) error:", e)
+
     save_state(state)
     print("\nCRT PLAIN SCAN COMPLETE | pending:", len(state["pending"]))
 
