@@ -341,7 +341,8 @@
     "fired:CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|1|2026-11-20 15:00|PLAIN|entry:109793": "CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|2026-11-20 15:00:00|1|PLAIN|entry:109793",
     "CRT 1H\u219215m INSIDE_BAR PLAIN:EUR/USD": "CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|2026-11-20 15:00:00|1|PLAIN|entry:109793",
     "setup_entry:EUR/USD|1|2026-11-20 15:00|1.09999|1.09793|entry:109793": "CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|2026-11-20 15:00:00|1|PLAIN|entry:109793",
-    "setup_core:EUR/USD|1|2026-11-20 15:00": "CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|2026-11-20 15:00:00|1|PLAIN|entry:109793"
+    "setup_core:EUR/USD|1|2026-11-20 15:00": "CRT 1H\u219215m INSIDE_BAR PLAIN|EUR/USD|2026-11-20 15:00:00|1|PLAIN|entry:109793",
+    "fired:CRT 1H\u219215m INSIDE_BAR CISD|EUR/USD|1|2026-11-20 15:00|CISD|entry:109793": "CRT 1H\u219215m INSIDE_BAR CISD|EUR/USD|2026-11-20 15:00:00|1|CISD|entry:109793"
   },
   "pending": [
     {
@@ -384,14 +385,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-20 16:15:00"
+      "last_checked_time": "2026-11-20 16:30:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-20T16:47:09.328090+00:00",
+  "last_scan_utc": "2026-11-20T16:52:08.714020+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
