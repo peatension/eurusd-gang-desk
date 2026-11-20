@@ -526,5 +526,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0023",
+    "stream": "CRT 1H\u219215m INSIDE_BAR PLAIN",
+    "pair": "EUR/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-20 17:45:00",
+    "entry": 1.09793,
+    "stop": 1.0975589285714287,
+    "tp1": 1.09896,
+    "tp2": 1.09999,
+    "rr1": 2.775745909528232,
+    "rr2": 5.551491819057063,
+    "candle_time": "2026-11-20 15:15:00",
+    "signal_sent": "2026-11-20T16:02:04.860942+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
