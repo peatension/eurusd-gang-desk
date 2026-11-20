@@ -478,5 +478,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0022",
+    "stream": "CRT 1H\u21925m INSIDE_BAR MODEL1",
+    "pair": "USD/JPY",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-20 13:00:00",
+    "entry": 158.72712,
+    "stop": 158.69107499999998,
+    "tp1": 158.866115,
+    "tp2": 159.00511,
+    "rr1": 3.8561520321786396,
+    "rr2": 7.712304064357279,
+    "candle_time": "2026-11-20 12:50:00",
+    "signal_sent": "2026-11-20T13:02:10.608054+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "MODEL1"
   }
 ]
