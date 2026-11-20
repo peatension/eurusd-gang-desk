@@ -371,14 +371,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-20 12:45:00"
+      "last_checked_time": "2026-11-20 13:00:00"
     }
   ],
   "weekly_report_id": null,
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-20T13:17:13.235893+00:00",
+  "last_scan_utc": "2026-11-20T13:22:14.972300+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
