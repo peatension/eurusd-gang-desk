@@ -502,5 +502,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "MODEL1"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0021",
+    "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+    "pair": "XAU/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-20 13:15:00",
+    "entry": 3566.68467,
+    "stop": 3563.9505964285713,
+    "tp1": 3578.80341,
+    "tp2": 3590.92215,
+    "rr1": 4.432484965525943,
+    "rr2": 8.864969931051887,
+    "candle_time": "2026-11-20 12:15:00",
+    "signal_sent": "2026-11-20T13:02:05.150374+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
