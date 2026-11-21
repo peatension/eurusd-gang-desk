@@ -1,10 +1,10 @@
 name: Telegram Commands
 
-# GitHub native every 5 min (UTC) + manual / external workflow_dispatch
+# Fast path for /start /help /performance /admin /risk and inline buttons.
+# Trigger from cron-job.org every 1–2 minutes (separate from CRT Engine).
+# Does NOT run market scan — commands only.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 concurrency:
   group: telegram-commands
@@ -14,77 +14,46 @@ permissions:
   contents: write
 
 jobs:
-  commands:
+  cmds:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Install dependencies
+      - name: Install
         run: pip install requests pandas numpy
 
-      - name: Process Telegram commands only
+      - name: Process Telegram commands
         env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           TWELVE_DATA_KEYS: ${{ secrets.TWELVE_DATA_KEYS }}
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          SHEET_URL: ${{ secrets.SHEET_URL }}
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-          ADMIN_ID: ${{ secrets.ADMIN_ID }}
         run: python telegram_cmd_runner.py
 
-      - name: Commit and push command state
+      - name: Commit command state (tension-crt only)
         if: always()
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          set -e
-
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          for f in subscribers.json telegram_offset.json telegram_command_state.json; do
-            if [ -f "$f" ]; then
-              git add -f -- "$f"
-            fi
-          done
-
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            tension-crt/telegram_offset.json \
+            tension-crt/subscribers.json \
+            tension-crt/last_alert_state_crt.json \
+            tension-crt/ticket_seq.json \
+            tension-crt/outcomes.json \
+            2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No command state changes to commit."
-            exit 0
+            echo "No command-state changes."
+          else
+            git commit -m "chore: persist telegram command state [skip ci]"
+            git push
           fi
-
-          git commit -m "chore: persist Telegram command state [skip ci]"
-
-          for attempt in 1 2 3; do
-            echo "Push attempt $attempt of 3"
-            git fetch origin "$BRANCH_NAME"
-
-            if ! git -c rebase.autoStash=true rebase "origin/$BRANCH_NAME"; then
-              echo "Rebase failed. Aborting safely."
-              git rebase --abort || true
-              exit 1
-            fi
-
-            if git push origin "HEAD:$BRANCH_NAME"; then
-              echo "Command state successfully pushed."
-              exit 0
-            fi
-
-            echo "Push rejected; another update may have landed. Retrying..."
-            sleep 2
-          done
-
-          echo "ERROR: Could not push command state after 3 attempts."
-          exit 1
