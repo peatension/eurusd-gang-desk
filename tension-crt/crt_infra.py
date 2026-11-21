@@ -1233,9 +1233,8 @@ def process_commands(state):
             send_telegram_to(
                 chat_id,
                 "🟢 <b>Subscribed — Tension Trading Desk</b>\n\n"
-                "You will receive alerts from both engines:\n"
-                "• <b>CRT Plain</b>\n"
-                "• <b>3C</b>\n\n"
+                "You will receive <b>CRT</b> alerts "
+                "(XAU/USD · EUR/USD · USD/JPY · AUD/CHF).\n\n"
                 "Commands:\n"
                 "/performance — Weekly · Monthly · Yearly\n"
                 "/risk — Lot size from your balance\n"
@@ -1302,10 +1301,10 @@ def process_commands(state):
                 chat_id,
                 "⚡ <b>Desk Status</b>\n\n"
                 "State: <b>ONLINE</b>\n"
-                "Engines: <b>CRT Plain</b> + <b>3C</b>\n"
-                f"3C last scan: <b>{last}</b>\n"
+                "Engine: <b>CRT</b> (tension-crt)\n"
+                f"Last scan: <b>{last}</b>\n"
                 f"Scan result: <b>{ok_s}</b> · fail streak: <b>{streak}</b>\n"
-                f"3C open pending: <b>{pend}</b>"
+                f"Open pending: <b>{pend}</b>"
                 f"{crt_line}\n"
                 f"Pairs mapped: {len(PAIRS)} | Subscribers: {len(load_subscribers())}"
                 f"{err_line}",
@@ -1434,7 +1433,7 @@ def process_commands(state):
             send_telegram_to(
                 chat_id,
                 f"📊 <b>Scanned pairs</b>\n\n{lines}\n\n"
-                "CRT Plain + 3C streams share this bot.",
+                "Live engine: <b>CRT</b> only (tension-crt).",
             )
             replied += 1
 
@@ -3209,7 +3208,8 @@ if False and __name__ == "__main__":
     main()
 
 # ============================================================
-# tension-crt LOCK — 4 pairs + paths next to this file
+# tension-crt LOCK — pairs + paths next to this file
+# Must match crt_engine CORE_PAIRS (includes GBP/USD lock 2026-11-20)
 # ============================================================
 import pathlib as _pathlib
 _INFRA_DIR = _pathlib.Path(__file__).resolve().parent
@@ -3219,10 +3219,12 @@ PAIRS = {
     "EUR/USD": {"pip": 0.0001, "tv": "OANDA:EURUSD"},
     "USD/JPY": {"pip": 0.01, "tv": "OANDA:USDJPY"},
     "AUD/CHF": {"pip": 0.0001, "tv": "OANDA:AUDCHF"},
+    "GBP/USD": {"pip": 0.0001, "tv": "OANDA:GBPUSD"},
 }
 
 SUBSCRIBERS_FILE = str(_INFRA_DIR / "subscribers.json")
 OUTCOMES_FILE = str(_INFRA_DIR / "outcomes.json")
 TICKET_FILE = str(_INFRA_DIR / "ticket_seq.json")
 TELEGRAM_OFFSET_FILE = str(_INFRA_DIR / "telegram_offset.json")
-# Keep infra state filename unused by CRT engine (engine has own STATE_FILE)
+# Engine owns last_alert_state_crt.json via crt_engine.save_state
+# (do not point infra save_state at set2 — command runner patches it)
