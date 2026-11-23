@@ -399,7 +399,15 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-23T15:13:10.049519+00:00",
+  "last_scan_utc": "2026-11-23T15:18:10.824095+00:00",
   "last_scan_ok": true,
-  "scan_fail_streak": 0
+  "scan_fail_streak": 0,
+  "last_update_id": 367135414,
+  "cmd_guard": {
+    "performance:7080941387": {
+      "uid": 367135414,
+      "ts": 1795447091.9473765
+    }
+  },
+  "risk_wait": {}
 }
