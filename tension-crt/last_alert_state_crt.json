@@ -449,14 +449,14 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-23 19:00:00"
+      "last_checked_time": "2026-11-23 19:05:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-23T19:13:14.157746+00:00",
+  "last_scan_utc": "2026-11-23T19:18:10.242154+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135415,
