@@ -718,5 +718,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0031",
+    "stream": "CRT 1H\u21925m DOUBLE_PURGE CISD",
+    "pair": "USD/JPY",
+    "side": "SELL",
+    "direction": -1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-24 18:40:00",
+    "entry": 159.28548,
+    "stop": 159.30165910714285,
+    "tp1": 159.210925,
+    "tp2": 159.13637,
+    "rr1": 4.608103484435269,
+    "rr2": 9.216206968870537,
+    "candle_time": "2026-11-24 16:40:00",
+    "signal_sent": "2026-11-24T17:02:12.069741+00:00",
+    "session": "New York",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "CISD"
   }
 ]
