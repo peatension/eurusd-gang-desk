@@ -482,7 +482,9 @@
     "setup_core:GBP/USD|1|2026-11-24 19:00": "CRT 1H\u21925m CONTINUATION TS|GBP/USD|2026-11-24 19:00:00|1|TS|entry:131149",
     "fired:CRT 1H\u219215m CONTINUATION PLAIN|GBP/USD|1|2026-11-24 19:00|PLAIN|entry:131149": "CRT 1H\u219215m CONTINUATION PLAIN|GBP/USD|2026-11-24 19:00:00|1|PLAIN|entry:131149",
     "fired:CRT 1H\u21925m CONTINUATION CISD|GBP/USD|1|2026-11-24 19:00|CISD|entry:131149": "CRT 1H\u21925m CONTINUATION CISD|GBP/USD|2026-11-24 19:00:00|1|CISD|entry:131149",
-    "fired:CRT 1H\u21925m CONTINUATION TS|GBP/USD|1|2026-11-24 19:00|TS|entry:131149": "CRT 1H\u21925m CONTINUATION TS|GBP/USD|2026-11-24 19:00:00|1|TS|entry:131149"
+    "fired:CRT 1H\u21925m CONTINUATION TS|GBP/USD|1|2026-11-24 19:00|TS|entry:131149": "CRT 1H\u21925m CONTINUATION TS|GBP/USD|2026-11-24 19:00:00|1|TS|entry:131149",
+    "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|EUR/USD|1|2026-11-24 20:00|PLAIN|entry:109642": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|EUR/USD|2026-11-24 20:00:00|1|PLAIN|entry:109642",
+    "CRT 1H\u219215m DOUBLE_PURGE PLAIN:EUR/USD": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|EUR/USD|2026-11-24 20:00:00|1|PLAIN|entry:109642"
   },
   "pending": [
     {
@@ -525,14 +527,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-24 20:30:00"
+      "last_checked_time": "2026-11-24 20:45:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-24T20:57:26.540221+00:00",
+  "last_scan_utc": "2026-11-24T21:03:06.218601+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135415,
