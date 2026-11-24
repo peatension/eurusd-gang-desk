@@ -622,5 +622,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0026",
+    "stream": "CRT 1H\u21925m TWO_CANDLE CISD",
+    "pair": "AUD/CHF",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-23 22:00:00",
+    "entry": 0.5578,
+    "stop": 0.5571,
+    "tp1": 0.5589949999999999,
+    "tp2": 0.56019,
+    "rr1": 1.707142857142968,
+    "rr2": 3.4142857142860947,
+    "candle_time": "2026-11-23 16:55:00",
+    "signal_sent": "2026-11-23T17:03:07.734554+00:00",
+    "session": "New York",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "CISD"
   }
 ]
