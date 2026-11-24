@@ -515,14 +515,14 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-24 17:10:00"
+      "last_checked_time": "2026-11-24 17:15:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-24T17:22:13.621983+00:00",
+  "last_scan_utc": "2026-11-24T17:27:26.321218+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135415,
