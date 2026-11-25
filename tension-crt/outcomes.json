@@ -814,5 +814,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0035",
+    "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+    "pair": "EUR/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "WIN",
+    "result_r": 6.183694530442652,
+    "exit_time": "2026-11-25 10:00:00",
+    "entry": 1.09318,
+    "stop": 1.0930069642857143,
+    "tp1": 1.093715,
+    "tp2": 1.09425,
+    "rr1": 3.091847265221326,
+    "rr2": 6.183694530442652,
+    "candle_time": "2026-11-25 09:15:00",
+    "signal_sent": "2026-11-25T10:02:40.709036+00:00",
+    "session": "London",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
