@@ -588,17 +588,17 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-25 15:00:00|-1|PLAIN",
       "setup_uid": "AUD/CHF|-1|2026-11-25 15:00|0.54779|0.54617",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-11-25 15:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-25 15:45:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T16:03:11.714361+00:00",
+  "last_scan_utc": "2026-11-25T16:07:10.314996+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135417,
