@@ -542,7 +542,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-25 07:55:00"
+      "last_checked_time": "2026-11-25 08:00:00"
     },
     {
       "stream": "CRT 1H\u21925m DOUBLE_PURGE CISD",
@@ -581,17 +581,17 @@
       "entry_model": "CISD",
       "candle_key": "CRT 1H\u21925m DOUBLE_PURGE CISD|USD/JPY|2026-11-25 07:00:00|1|CISD",
       "setup_uid": "USD/JPY|1|2026-11-25 07:00|159.30767|159.10592",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-25 07:55:00"
+      "last_checked_time": "2026-11-25 08:00:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T08:07:19.269189+00:00",
+  "last_scan_utc": "2026-11-25T08:13:13.505394+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135415,
