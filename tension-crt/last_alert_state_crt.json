@@ -560,10 +560,10 @@
       "entry_model": "PLAIN",
       "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|XAU/USD|2026-11-25 12:00:00|-1|PLAIN",
       "setup_uid": "XAU/USD|-1|2026-11-25 12:00|3530.41566|3513.15891",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 397,
-      "last_checked_time": "2026-11-25 12:15:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-25 12:45:00"
     },
     {
       "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
@@ -604,15 +604,15 @@
       "setup_uid": "GBP/USD|-1|2026-11-25 12:00|1.30782|1.30567",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-11-25 12:15:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-25 12:45:00"
     }
   ],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T13:03:07.793964+00:00",
+  "last_scan_utc": "2026-11-25T13:13:11.113180+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135417,
