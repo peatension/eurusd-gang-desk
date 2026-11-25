@@ -539,10 +539,10 @@
       "entry_model": "MODEL1",
       "candle_key": "CRT 4H\u21925m DOUBLE_PURGE MODEL1|USD/JPY|2026-11-25 04:00:00|1|MODEL1",
       "setup_uid": "USD/JPY|1|2026-11-25 04:00|159.30751|159.02998",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 497,
-      "last_checked_time": "2026-11-25 07:50:00"
+      "status": "TP1_HIT",
+      "tp1_hit": true,
+      "last_checked_index": 498,
+      "last_checked_time": "2026-11-25 07:55:00"
     },
     {
       "stream": "CRT 1H\u21925m DOUBLE_PURGE CISD",
@@ -591,7 +591,7 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T08:03:08.052123+00:00",
+  "last_scan_utc": "2026-11-25T08:07:19.269189+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135415,
