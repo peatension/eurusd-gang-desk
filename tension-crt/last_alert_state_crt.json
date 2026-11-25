@@ -566,7 +566,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-25 13:45:00"
+      "last_checked_time": "2026-11-25 14:00:00"
     },
     {
       "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
@@ -615,7 +615,7 @@
   "monthly_report_id": null,
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T14:13:20.975493+00:00",
+  "last_scan_utc": "2026-11-25T14:18:10.972358+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "last_update_id": 367135417,
