@@ -561,11 +561,15 @@
   "last_scan_utc": "2026-11-25T17:18:09.493944+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
-  "last_update_id": 367135417,
+  "last_update_id": 367135418,
   "cmd_guard": {
     "performance:7080941387": {
       "uid": 367135414,
       "ts": 1795447091.9473765
+    },
+    "performance:-1004423692487": {
+      "uid": 367135418,
+      "ts": 1795627290.6882024
     }
   },
   "risk_wait": {}
