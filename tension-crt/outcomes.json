@@ -742,5 +742,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "CISD"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0032",
+    "stream": "CRT 1H\u219215m INSIDE_BAR PLAIN",
+    "pair": "EUR/USD",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 6.035335689047116,
+    "exit_time": "2026-11-24 23:00:00",
+    "entry": 1.09748,
+    "stop": 1.0976821428571428,
+    "tp1": 1.09687,
+    "tp2": 1.09626,
+    "rr1": 3.017667844523558,
+    "rr2": 6.035335689047116,
+    "candle_time": "2026-11-24 18:15:00",
+    "signal_sent": "2026-11-24T19:02:39.067415+00:00",
+    "session": "New York",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
