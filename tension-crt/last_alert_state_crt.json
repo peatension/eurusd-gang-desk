@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "last_alert_keys": {
     "fired:CRT 1H\u21925m CISD|AUD/CHF|-1|2026-11-16 06:00|CISD|entry:56734": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-16 06:00:00|-1|CISD|entry:56734",
     "CRT 1H\u21925m CISD:AUD/CHF": "CRT 1H\u21925m CISD|AUD/CHF|2026-11-18 16:00:00|1|CISD|entry:56560",
@@ -569,20 +569,5 @@
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
-  "strategy_start": "2026-11-15",
-  "last_scan_utc": "2026-11-25T21:57:20.018361+00:00",
-  "last_scan_ok": true,
-  "scan_fail_streak": 0,
-  "last_update_id": 367135420,
-  "cmd_guard": {
-    "performance:7080941387": {
-      "uid": 367135414,
-      "ts": 1795447091.9473765
-    },
-    "performance:-1004423692487": {
-      "uid": 367135418,
-      "ts": 1795627290.6882024
-    }
-  },
-  "risk_wait": {}
+  "strategy_start": "2026-11-15"
 }
