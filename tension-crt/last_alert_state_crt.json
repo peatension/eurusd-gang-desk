@@ -623,10 +623,10 @@
       "entry_model": "BRK",
       "candle_key": "CRT 1H\u21925m CLASSIC BRK|EUR/USD|2026-11-26 09:00:00|-1|BRK",
       "setup_uid": "EUR/USD|-1|2026-11-26 09:00|1.09809|1.09673",
-      "status": "ACTIVE",
-      "tp1_hit": false,
+      "status": "TP1_HIT",
+      "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-26 10:10:00"
+      "last_checked_time": "2026-11-26 10:15:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -635,7 +635,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T10:23:13.897273+00:00",
+  "last_scan_utc": "2026-11-26T10:27:24.287162+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
