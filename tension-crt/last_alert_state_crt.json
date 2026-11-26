@@ -591,7 +591,11 @@
     "setup_core:AUD/CHF|-1|2026-11-26 10:00": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344",
     "fired:CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|-1|2026-11-26 10:00|CISD|entry:55344": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344",
     "setup_entry:AUD/CHF|-1|2026-11-26 10:00|0.55344|0.55190|entry:55344": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344",
-    "fired:CRT 4H\u219215m DOUBLE_PURGE CISD|USD/JPY|-1|2026-11-26 04:00|CISD|entry:159258": "CRT 4H\u219215m DOUBLE_PURGE CISD|USD/JPY|2026-11-26 04:00:00|-1|CISD|entry:159258"
+    "fired:CRT 4H\u219215m DOUBLE_PURGE CISD|USD/JPY|-1|2026-11-26 04:00|CISD|entry:159258": "CRT 4H\u219215m DOUBLE_PURGE CISD|USD/JPY|2026-11-26 04:00:00|-1|CISD|entry:159258",
+    "fired:CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|-1|2026-11-26 08:00|CISD|entry:131195": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
+    "CRT 4H\u219215m DOUBLE_PURGE CISD:GBP/USD": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
+    "setup_entry:GBP/USD|-1|2026-11-26 08:00|1.31195|1.30965|entry:131195": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
+    "setup_core:GBP/USD|-1|2026-11-26 08:00": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195"
   },
   "pending": [
     {
@@ -634,7 +638,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-26 11:45:00"
+      "last_checked_time": "2026-11-26 11:55:00"
     },
     {
       "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
@@ -676,7 +680,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-26 11:30:00"
+      "last_checked_time": "2026-11-26 11:45:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -685,7 +689,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T11:57:22.229307+00:00",
+  "last_scan_utc": "2026-11-26T12:03:04.961687+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
