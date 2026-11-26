@@ -634,7 +634,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-26 11:35:00"
+      "last_checked_time": "2026-11-26 11:40:00"
     },
     {
       "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
@@ -676,7 +676,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-26 11:15:00"
+      "last_checked_time": "2026-11-26 11:30:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -685,7 +685,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T11:47:17.479475+00:00",
+  "last_scan_utc": "2026-11-26T11:52:11.294964+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
