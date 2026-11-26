@@ -516,7 +516,7 @@
     "setup_core:XAU/USD|-1|2026-11-25 12:00": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|XAU/USD|2026-11-25 12:00:00|-1|PLAIN|entry:3530416",
     "fired:CRT 1H\u21925m CLASSIC PLAIN|XAU/USD|1|2026-11-25 12:00|PLAIN|entry:3491979": "CRT 1H\u21925m CLASSIC PLAIN|XAU/USD|2026-11-25 12:00:00|1|PLAIN|entry:3491979",
     "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|-1|2026-11-25 12:00|PLAIN|entry:130782": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-25 12:00:00|-1|PLAIN|entry:130782",
-    "CRT 1H\u219215m DOUBLE_PURGE PLAIN:GBP/USD": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-25 14:00:00|-1|PLAIN|entry:130710",
+    "CRT 1H\u219215m DOUBLE_PURGE PLAIN:GBP/USD": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN|entry:130983",
     "setup_entry:GBP/USD|-1|2026-11-25 12:00|1.30782|1.30567|entry:130782": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-25 12:00:00|-1|PLAIN|entry:130782",
     "setup_core:GBP/USD|-1|2026-11-25 12:00": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-25 12:00:00|-1|PLAIN|entry:130782",
     "fired:CRT 1H\u21925m DOUBLE_PURGE TS|GBP/USD|-1|2026-11-25 12:00|TS|entry:130782": "CRT 1H\u21925m DOUBLE_PURGE TS|GBP/USD|2026-11-25 12:00:00|-1|TS|entry:130782",
@@ -595,7 +595,11 @@
     "fired:CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|-1|2026-11-26 08:00|CISD|entry:131195": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
     "CRT 4H\u219215m DOUBLE_PURGE CISD:GBP/USD": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
     "setup_entry:GBP/USD|-1|2026-11-26 08:00|1.31195|1.30965|entry:131195": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
-    "setup_core:GBP/USD|-1|2026-11-26 08:00": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195"
+    "setup_core:GBP/USD|-1|2026-11-26 08:00": "CRT 4H\u219215m DOUBLE_PURGE CISD|GBP/USD|2026-11-26 08:00:00|-1|CISD|entry:131195",
+    "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|1|2026-11-26 12:00|PLAIN|entry:130983": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN|entry:130983",
+    "setup_entry:GBP/USD|1|2026-11-26 12:00|1.31150|1.30983|entry:130983": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN|entry:130983",
+    "setup_core:GBP/USD|1|2026-11-26 12:00": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN|entry:130983",
+    "fired:CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|1|2026-11-26 12:00|PLAIN|entry:130983": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN|entry:130983"
   },
   "pending": [
     {
@@ -638,7 +642,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-26 12:45:00"
+      "last_checked_time": "2026-11-26 12:55:00"
     },
     {
       "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
@@ -680,7 +684,49 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-26 12:30:00"
+      "last_checked_time": "2026-11-26 12:45:00"
+    },
+    {
+      "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+      "pair": "GBP/USD",
+      "ticket_id": "#TTD-0047",
+      "message_id": 2547,
+      "message_ids": {
+        "-1004423692487": 2547,
+        "6937879685": 4827,
+        "7080941387": 4828
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": 1,
+      "side": "BUY",
+      "entry": 1.30983,
+      "stop": 1.3094466071428572,
+      "tp1": 1.3106650000000002,
+      "tp2": 1.3115,
+      "rr1": 2.1779226828136986,
+      "rr2": 4.355845365626818,
+      "risk_pips": 3.833928571428391,
+      "tp1_pips": 8.350000000001412,
+      "tp2_pips": 16.700000000000603,
+      "prop_stop": 1.3091466071428572,
+      "prop_risk_pips": 6.833928571428061,
+      "prop_buffer_pips": 3.0,
+      "crh": 1.3115,
+      "crl": 1.30983,
+      "mid": 1.3106650000000002,
+      "candle_time": "2026-11-26 12:15:00",
+      "c2_time": "2026-11-26 12:00:00",
+      "signal_sent": "2026-11-26T13:03:04.736243+00:00",
+      "session": "London/NY Overlap",
+      "c1_tf": "1h",
+      "ltf": "15min",
+      "entry_model": "PLAIN",
+      "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-26 12:00:00|1|PLAIN",
+      "setup_uid": "GBP/USD|1|2026-11-26 12:00|1.31150|1.30983",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 396,
+      "last_checked_time": "2026-11-26 12:15:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -689,7 +735,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T12:57:21.789735+00:00",
+  "last_scan_utc": "2026-11-26T13:03:06.194000+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
