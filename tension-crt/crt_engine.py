@@ -40,7 +40,7 @@ STATE_FILE = str(_HERE / "last_alert_state_crt.json")
 
 
 # STATE_FILE set relative to engine dir after desk import
-STATE_VERSION = 9  # six-type WR>=45% 3/3 n>=15 lock (2026-11-20)
+STATE_VERSION = 10  # +EURUSD 1H→5m BRK keepers (CLASSIC/DP) 2026-11-26
 MIN_RR = 1.5
 OUTCOMES_ENGINE = "CRT_PLAIN"
 REPORT_WINDOW_MIN = 12
@@ -52,6 +52,13 @@ CORE_PAIRS = ["XAU/USD", "EUR/USD", "USD/JPY", "AUD/CHF", "GBP/USD"]
 # --- Six-type lock: WR>=45% | 3/3 | n>=15 | MULTIPLE out ---
 # tuple: (htf, ltf, entry_model, crt_type)
 STREAMS = {
+    # --- LOCKED KEEP (do not drop): EUR/USD 1H→5m BRK ---
+    # (1) CLASSIC+BRK n=38 WR100×3 avg+0.87R
+    # (2) CLASSIC+BRK+OCL n=27 WR100×3 avg+0.88R
+    # (3) DOUBLE_PURGE+BRK n=21 WR100×3 avg+0.85R
+    "CRT 1H→5m CLASSIC BRK": ("1h", "5min", "BRK", "CLASSIC"),
+    "CRT 1H→5m CLASSIC BRK OCL": ("1h", "5min", "BRK", "CLASSIC", "OCL"),
+    "CRT 1H→5m DOUBLE_PURGE BRK": ("1h", "5min", "BRK", "DOUBLE_PURGE"),
     "CRT 4H→5m DOUBLE_PURGE MODEL1": ("4h", "5min", "MODEL1", "DOUBLE_PURGE"),
     "CRT 1H→15m DOUBLE_PURGE CISD": ("1h", "15min", "CISD", "DOUBLE_PURGE"),
     "CRT 1H→5m DOUBLE_PURGE CISD": ("1h", "5min", "CISD", "DOUBLE_PURGE"),
@@ -79,6 +86,9 @@ STREAMS = {
 }
 
 STREAM_PAIRS = {
+    "CRT 1H→5m CLASSIC BRK": ["EUR/USD"],
+    "CRT 1H→5m CLASSIC BRK OCL": ["EUR/USD"],
+    "CRT 1H→5m DOUBLE_PURGE BRK": ["EUR/USD"],
     "CRT 4H→5m DOUBLE_PURGE MODEL1": ["USD/JPY"],
     "CRT 1H→15m DOUBLE_PURGE CISD": ["EUR/USD"],
     "CRT 1H→5m DOUBLE_PURGE CISD": ["USD/JPY"],
@@ -902,7 +912,59 @@ def ltf_entry_cisd(ltf, setup, pip):
     return None
 
 
+
+def ltf_entry_brk(ltf, setup, pip):
+    """Standalone BRK: after C2, take early LTF swing then body close beyond it.
+    Matches research BRK filter (not full TS→M1→BRK chain)."""
+    w = _ltf_after(ltf, setup, 48)
+    if w is None or len(w) < 5:
+        return None
+    d = setup["direction"]
+    crh, crl = float(setup["crh"]), float(setup["crl"])
+    # anchor window for swing (first few bars inside range preferred)
+    end_sw = min(6, len(w) - 1)
+    if end_sw < 2:
+        return None
+    seg = w.iloc[: end_sw + 1]
+    swing = float(seg["high"].max()) if d == 1 else float(seg["low"].min())
+    for i in range(end_sw + 1, len(w)):
+        row = w.iloc[i]
+        c = float(row["close"])
+        if d == 1 and c > swing and c > crl:
+            return row
+        if d == -1 and c < swing and c < crh:
+            return row
+    return None
+
+
+def _ocl_ok(setup, htf, pip, entry_px=None):
+    """OCL filter: sweep extreme or entry near C1 open/close shelf."""
+    if htf is None or len(htf) < 3:
+        return True
+    t = setup.get("c2_time")
+    try:
+        import pandas as pd
+        ts = pd.Timestamp(t)
+        before = htf[htf["datetime"] < ts]
+        if before.empty:
+            return True
+        c1 = before.iloc[-1]
+        o, c = float(c1["open"]), float(c1["close"])
+    except Exception:
+        return True
+    tol = max(12 * pip, 0.12 * max(float(setup.get("range") or 0), pip))
+    ext = float(setup["extreme"])
+    pts = [ext]
+    if entry_px is not None:
+        pts.append(float(entry_px))
+    for px in pts:
+        if abs(px - o) <= tol or abs(px - c) <= tol:
+            return True
+    return False
+
+
 ENTRY_FN = {
+    "BRK": ltf_entry_brk,
     "PLAIN": lambda ltf, setup, pip: ltf_entry_plain(ltf, setup),
     "TS": ltf_entry_ts,
     "MODEL1": ltf_entry_model1,
@@ -964,6 +1026,7 @@ def analyze(stream_label, htf_name, ltf_name, entry_model, htf, ltf, pair, pip, 
         "crh": setup["crh"],
         "crl": setup["crl"],
         "mid": setup["mid"],
+        "extreme": float(setup["extreme"]),
         "candle_time": candle_time,
         "c2_time": str(setup.get("c2_time") or candle_time),
         "session": forex_session(candle_time),
@@ -1676,7 +1739,7 @@ def main():
     print("=" * 70)
     print("TENSION CRT — single engine (no 3C)")
     print("Pairs:", " ".join(CORE_PAIRS))
-    print("Lock: WR>=45% | 3/3 | n>=15 | MULTIPLE out | six-type cells")
+    print("Lock: six-type cells + EURUSD 1H→5m BRK keepers (CLASSIC/DP ± OCL)")
     print("Weekend: no new signals | open trades still managed")
     print(f"Streams loaded: {len(STREAMS)}")
     for _sl, _allowed in STREAM_PAIRS.items():
@@ -1787,6 +1850,7 @@ def main():
         for stream_label, tup in STREAMS.items():
             htf_name, ltf_name, entry_model = tup[0], tup[1], tup[2]
             ctype = tup[3] if len(tup) > 3 else "CLASSIC"
+            kl_filter = tup[4] if len(tup) > 4 else "NONE"
             if not _pair_allowed(stream_label, pair):
                 continue
             ltf = frames[ltf_name]
@@ -1798,6 +1862,15 @@ def main():
             if sig is None:
                 print(f"  {stream_label}: no setup")
                 continue
+            if kl_filter == "OCL":
+                ocl_setup = {
+                    "c2_time": sig.get("c2_time") or sig.get("candle_time"),
+                    "extreme": float(sig.get("extreme", sig["stop"])),
+                    "range": abs(float(sig.get("crh", 0)) - float(sig.get("crl", 0))),
+                }
+                if not _ocl_ok(ocl_setup, frames[htf_name], pip, sig.get("entry")):
+                    print(f"  {stream_label}: OCL filter fail")
+                    continue
 
             key = sig["candle_key"]
             alert_key = f"{key}|entry:{entry_identity(sig.get('entry'), pip)}"
