@@ -308,7 +308,7 @@
     "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|USD/JPY|-1|2026-11-20 08:00|PLAIN|entry:159200": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|USD/JPY|2026-11-20 08:00:00|-1|PLAIN|entry:159200",
     "fired:CRT 1H\u21925m DOUBLE_PURGE PLAIN|USD/JPY|-1|2026-11-20 08:00|PLAIN|entry:159200": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|USD/JPY|2026-11-20 08:00:00|-1|PLAIN|entry:159200",
     "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|-1|2026-11-20 08:00|PLAIN|entry:56255": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-20 08:00:00|-1|PLAIN|entry:56255",
-    "CRT 1H\u219215m DOUBLE_PURGE PLAIN:AUD/CHF": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-26 09:00:00|1|PLAIN|entry:55231",
+    "CRT 1H\u219215m DOUBLE_PURGE PLAIN:AUD/CHF": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-26 10:00:00|-1|PLAIN|entry:55344",
     "setup_entry:AUD/CHF|-1|2026-11-20 08:00|0.56255|0.56154|entry:56255": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-20 08:00:00|-1|PLAIN|entry:56255",
     "setup_core:AUD/CHF|-1|2026-11-20 08:00": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-20 08:00:00|-1|PLAIN|entry:56255",
     "fired:CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|1|2026-11-20 08:00|CISD|entry:56154": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-20 08:00:00|1|CISD|entry:56154",
@@ -585,7 +585,12 @@
     "setup_core:EUR/USD|-1|2026-11-26 09:00": "CRT 1H\u21925m CLASSIC BRK OCL|EUR/USD|2026-11-26 09:00:00|-1|BRK|entry:109809",
     "fired:CRT 1H\u21925m CLASSIC BRK OCL|EUR/USD|-1|2026-11-26 09:00|BRK|entry:109809": "CRT 1H\u21925m CLASSIC BRK OCL|EUR/USD|2026-11-26 09:00:00|-1|BRK|entry:109809",
     "fired:CRT 4H\u21925m DOUBLE_PURGE MODEL1|USD/JPY|-1|2026-11-26 04:00|MODEL1|entry:159258": "CRT 4H\u21925m DOUBLE_PURGE MODEL1|USD/JPY|2026-11-26 04:00:00|-1|MODEL1|entry:159258",
-    "setup_entry:USD/JPY|-1|2026-11-26 04:00|159.25759|159.11663|entry:159258": "CRT 4H\u21925m DOUBLE_PURGE MODEL1|USD/JPY|2026-11-26 04:00:00|-1|MODEL1|entry:159258"
+    "setup_entry:USD/JPY|-1|2026-11-26 04:00|159.25759|159.11663|entry:159258": "CRT 4H\u21925m DOUBLE_PURGE MODEL1|USD/JPY|2026-11-26 04:00:00|-1|MODEL1|entry:159258",
+    "fired:CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|-1|2026-11-26 10:00|PLAIN|entry:55344": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-26 10:00:00|-1|PLAIN|entry:55344",
+    "setup_entry:AUD/CHF|-1|2026-11-26 10:00|0.55344|0.55211|entry:55344": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-26 10:00:00|-1|PLAIN|entry:55344",
+    "setup_core:AUD/CHF|-1|2026-11-26 10:00": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344",
+    "fired:CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|-1|2026-11-26 10:00|CISD|entry:55344": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344",
+    "setup_entry:AUD/CHF|-1|2026-11-26 10:00|0.55344|0.55190|entry:55344": "CRT 1H\u21925m TWO_CANDLE CISD|AUD/CHF|2026-11-26 10:00:00|-1|CISD|entry:55344"
   },
   "pending": [
     {
@@ -628,7 +633,49 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-26 10:45:00"
+      "last_checked_time": "2026-11-26 10:50:00"
+    },
+    {
+      "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+      "pair": "AUD/CHF",
+      "ticket_id": "#TTD-0046",
+      "message_id": 2546,
+      "message_ids": {
+        "-1004423692487": 2546,
+        "6937879685": 4825,
+        "7080941387": 4826
+      },
+      "edit_chat_id": "-1004423692487",
+      "direction": -1,
+      "side": "SELL",
+      "entry": 0.55344,
+      "stop": 0.5537,
+      "tp1": 0.552775,
+      "tp2": 0.55211,
+      "rr1": 2.557692307693129,
+      "rr2": 5.115384615386258,
+      "risk_pips": 2.5999999999992696,
+      "tp1_pips": 6.650000000000267,
+      "tp2_pips": 13.300000000000534,
+      "prop_stop": 0.5539999999999999,
+      "prop_risk_pips": 5.599999999998939,
+      "prop_buffer_pips": 3.0,
+      "crh": 0.55344,
+      "crl": 0.55211,
+      "mid": 0.552775,
+      "candle_time": "2026-11-26 10:15:00",
+      "c2_time": "2026-11-26 10:00:00",
+      "signal_sent": "2026-11-26T11:03:06.302689+00:00",
+      "session": "London",
+      "c1_tf": "1h",
+      "ltf": "15min",
+      "entry_model": "PLAIN",
+      "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-26 10:00:00|-1|PLAIN",
+      "setup_uid": "AUD/CHF|-1|2026-11-26 10:00|0.55344|0.55211",
+      "status": "ACTIVE",
+      "tp1_hit": false,
+      "last_checked_index": 396,
+      "last_checked_time": "2026-11-26 10:15:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -637,7 +684,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T10:57:24.199672+00:00",
+  "last_scan_utc": "2026-11-26T11:03:08.945553+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
