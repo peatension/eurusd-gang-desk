@@ -571,5 +571,8 @@
   "yearly_report_id": null,
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
-  "cmd_guard": {}
+  "cmd_guard": {},
+  "last_scan_utc": "2026-11-26T07:03:06.829992+00:00",
+  "last_scan_ok": true,
+  "scan_fail_streak": 0
 }
