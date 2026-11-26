@@ -662,7 +662,7 @@
       "status": "ACTIVE",
       "tp1_hit": false,
       "last_checked_index": 398,
-      "last_checked_time": "2026-11-26 15:45:00"
+      "last_checked_time": "2026-11-26 16:00:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -671,7 +671,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-26T16:17:11.392628+00:00",
+  "last_scan_utc": "2026-11-26T16:22:11.591197+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
