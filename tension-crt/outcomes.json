@@ -1246,5 +1246,29 @@
     "c1_tf": "1h",
     "ltf": "5min",
     "entry_model": "BRK"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0054",
+    "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+    "pair": "GBP/USD",
+    "side": "SELL",
+    "direction": -1,
+    "status": "WIN",
+    "result_r": 6.736086175942477,
+    "exit_time": "2026-11-27 14:00:00",
+    "entry": 1.31313,
+    "stop": 1.3133289285714285,
+    "tp1": 1.31246,
+    "tp2": 1.31179,
+    "rr1": 3.3680430879712384,
+    "rr2": 6.736086175942477,
+    "candle_time": "2026-11-27 13:45:00",
+    "signal_sent": "2026-11-27T14:02:14.001597+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]
