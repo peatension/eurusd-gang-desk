@@ -708,50 +708,7 @@
     "setup_entry:XAU/USD|-1|2026-11-27 18:00|3646.97306|3624.16617|entry:3646973": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|XAU/USD|2026-11-27 18:00:00|-1|PLAIN|entry:3646973",
     "setup_core:XAU/USD|-1|2026-11-27 18:00": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|XAU/USD|2026-11-27 18:00:00|-1|PLAIN|entry:3646973"
   },
-  "pending": [
-    {
-      "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
-      "pair": "XAU/USD",
-      "ticket_id": "#TTD-0056",
-      "message_id": 2568,
-      "message_ids": {
-        "-1004423692487": 2568,
-        "6937879685": 4865,
-        "7080941387": 4866
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": -1,
-      "side": "SELL",
-      "entry": 3646.97306,
-      "stop": 3650.961513392857,
-      "tp1": 3635.569615,
-      "tp2": 3624.16617,
-      "rr1": 2.859114518029054,
-      "rr2": 5.718229036058108,
-      "risk_pips": 398.8453392857082,
-      "tp1_pips": 1140.344499999992,
-      "tp2_pips": 2280.688999999984,
-      "prop_stop": 3651.261513392857,
-      "prop_risk_pips": 428.84533928572637,
-      "prop_buffer_pips": 30.0,
-      "crh": 3646.97306,
-      "crl": 3624.16617,
-      "mid": 3635.569615,
-      "candle_time": "2026-11-27 18:15:00",
-      "c2_time": "2026-11-27 18:00:00",
-      "signal_sent": "2026-11-27T19:02:05.483335+00:00",
-      "session": "New York",
-      "c1_tf": "1h",
-      "ltf": "15min",
-      "entry_model": "PLAIN",
-      "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|XAU/USD|2026-11-27 18:00:00|-1|PLAIN",
-      "setup_uid": "XAU/USD|-1|2026-11-27 18:00|3646.97306|3624.16617",
-      "status": "ACTIVE",
-      "tp1_hit": false,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-11-27 19:15:00"
-    }
-  ],
+  "pending": [],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
@@ -763,7 +720,7 @@
       "ts": 1795790011.9432573
     }
   },
-  "last_scan_utc": "2026-11-27T19:48:08.776741+00:00",
+  "last_scan_utc": "2026-11-27T19:53:18.952501+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "risk_wait": {}
