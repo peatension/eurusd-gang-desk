@@ -708,7 +708,7 @@
       "status": "TP1_HIT",
       "tp1_hit": true,
       "last_checked_index": 498,
-      "last_checked_time": "2026-11-27 11:25:00"
+      "last_checked_time": "2026-11-27 11:30:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -717,7 +717,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-27T11:36:31.920285+00:00",
+  "last_scan_utc": "2026-11-27T11:42:12.596336+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
