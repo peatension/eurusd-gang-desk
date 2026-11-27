@@ -1294,5 +1294,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0055",
+    "stream": "CRT 1H\u21925m CLASSIC BRK",
+    "pair": "EUR/USD",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-27 19:10:00",
+    "entry": 1.09349,
+    "stop": 1.09321,
+    "tp1": 1.094255,
+    "tp2": 1.09502,
+    "rr1": 2.732142857141951,
+    "rr2": 5.464285714284695,
+    "candle_time": "2026-11-27 17:00:00",
+    "signal_sent": "2026-11-27T17:11:15.578366+00:00",
+    "session": "New York",
+    "tp1_hit": false,
+    "c1_tf": "1h",
+    "ltf": "5min",
+    "entry_model": "BRK"
   }
 ]
