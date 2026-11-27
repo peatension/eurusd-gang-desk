@@ -1270,5 +1270,29 @@
     "c1_tf": "1h",
     "ltf": "15min",
     "entry_model": "PLAIN"
+  },
+  {
+    "engine": "CRT_PLAIN",
+    "ticket_id": "#TTD-0053",
+    "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
+    "pair": "AUD/CHF",
+    "side": "BUY",
+    "direction": 1,
+    "status": "LOSS",
+    "result_r": -1.0,
+    "exit_time": "2026-11-27 14:30:00",
+    "entry": 0.5565,
+    "stop": 0.5561,
+    "tp1": 0.5574250000000001,
+    "tp2": 0.55835,
+    "rr1": 2.3125000000004166,
+    "rr2": 4.625000000000555,
+    "candle_time": "2026-11-27 12:15:00",
+    "signal_sent": "2026-11-27T13:03:04.218087+00:00",
+    "session": "London/NY Overlap",
+    "tp1_hit": true,
+    "c1_tf": "1h",
+    "ltf": "15min",
+    "entry_model": "PLAIN"
   }
 ]

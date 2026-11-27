@@ -683,50 +683,7 @@
     "setup_core:GBP/USD|-1|2026-11-27 13:00": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-27 13:00:00|-1|PLAIN|entry:131313",
     "fired:CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|-1|2026-11-27 13:00|PLAIN|entry:131313": "CRT 1H\u21925m DOUBLE_PURGE PLAIN|GBP/USD|2026-11-27 13:00:00|-1|PLAIN|entry:131313"
   },
-  "pending": [
-    {
-      "stream": "CRT 1H\u219215m DOUBLE_PURGE PLAIN",
-      "pair": "AUD/CHF",
-      "ticket_id": "#TTD-0053",
-      "message_id": 2561,
-      "message_ids": {
-        "-1004423692487": 2561,
-        "6937879685": 4855,
-        "7080941387": 4856
-      },
-      "edit_chat_id": "-1004423692487",
-      "direction": 1,
-      "side": "BUY",
-      "entry": 0.5565,
-      "stop": 0.5561,
-      "tp1": 0.5574250000000001,
-      "tp2": 0.55835,
-      "rr1": 2.3125000000004166,
-      "rr2": 4.625000000000555,
-      "risk_pips": 3.9999999999995595,
-      "tp1_pips": 9.250000000000647,
-      "tp2_pips": 18.50000000000018,
-      "prop_stop": 0.5558000000000001,
-      "prop_risk_pips": 6.999999999999229,
-      "prop_buffer_pips": 3.0,
-      "crh": 0.55835,
-      "crl": 0.5565,
-      "mid": 0.5574250000000001,
-      "candle_time": "2026-11-27 12:15:00",
-      "c2_time": "2026-11-27 12:00:00",
-      "signal_sent": "2026-11-27T13:03:04.218087+00:00",
-      "session": "London/NY Overlap",
-      "c1_tf": "1h",
-      "ltf": "15min",
-      "entry_model": "PLAIN",
-      "candle_key": "CRT 1H\u219215m DOUBLE_PURGE PLAIN|AUD/CHF|2026-11-27 12:00:00|1|PLAIN",
-      "setup_uid": "AUD/CHF|1|2026-11-27 12:00|0.55835|0.55650",
-      "status": "TP1_HIT",
-      "tp1_hit": true,
-      "last_checked_index": 398,
-      "last_checked_time": "2026-11-27 14:15:00"
-    }
-  ],
+  "pending": [],
   "weekly_report_id": "2026-W47",
   "monthly_report_id": null,
   "yearly_report_id": null,
@@ -738,7 +695,7 @@
       "ts": 1795790011.9432573
     }
   },
-  "last_scan_utc": "2026-11-27T14:47:08.998085+00:00",
+  "last_scan_utc": "2026-11-27T14:52:12.342763+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0,
   "risk_wait": {}
