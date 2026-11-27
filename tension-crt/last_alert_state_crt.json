@@ -713,8 +713,8 @@
       "setup_uid": "AUD/CHF|1|2026-11-27 12:00|0.55835|0.55650",
       "status": "ACTIVE",
       "tp1_hit": false,
-      "last_checked_index": 396,
-      "last_checked_time": "2026-11-27 12:15:00"
+      "last_checked_index": 398,
+      "last_checked_time": "2026-11-27 12:45:00"
     }
   ],
   "weekly_report_id": "2026-W47",
@@ -723,7 +723,7 @@
   "strategy_start": "2026-11-15",
   "last_update_id": 367135422,
   "cmd_guard": {},
-  "last_scan_utc": "2026-11-27T13:03:08.078791+00:00",
+  "last_scan_utc": "2026-11-27T13:07:17.984878+00:00",
   "last_scan_ok": true,
   "scan_fail_streak": 0
 }
